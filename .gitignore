@@ -37,3 +37,15 @@ postgres_data/
 # Environment variable files
 .env
 .env.*
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+*.pnp
+.pnp.js
+.yarn/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
