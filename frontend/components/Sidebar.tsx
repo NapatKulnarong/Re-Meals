@@ -8,16 +8,21 @@ import Image from "next/image";
 type SidebarProps = {
   activeTab: number;                  // Which tab is currently selected
   onTabChange: (tab: number) => void; // Function to update the selected tab
+  onAuthClick: () => void;            // callback for auth button
 };
 
-export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
+export default function Sidebar({
+  activeTab,
+  onTabChange,
+  onAuthClick,
+}: SidebarProps) {
   // Create an array [1, 2, 3, 4, 5, 6, 7] for the nav buttons
   const tabs = Array.from({ length: 7 }, (_, i) => i + 1);
 
   return (
-    // Sidebar container: full height, fixed width, vertical layout
-    <aside className="flex h-screen w-64 flex-col border-r border-gray-200 bg-[#EEE3D2] px-4 py-6">
-      
+    // Sidebar container: flex-col + justify-between lets us push the auth button to the bottom
+    <aside className="flex h-screen w-64 flex-col justify-between border-r border-gray-200 bg-[#EEE3D2] px-4 py-6">
+      <div>
       {/* LOGO + WEBSITE NAME SECTION */}
       <div className="mb-8 flex items-center gap-3 px-2">
         <Image
@@ -61,6 +66,18 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           );
         })}
       </nav>
+      </div>
+
+      {/* Bottom section: Sign up / Login button */}
+      <div className="mt-6 border-t border-gray-300 pt-4">
+        <button
+            onClick={onAuthClick}
+            className="w-full rounded-xl bg-gray-900 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-gray-800"
+        >
+            Sign up / Login
+        </button>
+
+      </div>
 
     </aside>
   );
