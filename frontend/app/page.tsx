@@ -1,26 +1,45 @@
-"use client";
+"use client"; 
 
 import Image from 'next/image'
+import {useState} from "react"; // React hook for tracking active tab
+
+import Sidebar from '@/components/Sidebar';
+
+// Component to display the content of the active tab
+function TabContent({ tab }: {tab: number}) {
+  return (
+    // Simple card-style content area
+    <div className="rounded-xl bg-white p-10 shadow text-center">
+      <h1 className="text-3xl font-bold text-gray-900">
+        Part {tab}   {/* Display which part is active */}
+      </h1>
+
+      <p className="mt-3 text-gray-600">
+        This is a blank page for Part {tab}. You’ll add real content later.
+      </p>
+    </div>
+  );
+}
+
 
 export default function Home() {
+  // React state: keeps track of which tab is selected
+  // Default = Part 1
+  const [activeTab, setActiveTab] = useState(1);
+
   return (
-    <main className="min-h-screen items-center justify-center bg-[#EEE3D2]">
-      <header className='flex items-center gap-3 p-6'>
-        <Image
-          src="/elements/logo_remeals.png"
-          alt="ReMeals logo"
-          width={65}
-          height={65}
-          priority
-        />
-      </header>
-      <section className="rounded-xl bg-white p-10 shadow-lg text-center">
-        <h1 className="text-4xl font-bold text-gray-900">ReMeals</h1>
-        <p className="mt-4 text-gray-600">
-          Welcome to your new Next.js app. Customize this section to introduce the product, add CTA buttons, etc.
-        </p>
-      </section>
-      
+
+    <main className="min-h-screen items-center justify-center bg-white">
+
+      {/* --- SIDEBAR SECTION --- */}
+      {/* Pass activeTab + function to update it */}
+      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {/* --- MAIN CONTENT AREA --- */}
+      <section className="flex-1 p-8">
+         {/* Dynamically shows content of current tab */}
+         <TabContent tab={activeTab} />
+       </section> 
     </main>
   )
 }
