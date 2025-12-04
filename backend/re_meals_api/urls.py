@@ -42,6 +42,7 @@ urlpatterns = [
     path("api/", include("restaurants.urls")),
     path("api/", include("donation.urls")),
     path("api/", include("fooditem.urls")),
+    path("api/", include("impactrecord.urls")),
     path("swagger/", schema_view.with_ui("swagger", cache_timeout=0), name="swagger-ui"),
     path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="redoc-ui"),
 ]
