@@ -5,6 +5,7 @@ from rest_framework.test import APITestCase, APIClient
 
 from .models import Donation
 from restaurants.models import Restaurant
+from restaurant_chain.models import RestaurantChain
 
 
 class DonationTests(APITestCase):
@@ -12,12 +13,17 @@ class DonationTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
 
+        self.chain = RestaurantChain.objects.create(
+            chain_id="CHAIN01",
+            chain_name="KFC Group",
+        )
         self.restaurant = Restaurant.objects.create(
             restaurant_id="R001",
             address="Bangkok",
             name="KFC",
             branch_name="Central",
-            is_chain=True
+            is_chain=True,
+            chain=self.chain,
         )
 
     # 1. Create donation successfully
@@ -145,12 +151,14 @@ class DonationTests(APITestCase):
     def test_cannot_change_restaurant_fk(self):
         Donation.objects.create(donation_id="D001", restaurant=self.restaurant)
 
+        r2_chain = RestaurantChain.objects.create(chain_id="CHAIN02", chain_name="Pizza Group")
         r2 = Restaurant.objects.create(
             restaurant_id="R002",
             address="X",
             name="X",
             branch_name="X",
             is_chain=False,
+            chain=r2_chain,
         )
 
         response = self.client.patch("/api/donations/D001/", {"restaurant": "R002"}, format="json")
@@ -211,8 +219,14 @@ class DonationTests(APITestCase):
     def test_put_cannot_change_restaurant(self):
         Donation.objects.create(donation_id="D1", restaurant=self.restaurant, status=False)
 
+        r2_chain = RestaurantChain.objects.create(chain_id="CHAIN03", chain_name="Burger Group")
         r2 = Restaurant.objects.create(
-            restaurant_id="R002", address="X", name="X", branch_name="X", is_chain=False
+            restaurant_id="R002",
+            address="X",
+            name="X",
+            branch_name="X",
+            is_chain=False,
+            chain=r2_chain,
         )
 
         data = {
