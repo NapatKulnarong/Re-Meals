@@ -8,28 +8,24 @@ from donation.models import Donation
         
 class DeliverySerializer(serializers.ModelSerializer):
     user_id = serializers.SlugRelatedField(
-        source="user_id",
         slug_field="user_id",
         queryset=User.objects.all(),
         allow_null=True,
-        required=False
+        required=False,
     )
     warehouse_id = serializers.SlugRelatedField(
-        source="warehouse_id",
         slug_field="warehouse_id",
         queryset=Warehouse.objects.all(),
         allow_null=True,
-        required=False
+        required=False,
     )
     community_id = serializers.SlugRelatedField(
-        source="community_id",
         slug_field="community_id",
         queryset=Community.objects.all(),
         allow_null=True,
-        required=False
+        required=False,
     )
     donation_id = serializers.SlugRelatedField(
-        source="donation_id",
         slug_field="donation_id",
         queryset=Donation.objects.all(),
         allow_null=True,
