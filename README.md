@@ -129,23 +129,34 @@ docker-compose up -d
 ```
 remeals/
 ├── backend/
-│   ├── src/
-│   │   ├── controllers/
-│   │   ├── models/
-│   │   ├── routes/
-│   │   └── services/
-│   └── tests/
+│   ├── community/
+│   ├── delivery/
+│   ├── donation/
+│   ├── fooditem/
+│   ├── impactrecord/
+│   ├── re_meals_api/
+│   ├── restaurants/
+│   ├── user/
+│   ├── warehouse/
+│   ├── manage.py
+│   └── requirements.txt
+│    
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
 │   │   ├── pages/
 │   │   └── utils/
 │   └── public/
-├── database/
-│   ├── migrations/
-│   └── schema.sql
-└── docs/
-    └── db-diagram.png
+│
+├── .gitignore
+│
+├──docker-compose.yml
+│
+├── Dockerfile
+│
+├── LICENSE
+│    
+└── README.md
 ```
 
 ## 🤝 Contributing
