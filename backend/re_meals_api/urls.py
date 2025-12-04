@@ -36,6 +36,8 @@ urlpatterns = [
     path("", lambda r: HttpResponse("Re-Meals API Running 🎉")),
     path("admin/", admin.site.urls),
     path("api/users/", include("users.urls")),
+    path("api/community/", include("community.urls")),
+    path("api/warehouse/", include("warehouse.urls")),
     path("api/", include("restaurants.urls")),
     path("api/", include("donation.urls")),
     path("swagger/", schema_view.with_ui("swagger", cache_timeout=0), name="swagger-ui"),
