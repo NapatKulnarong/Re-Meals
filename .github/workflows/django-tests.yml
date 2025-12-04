@@ -27,7 +27,7 @@ jobs:
       POSTGRES_USER: testuser
       POSTGRES_PASSWORD: testpass
       POSTGRES_DB: testdb
-      POSTGRES_HOST: postgres
+      POSTGRES_HOST: 127.0.0.1
       POSTGRES_PORT: 5432
       PYTHONUNBUFFERED: 1
 
