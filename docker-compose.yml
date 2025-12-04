@@ -21,6 +21,7 @@ services:
       - remeals
 
   frontend:
+    profiles: ["frontend-disabled"]
     build:
       context: .                     
       dockerfile: Dockerfile
