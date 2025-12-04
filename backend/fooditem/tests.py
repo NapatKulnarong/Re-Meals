@@ -4,6 +4,7 @@ from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 
 from restaurants.models import Restaurant
+from restaurant_chain.models import RestaurantChain
 from donation.models import Donation
 from .models import FoodItem
 
@@ -13,13 +14,19 @@ class FoodItemTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
 
+        self.chain = RestaurantChain.objects.create(
+            chain_id="CHAIN001",
+            chain_name="KFC Group",
+        )
+
         # Create base restaurant
         self.restaurant = Restaurant.objects.create(
             restaurant_id="R0001",
             address="Bangkok",
             name="KFC",
             branch_name="Central World",
-            is_chain=False
+            is_chain=False,
+            chain=self.chain,
         )
 
         # reusable expiration helpers
@@ -186,9 +193,7 @@ class FoodItemTests(APITestCase):
         )
 
         # Second donation
-        donation2 = Donation.objects.create(
-            donation_id="D0002", restaurant=self.restaurant
-        )
+        donation2 = Donation.objects.create(donation_id="D0002", restaurant=self.restaurant)
         FoodItem.objects.create(
             food_id="F0002", name="Soup", quantity=2,
             unit="cup", expire_date=self.future_expire, donation=donation2
@@ -236,6 +241,32 @@ class FoodItemTests(APITestCase):
 
         res = self.client.post("/api/fooditems/", data, format="json")
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_fooditem_chain_properties(self):
+        branch = Restaurant.objects.create(
+            restaurant_id="R0002",
+            address="Bangkok",
+            name="KFC",
+            branch_name="Siam",
+            is_chain=False,
+            chain=self.chain,
+        )
+        donation = Donation.objects.create(donation_id="DCHAIN", restaurant=branch)
+        item = FoodItem.objects.create(
+            food_id="FCHAIN",
+            name="Chicken Bucket",
+            quantity=3,
+            unit="bucket",
+            expire_date=self.future_expire,
+            donation=donation,
+        )
+
+        self.assertIsNotNone(item.donation.restaurant.chain)
+        self.assertEqual(item.donation.restaurant.chain_id, self.chain.chain_id)
+        self.assertEqual(
+            item.donation.restaurant.chain.chain_name,
+            "KFC Group",
+        )
 
 
     # 12. List only expired items

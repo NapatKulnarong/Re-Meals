@@ -1,4 +1,5 @@
 from django.db import models
+from restaurant_chain.models import RestaurantChain
 
 
 class Restaurant(models.Model):
@@ -9,12 +10,12 @@ class Restaurant(models.Model):
     is_chain = models.BooleanField(default=False)
 
     chain = models.ForeignKey(
-        "self",
+        RestaurantChain,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         db_column="chain_id",
-        related_name="branches",
+        related_name="restaurants",
     )
 
     class Meta:

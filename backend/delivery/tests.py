@@ -9,6 +9,7 @@ from users.models import User as DomainUser
 from warehouse.models import Warehouse
 from community.models import Community
 from restaurants.models import Restaurant
+from restaurant_chain.models import RestaurantChain
 from donation.models import Donation
 from .models import Delivery
 
@@ -35,12 +36,14 @@ class DeliveryAPITests(APITestCase):
             population=120,
             warehouse_id=self.warehouse,
         )
+        self.chain = RestaurantChain.objects.create(chain_id="CHAIN01", chain_name="KFC Group")
         self.restaurant = Restaurant.objects.create(
             restaurant_id="R001",
             address="77 Food Park",
             name="GoodEats",
             branch_name="Central",
             is_chain=False,
+            chain=self.chain,
         )
         self.donation = Donation.objects.create(
             donation_id="DN001",

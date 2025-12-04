@@ -39,6 +39,7 @@ urlpatterns = [
     path("api/community/", include("community.urls")),
     path("api/warehouse/", include("warehouse.urls")),
     path("api/delivery/", include("delivery.urls")),
+    path("api/", include("restaurant_chain.urls")),
     path("api/", include("restaurants.urls")),
     path("api/", include("donation.urls")),
     path("api/", include("fooditem.urls")),
