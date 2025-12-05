@@ -1,9 +1,6 @@
 "use client"; 
 // This marks the component as a Client Component (required because we use state + event handlers)
 
-import Image from "next/image";
-// Import Next.js optimized Image component
-
 // Props definition: Sidebar receives the active tab number and a function to change tabs
 type SidebarProps = {
   activeTab: number;                  // Which tab is currently selected
@@ -23,14 +20,15 @@ export default function Sidebar({
     // Sidebar container: flex-col + justify-between lets us push the auth button to the bottom
     <aside
         className="
-            relative z-10            /* make sure sidebar sits above content */
-            m-4                      /* small outer margin so it looks like a card */
+            sticky top-4            /* lock sidebar position */
+            z-10                    
+            m-4                     
             flex h-[calc(100vh-2rem)] w-64 flex-col justify-between
-            rounded-3xl              /* big rounded corners */
-            bg-white/75              /* white card, slightly transparent */
+            rounded-3xl             
+            bg-white/75             
             px-4 py-6
-            shadow-2xl shadow-black/15 /* strong but soft shadow */
-            border border-black/5    /* subtle border to define edges */
+            shadow-2xl shadow-black/15 
+            border border-black/5    
             "
     >
       <div>

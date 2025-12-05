@@ -53,7 +53,8 @@ INSTALLED_APPS = [
     'community',
     'warehouse',
     "delivery",
-    "restaurant_chain"
+    "restaurant_chain",
+    "donation_request",
 ]
 
 MIDDLEWARE = [
