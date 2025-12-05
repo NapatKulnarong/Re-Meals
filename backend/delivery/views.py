@@ -11,7 +11,7 @@ class DeliveryViewSet(viewsets.ModelViewSet):
         "community_id",
     ).all()
     serializer_class = DeliverySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
         queryset = self.queryset

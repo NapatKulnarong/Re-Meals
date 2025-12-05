@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 
 const API_BASE_URL =
@@ -32,6 +32,9 @@ type FormStatus = {
 type LoggedUser = {
   username: string;
   email: string;
+  userId: string;
+  isAdmin: boolean;
+  isDeliveryStaff: boolean;
 };
 
 type Restaurant = {
@@ -96,6 +99,12 @@ type PopularSearchOption = {
 
 type SearchSuggestionOption = RestaurantSearchOption | PopularSearchOption;
 
+type NavItem = {
+  id: number;
+  label: string;
+  icon?: ReactNode;
+};
+
 type RequestNeed = {
   id: string;
   item: string;
@@ -150,6 +159,45 @@ type DonationRequestApiRecord = {
     quantity: number;
     urgency: string;
   }>;
+};
+
+type Warehouse = {
+  warehouse_id: string;
+  address: string;
+  capacity: number;
+  stored_date: string;
+  exp_date: string;
+};
+
+type Community = {
+  community_id: string;
+  name: string;
+  address: string;
+  received_time: string;
+  population: number;
+  warehouse_id: string;
+};
+
+type DeliveryStaffInfo = {
+  user_id: string;
+  username: string;
+  name: string;
+  email: string;
+  assigned_area: string;
+  is_available: boolean;
+};
+
+type DeliveryRecordApi = {
+  delivery_id: string;
+  delivery_type: "donation" | "distribution";
+  pickup_time: string;
+  dropoff_time: string;
+  pickup_location_type: "restaurant" | "warehouse";
+  dropoff_location_type: "warehouse" | "community";
+  warehouse_id: string;
+  user_id: string;
+  donation_id: string;
+  community_id: string;
 };
 
 const POPULAR_RESTAURANT_SUGGESTIONS: RestaurantSuggestion[] = [
@@ -253,6 +301,15 @@ const generateRequestId = (() => {
   };
 })();
 
+const generateDeliveryId = (() => {
+  let counter = 1;
+  return () => {
+    const id = `dlv-${counter.toString().padStart(3, "0")}`;
+    counter += 1;
+    return id;
+  };
+})();
+
 const getCurrentTimestamp = () => new Date().toISOString();
 
 const formatDisplayDate = (value: string) => {
@@ -321,12 +378,24 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 }
 
 // Content of each tab
-function TabContent({ tab }: { tab: number }) {
+function TabContent({ tab, currentUser }: { tab: number; currentUser: LoggedUser | null }) {
   if (tab === 1) {
     return <DonationSection />;
   }
   if (tab === 2) {
     return <DonationRequestSection />;
+  }
+  if (tab === 3) {
+    if (currentUser?.isAdmin) {
+      return <AdminDashboard />;
+    }
+    return <AccessDenied message="Admin access required." />;
+  }
+  if (tab === 4) {
+    if (currentUser?.isAdmin || currentUser?.isDeliveryStaff) {
+      return <DeliveryBoard currentUser={currentUser} />;
+    }
+    return <AccessDenied message="Delivery team access required." />;
   }
 
   return (
@@ -1746,6 +1815,579 @@ function DonationRequestSection() {
   );
 }
 
+function AccessDenied({ message }: { message: string }) {
+  return (
+    <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+      {message}
+    </div>
+  );
+}
+
+function AdminDashboard() {
+  const [donations, setDonations] = useState<DonationApiRecord[]>([]);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [donationData, restaurantData] = await Promise.all([
+          apiFetch<DonationApiRecord[]>("/donations/"),
+          apiFetch<Restaurant[]>("/restaurants/"),
+        ]);
+        if (!ignore) {
+          setDonations(donationData);
+          setRestaurants(restaurantData);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(err instanceof Error ? err.message : "Unable to load admin data.");
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    };
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const restaurantName = (id: string) => {
+    const match = restaurants.find((r) => r.restaurant_id === id);
+    return match ? `${match.name}${match.branch_name ? ` (${match.branch_name})` : ""}` : id;
+  };
+
+  const toggleStatus = async (donationId: string, nextStatus: boolean) => {
+    setUpdatingId(donationId);
+    try {
+      await apiFetch(`/donations/${donationId}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      setDonations((prev) =>
+        prev.map((donation) =>
+          donation.donation_id === donationId ? { ...donation, status: nextStatus } : donation
+        )
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update donation status.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-[28px] border border-[#F3C7A0] bg-[#FFF7EF] p-6 shadow-lg shadow-[#F2C08F]/30">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#C46A24]">
+              Admin console
+            </p>
+            <h2 className="text-2xl font-semibold text-gray-900">Manage donations</h2>
+            <p className="text-sm text-gray-600">
+              Mark donations as completed when pickup is finished to keep the queue tidy.
+            </p>
+          </div>
+          <div className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow">
+            {donations.filter((d) => !d.status).length} pending / {donations.length} total
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="mt-4 text-sm text-gray-600">Loading donations...</p>
+        ) : error ? (
+          <p className="mt-4 text-sm text-red-600">{error}</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {donations.map((donation) => (
+              <div
+                key={donation.donation_id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#F3C7A0] bg-white px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {restaurantName(donation.restaurant)}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    ID: {donation.donation_id} • Created {formatDisplayDate(donation.donated_at)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      donation.status
+                        ? "bg-[#E6F7EE] text-[#1F4D36]"
+                        : "bg-[#FFF1E3] text-[#C46A24]"
+                    }`}
+                  >
+                    {donation.status ? "Completed" : "Pending"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleStatus(donation.donation_id, !donation.status)}
+                    disabled={updatingId === donation.donation_id}
+                    className="rounded-full border border-[#F3C7A0] px-4 py-2 text-xs font-semibold text-[#8B4C1F] transition hover:bg-[#FFF1E3] disabled:opacity-60"
+                  >
+                    {donation.status ? "Mark pending" : "Mark completed"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
+  const [donations, setDonations] = useState<DonationApiRecord[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [staff, setStaff] = useState<DeliveryStaffInfo[]>([]);
+  const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [pickupForm, setPickupForm] = useState({
+    deliveryId: generateDeliveryId(),
+    donationId: "",
+    warehouseId: "",
+    communityId: "",
+    userId: "",
+    pickupTime: "",
+    dropoffTime: "02:00:00",
+  });
+
+  const [distributionForm, setDistributionForm] = useState({
+    deliveryId: generateDeliveryId(),
+    donationId: "",
+    warehouseId: "",
+    communityId: "",
+    userId: "",
+    pickupTime: "",
+    dropoffTime: "03:00:00",
+  });
+
+  const canEdit = currentUser?.isAdmin ?? false;
+  const currentUserId = currentUser?.userId ?? "";
+
+  const normalizeDuration = (value: string) => {
+    if (!value) {
+      return "01:00:00";
+    }
+    const parts = value.split(":");
+    if (parts.length === 2) {
+      return `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}:00`;
+    }
+    if (parts.length === 1) {
+      return `${parts[0].padStart(2, "0")}:00:00`;
+    }
+    return value;
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [donationData, warehouseData, communityData, staffData, deliveryData, restaurantData] =
+        await Promise.all([
+          apiFetch<DonationApiRecord[]>("/donations/"),
+          apiFetch<Warehouse[]>("/warehouse/warehouses/"),
+          apiFetch<Community[]>("/community/communities/"),
+          apiFetch<DeliveryStaffInfo[]>("/users/delivery-staff/"),
+          apiFetch<DeliveryRecordApi[]>("/deliveries/"),
+          apiFetch<Restaurant[]>("/restaurants/"),
+        ]);
+      setDonations(donationData);
+      setWarehouses(warehouseData);
+      setCommunities(communityData);
+      setStaff(staffData);
+      setDeliveries(deliveryData);
+      setRestaurants(restaurantData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load delivery data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleSubmitDelivery = async (
+    form: typeof pickupForm,
+    mode: "pickup" | "distribution"
+  ) => {
+    setSubmitting(true);
+    setNotice(null);
+    setError(null);
+    try {
+      if (!form.donationId || !form.warehouseId || !form.communityId || !form.userId) {
+        throw new Error("Fill in donation, warehouse, community, and delivery staff.");
+      }
+      if (!form.pickupTime) {
+        throw new Error("Pickup time is required.");
+      }
+      const payload = {
+        delivery_id: form.deliveryId || generateDeliveryId(),
+        delivery_type: mode === "pickup" ? "donation" : "distribution",
+        pickup_time: new Date(form.pickupTime).toISOString(),
+        dropoff_time: normalizeDuration(form.dropoffTime),
+        pickup_location_type: mode === "pickup" ? "restaurant" : "warehouse",
+        dropoff_location_type: mode === "pickup" ? "warehouse" : "community",
+        warehouse_id: form.warehouseId,
+        user_id: form.userId,
+        donation_id: form.donationId,
+        community_id: form.communityId,
+      };
+
+      await apiFetch("/deliveries/", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      setNotice("Delivery assignment saved.");
+      await loadData();
+      if (mode === "pickup") {
+        setPickupForm({
+          deliveryId: generateDeliveryId(),
+          donationId: "",
+          warehouseId: "",
+          communityId: "",
+          userId: "",
+          pickupTime: "",
+          dropoffTime: "02:00:00",
+        });
+      } else {
+        setDistributionForm({
+          deliveryId: generateDeliveryId(),
+          donationId: "",
+          warehouseId: "",
+          communityId: "",
+          userId: "",
+          pickupTime: "",
+          dropoffTime: "03:00:00",
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save delivery assignment.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const visibleDeliveries = canEdit
+    ? deliveries
+    : deliveries.filter((delivery) => delivery.user_id === currentUserId);
+
+  const lookupRestaurantName = (donationId: string) => {
+    const donation = donations.find((d) => d.donation_id === donationId);
+    if (!donation) return donationId;
+    const match = restaurants.find((r) => r.restaurant_id === donation.restaurant);
+    return match ? `${match.name}${match.branch_name ? ` (${match.branch_name})` : ""}` : donationId;
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-[28px] border border-[#F3C7A0] bg-[#FFF7EF] p-6 shadow-lg shadow-[#F2C08F]/30">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#C46A24]">
+              Delivery board
+            </p>
+            <h2 className="text-2xl font-semibold text-gray-900">
+              Assign pickups and drop-offs
+            </h2>
+            <p className="text-sm text-gray-600">
+              Link donations to warehouses and communities with a delivery staff contact.
+            </p>
+          </div>
+          <div className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow">
+            {visibleDeliveries.length} task(s)
+          </div>
+        </div>
+
+        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+        {notice && <p className="mt-4 text-sm text-emerald-600">{notice}</p>}
+
+        {loading ? (
+          <p className="mt-4 text-sm text-gray-600">Loading delivery data...</p>
+        ) : (
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <div className="space-y-3 rounded-2xl border border-[#F3C7A0] bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-900">Pickup to warehouse</p>
+                <span className="text-xs text-gray-500">From restaurant</span>
+              </div>
+              <div className="grid gap-3">
+                <select
+                  className={INPUT_STYLES}
+                  value={pickupForm.donationId}
+                  onChange={(e) => setPickupForm((prev) => ({ ...prev, donationId: e.target.value }))}
+                >
+                  <option value="">Select donation</option>
+                  {donations.map((donation) => (
+                    <option key={donation.donation_id} value={donation.donation_id}>
+                      {donation.donation_id} • {lookupRestaurantName(donation.donation_id)}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className={INPUT_STYLES}
+                  value={pickupForm.warehouseId}
+                  onChange={(e) => setPickupForm((prev) => ({ ...prev, warehouseId: e.target.value }))}
+                >
+                  <option value="">Select warehouse</option>
+                  {warehouses.map((warehouse) => (
+                    <option key={warehouse.warehouse_id} value={warehouse.warehouse_id}>
+                      {warehouse.warehouse_id} — {warehouse.address}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className={INPUT_STYLES}
+                  value={pickupForm.communityId}
+                  onChange={(e) => setPickupForm((prev) => ({ ...prev, communityId: e.target.value }))}
+                >
+                  <option value="">Select community</option>
+                  {communities.map((community) => (
+                    <option key={community.community_id} value={community.community_id}>
+                      {community.name} ({community.community_id})
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className={INPUT_STYLES}
+                  value={pickupForm.userId}
+                  onChange={(e) => setPickupForm((prev) => ({ ...prev, userId: e.target.value }))}
+                >
+                  <option value="">Assign delivery staff</option>
+                  {staff.map((member) => (
+                    <option key={member.user_id} value={member.user_id}>
+                      {member.name || member.username} ({member.assigned_area || "area n/a"})
+                    </option>
+                  ))}
+                </select>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">
+                      Pickup time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      className={INPUT_STYLES}
+                      value={pickupForm.pickupTime}
+                      onChange={(e) =>
+                        setPickupForm((prev) => ({ ...prev, pickupTime: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">
+                      Transit duration (HH:MM)
+                    </label>
+                    <input
+                      type="text"
+                      className={INPUT_STYLES}
+                      placeholder="02:00"
+                      value={pickupForm.dropoffTime}
+                      onChange={(e) =>
+                        setPickupForm((prev) => ({ ...prev, dropoffTime: e.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+                {canEdit && (
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => handleSubmitDelivery(pickupForm, "pickup")}
+                    className="mt-2 w-full rounded-xl bg-[#E48A3A] px-4 py-3 text-sm font-semibold text-white shadow transition hover:bg-[#D37623] disabled:opacity-60"
+                  >
+                    Save pickup assignment
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-2xl border border-[#F3C7A0] bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-900">Deliver to community</p>
+                <span className="text-xs text-gray-500">From warehouse</span>
+              </div>
+              <div className="grid gap-3">
+                <select
+                  className={INPUT_STYLES}
+                  value={distributionForm.donationId}
+                  onChange={(e) =>
+                    setDistributionForm((prev) => ({ ...prev, donationId: e.target.value }))
+                  }
+                >
+                  <option value="">Select donation</option>
+                  {donations.map((donation) => (
+                    <option key={donation.donation_id} value={donation.donation_id}>
+                      {donation.donation_id} • {lookupRestaurantName(donation.donation_id)}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className={INPUT_STYLES}
+                  value={distributionForm.warehouseId}
+                  onChange={(e) =>
+                    setDistributionForm((prev) => ({ ...prev, warehouseId: e.target.value }))
+                  }
+                >
+                  <option value="">Select warehouse</option>
+                  {warehouses.map((warehouse) => (
+                    <option key={warehouse.warehouse_id} value={warehouse.warehouse_id}>
+                      {warehouse.warehouse_id} — {warehouse.address}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className={INPUT_STYLES}
+                  value={distributionForm.communityId}
+                  onChange={(e) =>
+                    setDistributionForm((prev) => ({ ...prev, communityId: e.target.value }))
+                  }
+                >
+                  <option value="">Select community</option>
+                  {communities.map((community) => (
+                    <option key={community.community_id} value={community.community_id}>
+                      {community.name} ({community.community_id})
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className={INPUT_STYLES}
+                  value={distributionForm.userId}
+                  onChange={(e) =>
+                    setDistributionForm((prev) => ({ ...prev, userId: e.target.value }))
+                  }
+                >
+                  <option value="">Assign delivery staff</option>
+                  {staff.map((member) => (
+                    <option key={member.user_id} value={member.user_id}>
+                      {member.name || member.username} ({member.assigned_area || "area n/a"})
+                    </option>
+                  ))}
+                </select>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">
+                      Pickup time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      className={INPUT_STYLES}
+                      value={distributionForm.pickupTime}
+                      onChange={(e) =>
+                        setDistributionForm((prev) => ({ ...prev, pickupTime: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">
+                      Transit duration (HH:MM)
+                    </label>
+                    <input
+                      type="text"
+                      className={INPUT_STYLES}
+                      placeholder="03:00"
+                      value={distributionForm.dropoffTime}
+                      onChange={(e) =>
+                        setDistributionForm((prev) => ({ ...prev, dropoffTime: e.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+                {(canEdit || currentUser?.isDeliveryStaff) && (
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => handleSubmitDelivery(distributionForm, "distribution")}
+                    className="mt-2 w-full rounded-xl bg-[#E48A3A] px-4 py-3 text-sm font-semibold text-white shadow transition hover:bg-[#D37623] disabled:opacity-60"
+                  >
+                    Save community delivery
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-4 rounded-[28px] border border-[#CFE6D8] bg-[#F6FBF7] p-6 shadow-lg shadow-[#B6DEC8]/30">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#2F855A]">
+              Delivery queue
+            </p>
+            <h3 className="text-xl font-semibold text-gray-900">
+              {canEdit ? "All tasks" : "My assigned tasks"}
+            </h3>
+          </div>
+          <span className="text-xs text-gray-500">{visibleDeliveries.length} active</span>
+        </div>
+        {loading ? (
+          <p className="text-sm text-gray-600">Loading tasks...</p>
+        ) : visibleDeliveries.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-gray-200 bg-white/70 p-4 text-sm text-gray-600">
+            No delivery tasks yet.
+          </p>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {visibleDeliveries.map((delivery) => (
+              <div
+                key={delivery.delivery_id}
+                className="space-y-2 rounded-2xl border border-[#CFE6D8] bg-white p-4 shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-900">
+                    {delivery.delivery_type === "donation"
+                      ? "Pickup to warehouse"
+                      : "Deliver to community"}
+                  </p>
+                  <span className="text-xs font-semibold text-[#2F855A]">
+                    {delivery.delivery_id}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Donation: {lookupRestaurantName(delivery.donation_id)}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Warehouse: {delivery.warehouse_id} • Community: {delivery.community_id}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Staff: {delivery.user_id} • Pickup: {formatDisplayDate(delivery.pickup_time)}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Transit: {delivery.dropoff_time} • From {delivery.pickup_location_type} →{" "}
+                  {delivery.dropoff_location_type}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Modal (popup) component
 
 function extractErrorMessage(responseBody: unknown) {
@@ -1894,6 +2536,9 @@ function AuthModal({
         onAuthSuccess?.({
           username: payload.username,
           email: payload.email,
+          userId: payload.user_id ?? "",
+          isAdmin: Boolean(payload.is_admin),
+          isDeliveryStaff: Boolean(payload.is_delivery_staff),
         });
         onClose();
       }
@@ -2143,26 +2788,54 @@ function AuthModal({
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState(1);          // which Part is active
+  const [activeTab, setActiveTab] = useState(1); // which Part is active
   const [showAuthModal, setShowAuthModal] = useState(false); // whether popup is visible
   const [authMode, setAuthMode] = useState<AuthMode>("signup"); // current auth tab
   const [currentUser, setCurrentUser] = useState<LoggedUser | null>(null);
+
+  const navItems: NavItem[] = currentUser?.isAdmin
+    ? [
+        { id: 3, label: "Dashboard", icon: <span aria-hidden>🛠️</span> },
+        { id: 4, label: "Delivery", icon: <span aria-hidden>🚚</span> },
+      ]
+    : [
+        ...(currentUser?.isDeliveryStaff
+          ? [{ id: 4, label: "Delivery board", icon: <span aria-hidden>🚚</span> }]
+          : []),
+        { id: 1, label: "Donate", icon: <span aria-hidden>💚</span> },
+        { id: 2, label: "Request food", icon: <span aria-hidden>🍽️</span> },
+      ];
+
+  const normalizedActiveTab = useMemo(() => {
+    if (!currentUser && activeTab > 2) {
+      return 1;
+    }
+    if (currentUser?.isAdmin && activeTab < 3) {
+      return 3;
+    }
+    if (!currentUser?.isAdmin && currentUser?.isDeliveryStaff && activeTab < 4) {
+      return 4;
+    }
+    return activeTab;
+  }, [activeTab, currentUser]);
 
   return (
     <main className="relative flex min-h-screen items-start bg-white">
       {/* Sidebar on the left */}
       <Sidebar
-        activeTab={activeTab}
+        activeTab={normalizedActiveTab}
         onTabChange={setActiveTab}
         onAuthClick={() => {
-          setAuthMode("signup");      // open with Sign up tab active
-          setShowAuthModal(true);     // show popup
-       }}
+          setAuthMode("signup"); // open with Sign up tab active
+          setShowAuthModal(true); // show popup
+        }}
+        tabs={navItems}
+        isAdmin={currentUser?.isAdmin}
       />
       {/* Right side: content area */}
       {/* relative is IMPORTANT so the modal overlay stays inside this area only */}
       <section className="relative flex-1 h-screen overflow-y-auto p-8">
-        <TabContent tab={activeTab} />
+        <TabContent tab={normalizedActiveTab} currentUser={currentUser} />
 
         {currentUser && (
           <div className="mt-6 rounded-2xl border border-gray-200 bg-white/80 px-4 py-3 text-sm text-gray-700 shadow-sm">
@@ -2178,7 +2851,17 @@ export default function Home() {
             mode={authMode}
             onModeChange={setAuthMode}
             onClose={() => setShowAuthModal(false)}
-            onAuthSuccess={setCurrentUser}
+            onAuthSuccess={(user) => {
+              setCurrentUser(user);
+              if (user.isAdmin) {
+                setActiveTab(3);
+              } else if (user.isDeliveryStaff) {
+                setActiveTab(4);
+              } else {
+                setActiveTab(1);
+              }
+              setShowAuthModal(false);
+            }}
           />
         )}
       </section>
