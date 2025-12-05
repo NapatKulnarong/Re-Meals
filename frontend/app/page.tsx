@@ -331,10 +331,6 @@ function TabContent({ tab }: { tab: number }) {
 
   return (
     <div className="rounded-xl bg-[#FBFBFE] p-10 shadow text-center">
-      <h1 className="text-3xl font-bold text-gray-900">Part {tab}</h1>
-      <p className="mt-3 text-gray-600">
-        จับฉ่าย จับฉ่าย จับฉ่าย จับฉ่าย จับฉ่าย จับฉ่าย จับฉ่าย
-      </p>
     </div>
   );
 }
@@ -2153,7 +2149,7 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<LoggedUser | null>(null);
 
   return (
-    <main className="relative flex min-h-screen items-start bg-[#EEE3D2]">
+    <main className="relative flex min-h-screen items-start bg-white">
       {/* Sidebar on the left */}
       <Sidebar
         activeTab={activeTab}

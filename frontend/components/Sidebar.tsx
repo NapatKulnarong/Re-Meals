@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { FaceSmileIcon } from "@heroicons/react/24/outline";
 
 // This marks the component as a Client Component (required because we use state + event handlers)
@@ -52,12 +53,10 @@ export default function Sidebar({
     // Sidebar container: flex-col + justify-between lets us push the auth button to the bottom
     <aside
         className="
-            sticky top-4            /* lock sidebar position */
-            z-10                    
-            m-4                     
-            flex h-[calc(100vh-2rem)] w-64 flex-col justify-between
-            rounded-3xl             
-            bg-white/75             
+            sticky top-0            /* lock sidebar position */
+            z-10
+            flex h-screen w-64 flex-col justify-between
+            bg-[#F9F6F3]
             px-4 py-6
             shadow-2xl shadow-black/15 
             border border-black/5    
@@ -65,11 +64,19 @@ export default function Sidebar({
     >
       <div>
       {/* LOGO + WEBSITE NAME SECTION */}
-      
-      <div className="mb-5 flex items-center pt-3 px-4">
-        <span className="text-2xl font-semibold text-[#111828]">
-          Re-Meals
-        </span>
+      <div className="mb-6 px-0.5 pt-2">
+        <div className="flex items-center gap-1 rounded-2xl bg-white px-2 py-2">
+          <div className="flex h-16 w-16 items-center justify-center">
+            <Image
+              src="/elements/logo_re-meals.png"
+              alt="Re-Meals logo"
+              width={48}
+              height={48}
+              priority
+            />
+          </div>
+          <span className="text-[25px] font-semibold text-[#111828]">Re-Meals</span>
+        </div>
       </div>
 
 
