@@ -88,3 +88,52 @@ jobs:
     - name: Build frontend
       working-directory: frontend
       run: npm run build
+
+  docker-buildtest:
+    name: Docker Build & Run Check
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U testuser -d testdb"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: testdb
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build backend image
+      run: docker build -t remeals-backend-test -f Dockerfile .
+
+    - name: Run backend container
+      run: |
+        docker run --rm \
+          --add-host=host.docker.internal:host-gateway \
+          --network host \
+          -e POSTGRES_USER \
+          -e POSTGRES_PASSWORD \
+          -e POSTGRES_DB \
+          -e POSTGRES_HOST=127.0.0.1 \
+          -e POSTGRES_PORT \
+          remeals-backend-test \
+          sh -c "python manage.py migrate --noinput && python manage.py test --verbosity=1"
