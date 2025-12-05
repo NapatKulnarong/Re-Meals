@@ -563,3 +563,151 @@ class RestaurantTests(APITestCase):
         self.client.delete("/api/restaurants/D1/")
         self.assertEqual(Restaurant.objects.count(), 1)
         self.assertTrue(Restaurant.objects.filter(restaurant_id="D2").exists())
+
+    # 31. List endpoint returns empty list when no restaurants exist
+    def test_list_empty(self):
+        res = self.client.get("/api/restaurants/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data, [])
+
+    # 32. Partial update toggles is_chain flag
+    def test_patch_toggle_is_chain(self):
+        Restaurant.objects.create(
+            restaurant_id="T01",
+            address="Addr",
+            name="Toggle",
+            branch_name="Branch",
+            is_chain=False,
+        )
+
+        res = self.client.patch(
+            "/api/restaurants/T01/",
+            {"is_chain": True},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(Restaurant.objects.get(restaurant_id="T01").is_chain)
+
+    # 33. PUT request overwrites restaurant fields
+    def test_put_updates_all_fields(self):
+        Restaurant.objects.create(
+            restaurant_id="P01",
+            address="Old",
+            name="Old",
+            branch_name="Old",
+            is_chain=False,
+        )
+
+        payload = {
+            "restaurant_id": "P01",
+            "address": "New Address",
+            "name": "New Name",
+            "branch_name": "New Branch",
+            "is_chain": True,
+            "chain": None,
+        }
+        res = self.client.put("/api/restaurants/P01/", payload, format="json")
+        self.assertEqual(res.status_code, 200)
+        updated = Restaurant.objects.get(restaurant_id="P01")
+        self.assertEqual(updated.address, "New Address")
+        self.assertTrue(updated.is_chain)
+
+    # 34. Create restaurant without chain field defaults to None
+    def test_create_without_chain_field(self):
+        data = {
+            "restaurant_id": "NOC1",
+            "address": "Bangkok",
+            "name": "NoChain",
+            "branch_name": "Solo",
+            "is_chain": False,
+        }
+        res = self.client.post("/api/restaurants/", data, format="json")
+        self.assertEqual(res.status_code, 201)
+        self.assertIsNone(Restaurant.objects.get(restaurant_id="NOC1").chain)
+
+    # 35. Deleting non-existent restaurant returns 404
+    def test_delete_nonexistent_restaurant(self):
+        res = self.client.delete("/api/restaurants/UNKNOWN/")
+        self.assertEqual(res.status_code, 404)
+
+    # 36. Patching chain to invalid id should fail
+    def test_patch_invalid_chain_reference(self):
+        chain_obj = RestaurantChain.objects.create(
+            chain_id="CHAINOK",
+            chain_name="Ok Chain",
+        )
+        branch = Restaurant.objects.create(
+            restaurant_id="PATCH01",
+            address="Bangkok",
+            name="Branch",
+            branch_name="One",
+            is_chain=False,
+            chain=chain_obj,
+        )
+
+        res = self.client.patch(
+            f"/api/restaurants/{branch.restaurant_id}/",
+            {"chain": "DOES_NOT_EXIST"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 400)
+
+    # 37. PUT requires all mandatory fields
+    def test_put_missing_required_fields(self):
+        Restaurant.objects.create(
+            restaurant_id="PUTREQ",
+            address="Bangkok",
+            name="Req",
+            branch_name="ReqBranch",
+            is_chain=False,
+        )
+
+        payload = {
+            "restaurant_id": "PUTREQ",
+            "address": "Only Address",
+        }
+        res = self.client.put("/api/restaurants/PUTREQ/", payload, format="json")
+        self.assertEqual(res.status_code, 400)
+
+    # 38. Creating with blank name should be rejected
+    def test_create_blank_name(self):
+        data = {
+            "restaurant_id": "BLANK1",
+            "address": "Bangkok",
+            "name": "",
+            "branch_name": "Branch",
+            "is_chain": False,
+        }
+        res = self.client.post("/api/restaurants/", data, format="json")
+        self.assertEqual(res.status_code, 400)
+
+    # 39. Omitting is_chain defaults to False
+    def test_is_chain_defaults_false(self):
+        data = {
+            "restaurant_id": "DEF1",
+            "address": "Bangkok",
+            "name": "Default",
+            "branch_name": "Solo",
+        }
+        res = self.client.post("/api/restaurants/", data, format="json")
+        self.assertEqual(res.status_code, 201)
+        self.assertFalse(Restaurant.objects.get(restaurant_id="DEF1").is_chain)
+
+    # 40. Retrieve response includes chain id if set
+    def test_retrieve_contains_chain_value(self):
+        chain_obj = RestaurantChain.objects.create(
+            chain_id="INCLUDE1",
+            chain_name="Include Chain",
+        )
+        Restaurant.objects.create(
+            restaurant_id="INCLUDE1R",
+            address="Bangkok",
+            name="Include",
+            branch_name="Branch",
+            is_chain=False,
+            chain=chain_obj,
+        )
+
+        res = self.client.get("/api/restaurants/INCLUDE1R/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["chain"], chain_obj.chain_id)
