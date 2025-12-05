@@ -139,11 +139,13 @@ remeals/
 │   ├── community/
 │   ├── delivery/
 │   ├── donation/
+│   ├── donation_request/
 │   ├── fooditem/
 │   ├── impactrecord/
 │   ├── re_meals_api/
 │   ├── restaurants/
-│   ├── user/
+│   ├── restaurant_chain/
+│   ├── users/
 │   ├── warehouse/
 │   ├── manage.py
 │   └── requirements.txt
@@ -153,7 +155,13 @@ remeals/
 │   ├── components/
 │   ├── public/
 │   ├── package.json
-│   └── tsconfig.json
+│   ├── tsconfig.json
+│   ├── tailwind.config.js
+│   ├── next.config.ts
+│   ├── eslint.config.mjs
+│   └── package-lock.json
+│
+├── .env.example
 │
 ├── .gitignore
 │
@@ -206,7 +214,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 Your Name - [@yourtwitter](https://twitter.com/yourtwitter) - email@example.com
 
-Project Link: [https://github.com/yourusername/remeals](https://github.com/yourusername/remeals)
+Project Link: [https://github.com/NapatKulnarong/Re-Meals](https://github.com/NapatKulnarong/Re-Meals)
 
 ## 🙏 Acknowledgments
 
