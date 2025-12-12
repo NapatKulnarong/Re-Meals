@@ -40,6 +40,11 @@ class DonationSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, attrs):
+        # Only enforce restaurant/manual info on create. Partial updates without those
+        # fields should remain valid.
+        if self.instance is not None:
+            return attrs
+
         restaurant = attrs.get("restaurant")
         manual_name = attrs.get("manual_restaurant_name", "")
         if not restaurant and not manual_name:
