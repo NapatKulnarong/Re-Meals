@@ -16,7 +16,18 @@ class DonationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Donation
-        fields = "__all__"
+        fields = [
+            "donation_id",
+            "donated_at",
+            "status",
+            "restaurant",
+            "restaurant_name",
+            "restaurant_branch",
+            "restaurant_address",
+            "manual_restaurant_name",
+            "manual_branch_name",
+            "manual_restaurant_address",
+        ]
         read_only_fields = (
             "donation_id",
             "donated_at",
