@@ -534,16 +534,16 @@ function HomePage() {
             </div>
             <div className="mt-4 rounded-2xl bg-[#1F4D36] px-4 py-3 text-sm text-white shadow-md">
               <div className="flex items-center gap-2">
-                <span className="text-lg" aria-hidden>
-                  ✨
-                </span>
-                <p className="leading-tight">
-                  Tap "Donate" or "Request food" from the sidebar to add your drop in minutes.
-                </p>
-              </div>
+              <span className="text-lg" aria-hidden>
+                ✨
+              </span>
+              <p className="leading-tight">
+                Tap "Donate" or "Get meals" from the sidebar to add your drop in minutes.
+              </p>
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr]">
@@ -1177,10 +1177,10 @@ function DonationSection() {
 
   return (
     <div className="space-y-10">
-      <div className="rounded-[32px] border border-[#CFE6D8] bg-[#F6FBF7] p-8 shadow-2xl shadow-[#B6DEC8]/30">
+      <div className="rounded-[32px] border border-[#C7D2C0] bg-[#F6F2EC] p-8 shadow-2xl shadow-[#C7D2C0]/30">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#2F855A]">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#5E7A4A]">
               Food donation
             </p>
             <h2 className="text-3xl font-semibold text-gray-900">
@@ -1213,13 +1213,13 @@ function DonationSection() {
                     required
                   />
                   {shouldShowSuggestions && (
-                    <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-[#CFE4D7] bg-white shadow-xl shadow-[#B6DEC8]/30">
+                    <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-[#D7DCC7] bg-white shadow-xl shadow-[#D7DCC7]/30">
                       <div className="max-h-72 overflow-y-auto">
                         {visibleSuggestions.map((suggestion) => (
                           <button
                             key={suggestion.key}
                             type="button"
-                            className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left transition hover:bg-[#ECF7EF]"
+                            className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left transition hover:bg-[#F2F6EE]"
                             onClick={() => handleSelectSuggestion(suggestion)}
                           >
                             <div className="space-y-0.5">
@@ -1235,8 +1235,8 @@ function DonationSection() {
                             <span
                               className={`whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold ${
                                 suggestion.kind === "restaurant"
-                                  ? "bg-[#E4F4EB] text-[#2F855A]"
-                                  : "bg-[#FFE8D6] text-[#B45B1F]"
+                                  ? "bg-[#E9F1E3] text-[#5E7A4A]"
+                                  : "bg-[#F7E3D6] text-[#B86A49]"
                               }`}
                             >
                               {suggestion.kind === "restaurant" ? "In network" : "Popular"}
@@ -1278,12 +1278,12 @@ function DonationSection() {
               </div>
             </div>
 
-            <div className="space-y-4 rounded-2xl border border-[#D8ECDF] bg-white p-4">
+            <div className="space-y-4 rounded-2xl border border-[#D7DCC7] bg-white p-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-gray-700">Food items</p>
                 <button
                   type="button"
-                  className="text-xs font-semibold uppercase tracking-wide text-[#2F855A]"
+                  className="text-xs font-semibold uppercase tracking-wide text-[#5E7A4A]"
                   onClick={handleAddItem}
                 >
                   + Add item
@@ -1293,7 +1293,7 @@ function DonationSection() {
               {form.items.map((item, index) => (
                 <div
                   key={item.id}
-                  className="grid gap-3 rounded-2xl border border-dashed border-[#CBE4D8] bg-[#F7FBF8] p-4"
+                  className="grid gap-3 rounded-2xl border border-dashed border-[#D7DCC7] bg-[#F4F7EF] p-4"
                 >
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-gray-500">Item #{index + 1}</p>
@@ -1403,7 +1403,7 @@ function DonationSection() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-2xl bg-[#2F8A61] px-6 py-3 text-sm font-semibold text-white shadow hover:bg-[#25724F] disabled:opacity-60"
+              className="rounded-2xl bg-[#5E7A4A] px-6 py-3 text-sm font-semibold text-white shadow hover:bg-[#4E653D] disabled:opacity-60"
             >
               {isSubmitting
                 ? "Saving..."
@@ -1414,7 +1414,7 @@ function DonationSection() {
               {editingId && (
                 <button
                   type="button"
-                  className="rounded-2xl border border-[#BBDCC9] px-6 py-3 text-sm font-semibold text-gray-600 transition hover:border-[#7BBF9C]"
+                  className="rounded-2xl border border-[#D7DCC7] px-6 py-3 text-sm font-semibold text-[#4B3525] transition hover:border-[#B86A49] hover:text-[#3A2617]"
                   onClick={resetForm}
                 >
                   Cancel edit
@@ -1425,10 +1425,10 @@ function DonationSection() {
         </div>
       </div>
 
-      <div className="space-y-5 rounded-[32px] border border-[#CFE6D8] bg-[#F4FBF7] p-8">
+      <div className="space-y-5 rounded-[32px] border border-[#C7D2C0] bg-[#F5F2EC] p-8">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#2F855A]">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#5E7A4A]">
               Pending donations
             </p>
             <h3 className="text-2xl font-semibold text-gray-900">Donation log</h3>
@@ -1455,7 +1455,7 @@ function DonationSection() {
             {donations.map((donation) => (
               <article
                 key={donation.id}
-                className="rounded-2xl border border-[#CDE5D7] bg-white/90 p-5 shadow"
+                className="rounded-2xl border border-[#D7DCC7] bg-white/90 p-5 shadow"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -1479,7 +1479,7 @@ function DonationSection() {
                   {donation.items.map((item, index) => (
                     <div
                       key={item.id}
-                      className="flex flex-col gap-1 rounded-2xl border border-[#CBE4D8] bg-[#F7FBF8] p-3 text-sm text-gray-700"
+                      className="flex flex-col gap-1 rounded-2xl border border-[#D7DCC7] bg-[#F4F7EF] p-3 text-sm text-gray-700"
                     >
                       <div className="flex items-center justify-between text-xs uppercase text-gray-500">
                         <span>Item {index + 1}</span>
@@ -1507,7 +1507,7 @@ function DonationSection() {
                 <div className="mt-5 flex gap-3">
                   <button
                     type="button"
-                  className="rounded-full border border-[#7BBF9C] px-4 py-2 text-xs font-semibold text-[#1F5B3F] transition hover:bg-[#E7F6EE]"
+                  className="rounded-full border border-[#C7D2C0] px-4 py-2 text-xs font-semibold text-[#4B5F39] transition hover:bg-[#EEF2EA]"
                     onClick={() => handleEdit(donation)}
                   >
                     Edit
@@ -1788,14 +1788,14 @@ function DonationRequestSection() {
 
   return (
     <div className="space-y-10">
-      <div className="rounded-[32px] border border-[#F3C7A0] bg-[#FFF6EE] p-8 shadow-2xl shadow-[#F2C08F]/35">
+      <div className="rounded-[32px] border border-[#E6B9A2] bg-[#F6F2EC] p-8 shadow-2xl shadow-[#E6B9A2]/35">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#D77B28]">
-              Recipient request
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#B86A49]">
+              Get meals
             </p>
             <h2 className="text-3xl font-semibold text-gray-900">
-              {editingId ? "Update donation request" : "Manual request for support"}
+              {editingId ? "Update meal request" : "Request meals for your community"}
             </h2>
           </div>
           <span className="text-xs text-gray-500">
@@ -1836,7 +1836,7 @@ function DonationRequestSection() {
             </div>
           </div>
 
-          <div className="space-y-4 rounded-2xl border border-[#F4D8C0] bg-white p-4">
+          <div className="space-y-4 rounded-2xl border border-[#E6B9A2] bg-white p-4">
             <p className="text-sm font-semibold text-gray-700">Community details</p>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
@@ -1871,7 +1871,7 @@ function DonationRequestSection() {
             </div>
           </div>
 
-          <div className="space-y-4 rounded-2xl border border-[#F4D8C0] bg-white p-4">
+          <div className="space-y-4 rounded-2xl border border-[#E6B9A2] bg-white p-4">
             <p className="text-sm font-semibold text-gray-700">Recipient details</p>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
@@ -1904,12 +1904,12 @@ function DonationRequestSection() {
             </div>
           </div>
 
-          <div className="space-y-4 rounded-2xl border border-[#F4D8C0] bg-white p-4">
+          <div className="space-y-4 rounded-2xl border border-[#E6B9A2] bg-white p-4">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-gray-700">Requested items</p>
               <button
                 type="button"
-                className="text-xs font-semibold uppercase tracking-wide text-[#C46A24]"
+                className="text-xs font-semibold uppercase tracking-wide text-[#B86A49]"
                 onClick={handleAddNeed}
               >
                 + Add need
@@ -1919,7 +1919,7 @@ function DonationRequestSection() {
             {form.needs.map((need, index) => (
               <div
                 key={need.id}
-                className="grid gap-3 rounded-2xl border border-dashed border-[#F3C7A0] bg-[#FFF8F4] p-4"
+                className="grid gap-3 rounded-2xl border border-dashed border-[#E6B9A2] bg-[#F8F3EE] p-4"
               >
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-500">
@@ -2009,7 +2009,7 @@ function DonationRequestSection() {
             </p>
           )}
           {notification.message && (
-            <p className="text-sm font-semibold text-[#D77B28]">
+            <p className="text-sm font-semibold text-[#B86A49]">
               {notification.message}
             </p>
           )}
@@ -2018,7 +2018,7 @@ function DonationRequestSection() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-2xl bg-[#E48A3A] px-6 py-3 text-sm font-semibold text-white shadow hover:bg-[#D37623] disabled:opacity-60 transition"
+              className="rounded-2xl bg-[#B86A49] px-6 py-3 text-sm font-semibold text-white shadow hover:bg-[#9F583C] disabled:opacity-60 transition"
             >
               {isSubmitting
                 ? "Saving..."
@@ -2029,7 +2029,7 @@ function DonationRequestSection() {
             {editingId && (
               <button
                 type="button"
-                className="rounded-2xl border border-[#F4C7A0] px-6 py-3 text-sm font-semibold text-gray-600 transition hover:border-[#E48A3A]"
+                className="rounded-2xl border border-[#E6B9A2] px-6 py-3 text-sm font-semibold text-[#4B3525] transition hover:border-[#B86A49] hover:text-[#3A2617]"
                 onClick={resetForm}
               >
                 Cancel edit
@@ -2039,11 +2039,11 @@ function DonationRequestSection() {
         </form>
       </div>
 
-      <div className="space-y-5 rounded-[32px] border border-[#F3C7A0] bg-white p-8">
+      <div className="space-y-5 rounded-[32px] border border-[#E6B9A2] bg-[#F6F2EC] p-8">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#D77B28]">
-              Manual requests
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#B86A49]">
+              Get meals log
             </p>
             <h3 className="text-2xl font-semibold text-gray-900">
               Recipient request log
@@ -2071,11 +2071,11 @@ function DonationRequestSection() {
             {requests.map((request) => (
               <article
                 key={request.id}
-                className="rounded-2xl border border-[#F3C7A0] bg-[#FFF7EF] p-5 shadow-sm"
+                className="rounded-2xl border border-[#E6B9A2] bg-[#F8F3EE] p-5 shadow-sm"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-[#D77B28]">
+                    <p className="text-xs uppercase tracking-wide text-[#B86A49]">
                       {request.communityName || "Community representative"}
                     </p>
                     <p className="text-lg font-semibold text-gray-900">
@@ -2097,16 +2097,16 @@ function DonationRequestSection() {
                 </div>
 
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <div className="rounded-2xl bg-white/80 p-3 text-sm text-gray-700">
-                    <p className="text-xs uppercase tracking-wide text-[#C46A24]">
+                  <div className="rounded-2xl bg-[#F8F3EE] p-3 text-sm text-gray-700">
+                    <p className="text-xs uppercase tracking-wide text-[#B86A49]">
                       Recipient address
                     </p>
                     <p className="font-semibold">
                       {request.recipientAddress || "Not provided"}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-white/80 p-3 text-sm text-gray-700">
-                    <p className="text-xs uppercase tracking-wide text-[#C46A24]">
+                  <div className="rounded-2xl bg-[#F8F3EE] p-3 text-sm text-gray-700">
+                    <p className="text-xs uppercase tracking-wide text-[#B86A49]">
                       Contact phone
                     </p>
                     <p className="font-semibold">
@@ -2119,7 +2119,7 @@ function DonationRequestSection() {
                   {request.needs.map((need) => (
                     <div
                       key={need.id}
-                      className="flex flex-wrap items-center justify-between rounded-2xl border border-[#F3C7A0] bg-white/90 px-4 py-2 text-sm text-gray-700"
+                      className="flex flex-wrap items-center justify-between rounded-2xl border border-[#E6B9A2] bg-[#F8F3EE] px-4 py-2 text-sm text-gray-700"
                     >
                       <div>
                         <p className="font-semibold">{need.item}</p>
@@ -2133,8 +2133,8 @@ function DonationRequestSection() {
                       need.urgency === "Critical"
                         ? "bg-[#FDECEA] text-[#B42318]"
                         : need.urgency === "High"
-                          ? "bg-[#FFEAD1] text-[#B45B1F]"
-                          : "bg-[#FFF3E6] text-[#C25D16]",
+                          ? "bg-[#F7E3D6] text-[#B86A49]"
+                          : "bg-[#F8F3EE] text-[#8B5B1F]",
                     ].join(" ")}
                   >
                     {need.urgency}
@@ -2150,7 +2150,7 @@ function DonationRequestSection() {
                 <div className="mt-5 flex gap-3">
                   <button
                     type="button"
-                  className="rounded-full border border-[#F3C7A0] px-4 py-2 text-xs font-semibold text-[#C46A24] transition hover:bg-[#FFF1E3]"
+                  className="rounded-full border border-[#E6B9A2] px-4 py-2 text-xs font-semibold text-[#8B5B1F] transition hover:bg-[#F8F3EE]"
                     onClick={() => handleEdit(request)}
                   >
                     Edit
@@ -3469,7 +3469,7 @@ export default function Home() {
       : [
           { id: 0, label: "Home", icon: <span aria-hidden>🏠</span> },
           { id: 1, label: "Donate", icon: <span aria-hidden>💚</span> },
-          { id: 2, label: "Request food", icon: <span aria-hidden>🍽️</span> },
+          { id: 2, label: "Get meals", icon: <span aria-hidden>🍽️</span> },
         ];
 
   const normalizedActiveTab = useMemo(() => {
