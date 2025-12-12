@@ -100,7 +100,7 @@ export default function Sidebar({
       <div>
       {/* LOGO + WEBSITE NAME SECTION */}
       <div className="mb-6 px-0.5 pt-2">
-        <div className="flex items-center gap-2 rounded-2xl bg-white px-2 py-2">
+        <div className="flex items-center gap-1 rounded-2xl bg-white px-2 py-2">
           <div className="flex h-16 w-16 items-center justify-center">
             <Image
               src="/elements/logo_re-meals.png"

@@ -237,14 +237,11 @@ const POPULAR_RESTAURANT_SUGGESTIONS: RestaurantSuggestion[] = [
 const formatRestaurantLabel = (restaurant: Restaurant) =>
   `${restaurant.name}${restaurant.branch_name ? ` (${restaurant.branch_name})` : ""}`.trim();
 
-const createFoodItemId = (() => {
-  let counter = 1;
-  return () => {
-    const id = `food-${counter.toString().padStart(3, "0")}`;
-    counter += 1;
-    return id;
-  };
-})();
+const createFoodItemId = () => {
+  const timestamp = Date.now();
+  const random = Math.floor(Math.random() * 10000);
+  return `FOOD${timestamp}${random}`;
+};
 
 const createEmptyFoodItem = (): FoodItemForm => ({
   id: createFoodItemId(),
@@ -262,23 +259,17 @@ const createDonationFormState = (): DonationFormState => ({
   items: [createEmptyFoodItem()],
 });
 
-const generateDonationId = (() => {
-  let counter = 1;
-  return () => {
-    const id = `don-${counter.toString().padStart(3, "0")}`;
-    counter += 1;
-    return id;
-  };
-})();
+const generateDonationId = () => {
+  const timestamp = Date.now();
+  const random = Math.floor(Math.random() * 1000);
+  return `DON${timestamp}${random}`;
+};
 
-const createRequestNeedId = (() => {
-  let counter = 1;
-  return () => {
-    const id = `need-${counter.toString().padStart(3, "0")}`;
-    counter += 1;
-    return id;
-  };
-})();
+const createRequestNeedId = () => {
+  const timestamp = Date.now();
+  const random = Math.floor(Math.random() * 10000);
+  return `NEED${timestamp}${random}`;
+};
 
 const createEmptyRequestNeed = (): RequestNeed => ({
   id: createRequestNeedId(),
@@ -298,23 +289,17 @@ const createDonationRequestForm = (): DonationRequestForm => ({
   needs: [createEmptyRequestNeed()],
 });
 
-const generateRequestId = (() => {
-  let counter = 1;
-  return () => {
-    const id = `req-${counter.toString().padStart(3, "0")}`;
-    counter += 1;
-    return id;
-  };
-})();
+const generateRequestId = () => {
+  const timestamp = Date.now();
+  const random = Math.floor(Math.random() * 1000);
+  return `REQ${timestamp}${random}`;
+};
 
-const generateDeliveryId = (() => {
-  let counter = 1;
-  return () => {
-    const id = `dlv-${counter.toString().padStart(3, "0")}`;
-    counter += 1;
-    return id;
-  };
-})();
+const generateDeliveryId = () => {
+  const timestamp = Date.now();
+  const random = Math.floor(Math.random() * 1000);
+  return `DLV${timestamp}${random}`;
+};
 
 const API_PATHS = {
   deliveries: "/delivery/deliveries/",
@@ -383,13 +368,14 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   });
 
   if (!response.ok) {
-    let message = "Request failed";
+    let message = `Request failed (${response.status} ${response.statusText})`;
     try {
       const data = await response.json();
       message =
         (typeof data === "string" && data) ||
         data?.detail ||
         data?.error ||
+        JSON.stringify(data) ||
         message;
     } catch {
       // ignore json parse errors
@@ -1075,7 +1061,7 @@ function DonationSection() {
         body: JSON.stringify({
           donation_id: donationId,
           restaurant: selectedRestaurant.restaurant_id,
-          status: false,
+          status: "pending",
         }),
       });
 
@@ -1176,8 +1162,8 @@ function DonationSection() {
   };
 
   return (
-    <div className="space-y-10">
-      <div className="rounded-[32px] border border-[#C7D2C0] bg-[#F6F2EC] p-8 shadow-2xl shadow-[#C7D2C0]/30">
+    <div className="grid grid-cols-5 gap-6 h-full">
+      <div className="col-span-3 flex flex-col rounded-[32px] border border-[#C7D2C0] bg-[#F6F2EC] p-8 shadow-2xl shadow-[#C7D2C0]/30">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#5E7A4A]">
@@ -1425,8 +1411,8 @@ function DonationSection() {
         </div>
       </div>
 
-      <div className="space-y-5 rounded-[32px] border border-[#C7D2C0] bg-[#F5F2EC] p-8">
-        <div className="flex items-center justify-between">
+      <div className="col-span-2 flex flex-col rounded-[32px] border border-[#C7D2C0] bg-[#F5F2EC] p-8">
+        <div className="flex items-center justify-between mb-5">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#5E7A4A]">
               Pending donations
@@ -1439,19 +1425,20 @@ function DonationSection() {
         </div>
 
         {donationsError && (
-          <p className="text-sm font-semibold text-red-500">{donationsError}</p>
+          <p className="text-sm font-semibold text-red-500 mb-4">{donationsError}</p>
         )}
 
-        {donationsLoading ? (
-          <p className="rounded-2xl border border-dashed border-gray-300 bg-white/70 p-6 text-sm text-gray-500">
-            Loading donations...
-          </p>
-        ) : donations.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-gray-300 bg-white/70 p-6 text-sm text-gray-500">
-            Once you save a donation, it shows up here for editing or delivery planning.
-          </p>
-        ) : (
-          <div className="space-y-4">
+        <div className="overflow-y-auto flex-1 pr-2">
+          {donationsLoading ? (
+            <p className="rounded-2xl border border-dashed border-gray-300 bg-white/70 p-6 text-sm text-gray-500">
+              Loading donations...
+            </p>
+          ) : donations.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-gray-300 bg-white/70 p-6 text-sm text-gray-500">
+              Once you save a donation, it shows up here for editing or delivery planning.
+            </p>
+          ) : (
+            <div className="space-y-4">
             {donations.map((donation) => (
               <article
                 key={donation.id}
@@ -1525,6 +1512,7 @@ function DonationSection() {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }
