@@ -19,18 +19,21 @@ from django.urls import path, include
 from django.http import HttpResponse
 
 from rest_framework import permissions
-from drf_yasg.views import get_schema_view
-from drf_yasg import openapi
+try:
+    from drf_yasg.views import get_schema_view
+    from drf_yasg import openapi
 
-schema_view = get_schema_view(
-    openapi.Info(
-        title="Re-Meals API",
-        default_version='v1',
-        description="API documentation for Re-Meals system",
-    ),
-    public=True,
-    permission_classes=(permissions.AllowAny,),
-)
+    schema_view = get_schema_view(
+        openapi.Info(
+            title="Re-Meals API",
+            default_version='v1',
+            description="API documentation for Re-Meals system",
+        ),
+        public=True,
+        permission_classes=(permissions.AllowAny,),
+    )
+except Exception:  # optional dependency
+    schema_view = None
 
 urlpatterns = [
     path("", lambda r: HttpResponse("Re-Meals API Running 🎉")),
@@ -45,6 +48,12 @@ urlpatterns = [
     path("api/", include("fooditem.urls")),
     path("api/", include("impactrecord.urls")),
     path("api/", include("donation_request.urls")),
-    path("swagger/", schema_view.with_ui("swagger", cache_timeout=0), name="swagger-ui"),
-    path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="redoc-ui"),
+    path("api/", include("impactrecord.urls")),
+    path("api/", include("donation_request.urls")),
 ]
+
+if schema_view:
+    urlpatterns += [
+        path("swagger/", schema_view.with_ui("swagger", cache_timeout=0), name="swagger-ui"),
+        path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="redoc-ui"),
+    ]

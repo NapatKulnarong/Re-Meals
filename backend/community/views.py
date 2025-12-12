@@ -5,7 +5,7 @@ from .serializers import CommunitySerializer
 class CommunityViewSet(viewsets.ModelViewSet):
     queryset = Community.objects.all()
     serializer_class = CommunitySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -13,3 +13,4 @@ class CommunityViewSet(viewsets.ModelViewSet):
         if warehouse_id:
             queryset = queryset.filter(warehouse_id__warehouse_id=warehouse_id)
         return queryset
+

@@ -45,7 +45,17 @@ class DeliverySerializer(serializers.ModelSerializer):
             "user_id",
             "donation_id",
             "community_id",
+            "status",
+            "notes",
+            "delivered_quantity",
+            "request_item",
         ]
+
+    def validate_status(self, value):
+        allowed = {"pending", "in_transit", "delivered", "cancelled"}
+        if value not in allowed:
+            raise serializers.ValidationError("Invalid status value")
+        return value
 
     def validate(self, attrs):
         instance = getattr(self, "instance", None)

@@ -1,53 +1,42 @@
 "use client";
 
 import Image from "next/image";
-import { FaceSmileIcon } from "@heroicons/react/24/outline";
+import { ReactNode } from "react";
 
 // This marks the component as a Client Component (required because we use state + event handlers)
 
 // Props definition: Sidebar receives the active tab number and a function to change tabs
+type SidebarTab = {
+  id: number;
+  label: string;
+  icon?: ReactNode;
+};
+
 type SidebarProps = {
   activeTab: number;                  // Which tab is currently selected
   onTabChange: (tab: number) => void; // Function to update the selected tab
   onAuthClick: () => void;            // callback for auth button
+  onLogout?: () => void;
+  onProfileClick?: () => void;
+  currentUser?: { username: string; email: string };
+  tabs: SidebarTab[];
+  isAdmin?: boolean;
+  isDriver?: boolean;
 };
 
 export default function Sidebar({
   activeTab,
   onTabChange,
   onAuthClick,
+  onLogout,
+  onProfileClick,
+  currentUser,
+  tabs,
+  isAdmin = false,
+  isDriver = false,
 }: SidebarProps) {
-  // Create an array [1, 2, 3, 4, 5, 6, 7] for the nav buttons
-  const tabs = Array.from({ length: 7 }, (_, i) => i + 1);
-  const primaryTabs = [
-    {
-      id: 1,
-      label: "Donate",
-      icon: (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          className="h-5 w-5"
-        >
-          <path
-            d="M12 21s-6.5-3.5-8.5-7.5C1.8 9.5 3.9 6 7 6c2 0 3 .8 4 2 1-1.2 2-2 4-2 3.1 0 5.2 3.5 3.5 7.5C18.5 17.5 12 21 12 21Z"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      ),
-    },
-    {
-      id: 2,
-      label: "Request food",
-      icon: (
-        <FaceSmileIcon className="h-6 w-6" />
-      ),
-    },
-  ];
-  const secondaryTabs = tabs.filter((t) => t > 2);
+  const primaryTabs = tabs.slice(0, 2);
+  const secondaryTabs = tabs.slice(2);
 
   return (
     // Sidebar container: flex-col + justify-between lets us push the auth button to the bottom
@@ -65,7 +54,7 @@ export default function Sidebar({
       <div>
       {/* LOGO + WEBSITE NAME SECTION */}
       <div className="mb-6 px-0.5 pt-2">
-        <div className="flex items-center gap-1 rounded-2xl bg-white px-2 py-2">
+        <div className="flex items-center gap-2 rounded-2xl bg-white px-2 py-2">
           <div className="flex h-16 w-16 items-center justify-center">
             <Image
               src="/elements/logo_re-meals.png"
@@ -75,7 +64,19 @@ export default function Sidebar({
               priority
             />
           </div>
-          <span className="text-[25px] font-semibold text-[#111828]">Re-Meals</span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-[25px] font-semibold text-[#111828]">Re-Meals</span>
+            {isAdmin && (
+              <span className="text-xs font-semibold uppercase tracking-wide text-[#C46A24]">
+                For admin
+              </span>
+            )}
+            {isDriver && !isAdmin && (
+              <span className="text-xs font-semibold uppercase tracking-wide text-[#2F855A]">
+                for Driver
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -135,21 +136,26 @@ export default function Sidebar({
         </div>
 
         <div className="flex flex-col gap-1">
-          {secondaryTabs.map((t) => {
-            const isActive = activeTab === t;
+          {secondaryTabs.map((tab) => {
+            const isActive = activeTab === tab.id;
 
             return (
               <button
-                key={t}
-                onClick={() => onTabChange(t)}
+                key={tab.id}
+                onClick={() => onTabChange(tab.id)}
                 className={[
-                  "flex items-center rounded-lg px-4 py-3 text-left text-base font-medium transition-colors",
+                  "flex items-center justify-between rounded-lg px-4 py-3 text-left text-sm font-semibold transition-colors",
                   isActive
                     ? "bg-[#F9DE84] text-gray-900"
                     : "text-gray-700 hover:bg-[#F9DE84]/50 hover:text-gray-900",
                 ].join(" ")}
               >
-                Part {t}
+                <span>{tab.label}</span>
+                {tab.icon ? (
+                  <span className="text-lg" aria-hidden>
+                    {tab.icon}
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -159,12 +165,33 @@ export default function Sidebar({
 
       {/* Bottom section: Sign up / Login button */}
       <div className="mt-6 border-t border-gray-300 pt-4">
-        <button
-            onClick={onAuthClick}
-            className="w-full rounded-xl bg-gray-900 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-gray-800"
-        >
-            Sign up / Login
-        </button>
+        {currentUser ? (
+          <div className="space-y-2">
+            <button
+              onClick={onProfileClick}
+              className="w-full rounded-xl bg-gray-900 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-gray-800"
+            >
+              {currentUser.username}
+            </button>
+            <div className="flex justify-between text-xs text-gray-600">
+              <span className="truncate">{currentUser.email}</span>
+              <button
+                onClick={onLogout}
+                className="font-semibold text-[#C46A24] hover:underline"
+                type="button"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+              onClick={onAuthClick}
+              className="w-full rounded-xl bg-gray-900 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-gray-800"
+          >
+              Sign up / Login
+          </button>
+        )}
 
       </div>
 

@@ -1,3 +1,7 @@
+import os
+import uuid
+from datetime import datetime
+
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
@@ -6,10 +10,17 @@ from drf_yasg.utils import swagger_auto_schema
 from django.contrib.auth.hashers import make_password, check_password
 
 from .serializers import SignupSerializer, LoginSerializer
-from .models import User
+from .models import User, Admin, DeliveryStaff
 
-from datetime import datetime
-import uuid
+
+def _admin_emails():
+    raw = os.environ.get("ADMIN_EMAILS", "")
+    return {email.strip().lower() for email in raw.split(",") if email.strip()}
+
+
+def _delivery_staff_emails():
+    raw = os.environ.get("DELIVERY_STAFF_EMAILS", "")
+    return {email.strip().lower() for email in raw.split(",") if email.strip()}
 
 
 @swagger_auto_schema(method="post", request_body=SignupSerializer)
@@ -53,6 +64,17 @@ def signup(request):
         password=make_password(data.get("password")),
     )
 
+    if user.email.lower() in _admin_emails():
+        Admin.objects.get_or_create(user=user)
+    if user.email.lower() in _delivery_staff_emails():
+        DeliveryStaff.objects.get_or_create(
+            user=user,
+            defaults={
+                "assigned_area": os.environ.get("DELIVERY_STAFF_DEFAULT_AREA", "General"),
+                "is_available": True,
+            },
+        )
+
     return Response({"message": "Signup successful"}, status=200)
 
 @swagger_auto_schema(method="post", request_body=LoginSerializer)
@@ -76,8 +98,48 @@ def login(request):
     if not check_password(password, user.password):
         return Response({"error": "Invalid password"}, status=400)
 
-    return Response({
-        "message": "Login success",
-        "username": user.username,
-        "email": user.email
-    }, status=200)
+    is_admin = Admin.objects.filter(user=user).exists()
+    if not is_admin and user.email.lower() in _admin_emails():
+        Admin.objects.get_or_create(user=user)
+        is_admin = True
+    is_delivery_staff = DeliveryStaff.objects.filter(user=user).exists()
+    if not is_delivery_staff and user.email.lower() in _delivery_staff_emails():
+        DeliveryStaff.objects.get_or_create(
+            user=user,
+            defaults={
+                "assigned_area": os.environ.get("DELIVERY_STAFF_DEFAULT_AREA", "General"),
+                "is_available": True,
+            },
+        )
+        is_delivery_staff = True
+
+    return Response(
+        {
+            "message": "Login success",
+            "username": user.username,
+            "email": user.email,
+            "user_id": user.user_id,
+            "is_admin": is_admin,
+            "is_delivery_staff": is_delivery_staff,
+        },
+        status=200,
+    )
+
+
+@api_view(["GET"])
+def list_delivery_staff(request):
+    staff = DeliveryStaff.objects.select_related("user").all()
+    data = []
+    for member in staff:
+        user = member.user
+        data.append(
+            {
+                "user_id": user.user_id,
+                "username": user.username,
+                "name": f"{user.fname} {user.lname}".strip(),
+                "email": user.email,
+                "assigned_area": member.assigned_area,
+                "is_available": member.is_available,
+            }
+        )
+    return Response(data, status=200)
