@@ -28,6 +28,9 @@ class DonationSerializer(serializers.ModelSerializer):
             "manual_branch_name",
             "manual_restaurant_address",
         ]
+        extra_kwargs = {
+            "restaurant": {"required": False, "allow_null": True},
+        }
         read_only_fields = (
             "donation_id",
             "donated_at",
