@@ -1,0 +1,38 @@
+[
+  {
+    "model": "donation.donation",
+    "pk": "DON001",
+    "fields": {
+      "donated_at": "2025-01-05T10:00:00Z",
+      "status": "pending",
+      "restaurant": "RES001"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON002",
+    "fields": {
+      "donated_at": "2025-01-04T11:30:00Z",
+      "status": "accepted",
+      "restaurant": "RES002"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON003",
+    "fields": {
+      "donated_at": "2025-01-03T09:15:00Z",
+      "status": "declined",
+      "restaurant": "RES003"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON004",
+    "fields": {
+      "donated_at": "2025-01-06T15:45:00Z",
+      "status": "pending",
+      "restaurant": "RES004"
+    }
+  }
+]
