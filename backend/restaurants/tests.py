@@ -696,11 +696,12 @@ class RestaurantTests(APITestCase):
     # 40. Retrieve response includes chain id if set
     def test_retrieve_contains_chain_value(self):
         chain_obj = RestaurantChain.objects.create(
-            chain_id="CHAINCLUDE1",
+            chain_id="CHAINCLD01",
             chain_name="Include Chain",
         )
+        restaurant_id = "RESCLD01R1"
         Restaurant.objects.create(
-            restaurant_id="RESCHAINCLUDE1R",
+            restaurant_id=restaurant_id,
             address="Bangkok",
             name="Include",
             branch_name="Branch",
@@ -708,6 +709,6 @@ class RestaurantTests(APITestCase):
             chain=chain_obj,
         )
 
-        res = self.client.get("/api/restaurants/RESCHAINCLUDE1R/")
+        res = self.client.get(f"/api/restaurants/{restaurant_id}/")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data["chain"], chain_obj.chain_id)

@@ -1,9 +1,12 @@
-from rest_framework import serializers
-from .models import FoodItem
 from datetime import date
+
+from rest_framework import serializers
+
+from .models import FoodItem
 
 
 class FoodItemSerializer(serializers.ModelSerializer):
+    """Serializer enforcing domain validation rules and formatting."""
 
     def validate(self, attrs):
         instance = getattr(self, "instance", None)
@@ -63,6 +66,20 @@ class FoodItemSerializer(serializers.ModelSerializer):
         if value < 0:
             raise serializers.ValidationError("Quantity must not be negative.")
         return value
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        food_id = data.get("food_id")
+        if food_id:
+            data["food_id"] = self._format_food_id(food_id)
+        return data
+
+    @staticmethod
+    def _format_food_id(value: str) -> str:
+        digits = "".join(ch for ch in value if ch.isdigit())
+        if not digits:
+            return value
+        return f"F{digits.zfill(4)}"
 
     class Meta:
         model = FoodItem
