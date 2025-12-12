@@ -136,6 +136,9 @@ type DonationApiRecord = {
   donated_at: string;
   status: boolean;
   restaurant: string;
+  restaurant_name?: string;
+  restaurant_branch?: string;
+  restaurant_address?: string;
 };
 
 type FoodItemApiRecord = {
@@ -261,15 +264,6 @@ const createDonationFormState = (): DonationFormState => ({
   note: "",
   items: [createEmptyFoodItem()],
 });
-
-const generateDonationId = (() => {
-  let counter = 1;
-  return () => {
-    const id = `don-${counter.toString().padStart(3, "0")}`;
-    counter += 1;
-    return id;
-  };
-})();
 
 const createRequestNeedId = (() => {
   let counter = 1;
@@ -494,8 +488,8 @@ function DonationSection() {
             donationsWithItems.map(({ donation, items }) => ({
               id: donation.donation_id,
               restaurantId: donation.restaurant,
-              restaurantName: "",
-              branch: "",
+              restaurantName: donation.restaurant_name ?? "",
+              branch: donation.restaurant_branch ?? "",
               note: "",
               items: items.map((item) => ({
                 id: item.food_id,
@@ -653,7 +647,7 @@ function DonationSection() {
       ...prev,
       restaurantName: name,
       restaurantId: matched?.restaurant_id ?? "",
-      branch: matched?.branch_name ?? "",
+      branch: matched ? matched.branch_name ?? "" : prev.branch,
     }));
     setIsSuggestionOpen(name.trim().length > 0);
   };
@@ -711,14 +705,24 @@ function DonationSection() {
     event.preventDefault();
     setNotification({});
 
-    if (!selectedRestaurant) {
+    const trimmedRestaurantName = form.restaurantName.trim();
+    const branchValue = form.branch.trim();
+    const selectedLabel = selectedRestaurant ? formatRestaurantLabel(selectedRestaurant) : "";
+    const nameMatchesSelected =
+      Boolean(selectedRestaurant) &&
+      (trimmedRestaurantName === selectedLabel ||
+        trimmedRestaurantName === (selectedRestaurant?.name ?? ""));
+    const branchMatchesSelected =
+      Boolean(selectedRestaurant) &&
+      branchValue === (selectedRestaurant?.branch_name ?? "");
+    const manualEntry = !selectedRestaurant || !nameMatchesSelected || !branchMatchesSelected;
+
+    if (manualEntry && !trimmedRestaurantName.length) {
       setNotification({
-        error: "Please select a restaurant from the suggestions.",
+        error: "Enter the restaurant name or choose one from the suggestions.",
       });
       return;
     }
-
-    const trimmedRestaurantName = form.restaurantName.trim();
 
     const normalizedItems = form.items
       .map((item) => ({
@@ -746,18 +750,23 @@ function DonationSection() {
     setIsSubmitting(true);
 
     try {
-      const donationId = editingId ?? generateDonationId();
-      if (editingId) {
-        await apiFetch(`/donations/${editingId}/`, { method: "DELETE" });
+      const previousId = editingId;
+      if (previousId) {
+        await apiFetch(`/donations/${previousId}/`, { method: "DELETE" });
       }
-      await apiFetch("/donations/", {
+      const donationPayload: Record<string, unknown> = {};
+      if (!manualEntry && selectedRestaurant) {
+        donationPayload.restaurant = selectedRestaurant.restaurant_id;
+      } else {
+        donationPayload.manual_restaurant_name = trimmedRestaurantName;
+        donationPayload.manual_branch_name = branchValue;
+        donationPayload.manual_restaurant_address = branchValue || trimmedRestaurantName;
+      }
+      const createdDonation = await apiFetch<DonationApiRecord>("/donations/", {
         method: "POST",
-        body: JSON.stringify({
-          donation_id: donationId,
-          restaurant: selectedRestaurant.restaurant_id,
-          status: false,
-        }),
+        body: JSON.stringify(donationPayload),
       });
+      const donationId = createdDonation.donation_id;
 
       await Promise.all(
         normalizedItems.map((item) =>
@@ -779,31 +788,62 @@ function DonationSection() {
         )
       );
 
-      const timestamp = getCurrentTimestamp();
-      const existingRecord = editingId
-        ? donations.find((donation) => donation.id === editingId)
+      const timestamp = createdDonation.donated_at || getCurrentTimestamp();
+      const resolvedRestaurantId = createdDonation.restaurant;
+      const resolvedRestaurantName =
+        createdDonation.restaurant_name ?? trimmedRestaurantName;
+      const resolvedBranch = createdDonation.restaurant_branch ?? branchValue;
+      const resolvedAddress =
+        createdDonation.restaurant_address ?? (branchValue || trimmedRestaurantName);
+      const existingRecord = previousId
+        ? donations.find((donation) => donation.id === previousId)
         : null;
 
       const nextDonation: DonationRecord = {
         id: donationId,
-        restaurantId: selectedRestaurant.restaurant_id,
-        restaurantName: trimmedRestaurantName,
-        branch: selectedRestaurant.branch_name,
+        restaurantId: resolvedRestaurantId,
+        restaurantName: resolvedRestaurantName,
+        branch: resolvedBranch,
         note: form.note.trim(),
         items: normalizedItems,
         createdAt: existingRecord?.createdAt ?? timestamp,
       };
 
-      setDonations((prev) =>
-        editingId
-          ? prev.map((donation) =>
-              donation.id === donationId ? nextDonation : donation
-            )
-          : [nextDonation, ...prev]
-      );
+      if (manualEntry) {
+        setRestaurants((prev) => {
+          if (prev.some((r) => r.restaurant_id === resolvedRestaurantId)) {
+            return prev;
+          }
+          return [
+            ...prev,
+            {
+              restaurant_id: resolvedRestaurantId,
+              name: resolvedRestaurantName,
+              branch_name: resolvedBranch,
+              address: resolvedAddress,
+              is_chain: Boolean(resolvedBranch),
+            },
+          ];
+        });
+      }
+
+      setDonations((prev) => {
+        if (!previousId) {
+          return [nextDonation, ...prev];
+        }
+        let replaced = false;
+        const updated = prev.map((donation) => {
+          if (donation.id === previousId) {
+            replaced = true;
+            return nextDonation;
+          }
+          return donation;
+        });
+        return replaced ? updated : [nextDonation, ...prev];
+      });
 
       setNotification({
-        message: editingId ? "Donation updated successfully." : "Donation saved.",
+        message: previousId ? "Donation updated successfully." : "Donation saved.",
       });
       setForm(createDonationFormState());
       setEditingId(null);
@@ -948,12 +988,19 @@ function DonationSection() {
                 <input
                   type="text"
                   className={INPUT_STYLES}
-                  value={selectedRestaurant?.branch_name ?? form.branch}
-                  readOnly
-                  placeholder="Select a restaurant to populate branch"
+                  value={form.branch}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, branch: event.target.value }))
+                  }
+                  placeholder={
+                    selectedRestaurant
+                      ? "Branch is filled automatically. Adjust if needed."
+                      : "Enter branch or location (optional)"
+                  }
                 />
                 <p className="mt-2 text-xs text-gray-500">
-                  Branch information is filled automatically when a restaurant is selected.
+                  Branch information is filled automatically when a restaurant is selected, or
+                  you can type a custom branch/location.
                 </p>
               </div>
             </div>
