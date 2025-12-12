@@ -4,6 +4,12 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+![Python](https://img.shields.io/badge/Python-3.12-blue.svg)
+![Django](https://img.shields.io/badge/Django-5.2-green.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6.svg)
+![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)
+![React](https://img.shields.io/badge/React-19-61dafb.svg)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ed.svg)
 
 ## 🎯 About The Project
 
@@ -133,25 +139,33 @@ remeals/
 │   ├── community/
 │   ├── delivery/
 │   ├── donation/
+│   ├── donation_request/
 │   ├── fooditem/
 │   ├── impactrecord/
 │   ├── re_meals_api/
 │   ├── restaurants/
-│   ├── user/
+│   ├── restaurant_chain/
+│   ├── users/
 │   ├── warehouse/
 │   ├── manage.py
 │   └── requirements.txt
 │    
 ├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   └── utils/
-│   └── public/
+│   ├── app/
+│   ├── components/
+│   ├── public/
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── tailwind.config.js
+│   ├── next.config.ts
+│   ├── eslint.config.mjs
+│   └── package-lock.json
+│
+├── .env.example
 │
 ├── .gitignore
 │
-├──docker-compose.yml
+├── docker-compose.yml
 │
 ├── Dockerfile
 │
@@ -189,8 +203,6 @@ We follow conventional commits:
 - [ ] Real-time inventory tracking
 - [ ] Delivery coordination system
 - [ ] Impact analytics dashboard
-- [ ] Mobile app (iOS/Android)
-- [ ] Multi-language support
 
 See the [open issues](https://github.com/yourusername/remeals/issues) for a full list of proposed features.
 
@@ -202,7 +214,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 Your Name - [@yourtwitter](https://twitter.com/yourtwitter) - email@example.com
 
-Project Link: [https://github.com/yourusername/remeals](https://github.com/yourusername/remeals)
+Project Link: [https://github.com/NapatKulnarong/Re-Meals](https://github.com/NapatKulnarong/Re-Meals)
 
 ## 🙏 Acknowledgments
 

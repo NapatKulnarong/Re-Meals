@@ -1,9 +1,11 @@
 from django.test import TestCase
+from django.contrib.auth.hashers import make_password
 from users.models import User
 import json
 
 class AuthTests(TestCase):
 
+    # 1. Signup succeeds with valid payload
     def test_signup_success(self):
         data = {
             "username": "vince01",
@@ -24,6 +26,7 @@ class AuthTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(User.objects.filter(email="vince@gmail.com").exists())
 
+    # 2. Signup rejects duplicate email
     def test_signup_duplicate_email(self):
         User.objects.create(
             user_id="U0001",
@@ -33,7 +36,7 @@ class AuthTests(TestCase):
             bod="2000-01-01",
             phone="0000000000",
             email="vince@gmail.com",
-            password="hashed"
+            password=make_password("hashed")
         )
 
         data = {
@@ -54,6 +57,7 @@ class AuthTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    # 3. Login accepts username identifier
     def test_login_success(self):
         User.objects.create(
             user_id="U0001",
@@ -63,7 +67,7 @@ class AuthTests(TestCase):
             bod="2000-01-01",
             phone="0000000000",
             email="login@gmail.com",
-            password="12345"
+            password=make_password("12345")
         )
 
         data = {
@@ -79,6 +83,7 @@ class AuthTests(TestCase):
 
         self.assertIn(response.status_code, [200, 400])
 
+    # 4. Login returns 404 for unknown identifier
     def test_login_not_found(self):
         data = {
             "identifier": "nousername",
@@ -93,6 +98,7 @@ class AuthTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    # 5. Signup rejects missing fname
     def test_signup_missing_fname(self):
         data = {
             "username": "testno1",
@@ -111,6 +117,7 @@ class AuthTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    # 6. Signup rejects missing email
     def test_signup_missing_email(self):
         data = {
             "username": "testno2",
@@ -129,6 +136,7 @@ class AuthTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    # 7. Login rejects wrong password
     def test_login_wrong_password(self):
         User.objects.create(
             user_id="U0002",
@@ -138,7 +146,7 @@ class AuthTests(TestCase):
             bod="2000-01-01",
             phone="0000000000",
             email="wrongpass@gmail.com",
-            password="correctpass"
+            password=make_password("correctpass")
         )
 
         data = {
@@ -154,7 +162,8 @@ class AuthTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
-    def test_login_with_username(self): 
+    # 8. Login works with username identifier
+    def test_login_with_username(self):
         User.objects.create(
             user_id="U0003",
             username="idlogin",
@@ -163,7 +172,7 @@ class AuthTests(TestCase):
             bod="2000-01-01",
             phone="0000000000",
             email="idlogin@gmail.com",
-            password="12345"
+            password=make_password("12345")
         )
 
         data = {
@@ -179,6 +188,7 @@ class AuthTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
+    # 9. Login requires password
     def test_login_missing_password(self):
         data = {
             "identifier": "someone@gmail.com"
@@ -192,6 +202,7 @@ class AuthTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    # 10. Login requires identifier
     def test_login_missing_identifier(self):
         data = {
             "password": "12345"
@@ -205,6 +216,7 @@ class AuthTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    # 11. Signup rejects missing lname
     def test_signup_missing_lname(self):
         data = {
             "username": "userA1",
@@ -221,6 +233,7 @@ class AuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # 12. Signup rejects missing phone
     def test_signup_missing_phone(self):
         data = {
             "username": "userA2",
@@ -237,6 +250,7 @@ class AuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # 13. Signup rejects missing password
     def test_signup_missing_password(self):
         data = {
             "username": "userA3",
@@ -253,6 +267,7 @@ class AuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # 14. Signup rejects invalid birthday format
     def test_signup_invalid_bod_format(self):
         data = {
             "username": "userA4",
@@ -270,6 +285,7 @@ class AuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # 15. Login returns 404 for mismatched user_id
     def test_login_wrong_user_id(self):
         User.objects.create(
             user_id="U1234",
@@ -279,7 +295,7 @@ class AuthTests(TestCase):
             bod="2000-01-01",
             phone="0099999999",
             email="real@gmail.com",
-            password="12345",
+            password=make_password("12345"),
         )
 
         data = {
@@ -294,6 +310,7 @@ class AuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
+    # 16. Login rejects empty identifier
     def test_login_empty_identifier(self):
         data = {
             "identifier": "",
@@ -306,6 +323,7 @@ class AuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # 17. Login rejects empty password
     def test_login_empty_password(self):
         data = {
             "identifier": "someone@gmail.com",
@@ -318,6 +336,7 @@ class AuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # 18. Login requires identifier to be email or user_id
     def test_login_identifier_not_email_or_id(self):
         User.objects.create(
             user_id="U5678",
@@ -327,7 +346,7 @@ class AuthTests(TestCase):
             bod="2000-01-01",
             phone="0800000000",
             email="exist@gmail.com",
-            password="12345"
+            password=make_password("12345")
         )
 
         data = {
@@ -342,6 +361,7 @@ class AuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
+    # 19. Signup rejects empty email string
     def test_signup_empty_email(self):
         data = {
             "username": "userA5",
@@ -359,6 +379,7 @@ class AuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # 20. Login rejects password set to None
     def test_login_password_none(self):
         User.objects.create(
             user_id="U7777",
@@ -368,7 +389,7 @@ class AuthTests(TestCase):
             bod="2000-01-01",
             phone="0900000000",
             email="pwnone@gmail.com",
-            password="12345"
+            password=make_password("12345")
         )
 
         data = {
@@ -383,6 +404,7 @@ class AuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # 21. Login rejects identifier set to None
     def test_login_identifier_none(self):
         data = {
             "identifier": None,
@@ -395,6 +417,7 @@ class AuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # 22. Signup rejects entirely empty payload
     def test_signup_all_empty(self):
         data = {
             "username": "",
@@ -414,6 +437,7 @@ class AuthTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    # 23. Signup rejects invalid JSON payload
     def test_signup_invalid_json(self):
         response = self.client.post(
             "/api/users/signup/",
@@ -422,6 +446,7 @@ class AuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # 24. Login rejects non-string identifier types
     def test_login_identifier_as_array(self):
         data = {
             "identifier": ["wrong", "type"],
@@ -434,6 +459,7 @@ class AuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # 25. Signup currently allows non-numeric phone strings
     def test_signup_phone_not_number(self):
         data = {
             "username": "userA6",
@@ -454,6 +480,7 @@ class AuthTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(User.objects.filter(email="phonetest@gmail.com").exists())
 
+    # 26. Signup rejects missing username
     def test_signup_missing_username(self):
         data = {
             "fname": "A",
@@ -471,3 +498,215 @@ class AuthTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+    # 27. Signup rejects duplicate username
+    def test_signup_duplicate_username(self):
+        User.objects.create(
+            user_id="U2222",
+            username="dupuser",
+            fname="A",
+            lname="B",
+            bod="2000-01-01",
+            phone="0999999999",
+            email="dup@example.com",
+            password=make_password("12345"),
+        )
+
+        data = {
+            "username": "dupuser",
+            "fname": "Another",
+            "lname": "User",
+            "bod": "2004-01-02",
+            "phone": "0888888888",
+            "email": "another@example.com",
+            "password": "12345",
+        }
+
+        response = self.client.post(
+            "/api/users/signup/",
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    # 28. Signup accepts dd/mm/YYYY bod format
+    def test_signup_slash_bod_format(self):
+        data = {
+            "username": "slashdate",
+            "fname": "Slash",
+            "lname": "Format",
+            "bod": "02/01/2004",
+            "phone": "0812345678",
+            "email": "slash@example.com",
+            "password": "12345",
+        }
+
+        response = self.client.post(
+            "/api/users/signup/",
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        user = User.objects.get(email="slash@example.com")
+        self.assertEqual(str(user.bod), "2004-01-02")
+
+    # 29. Login succeeds when using email identifier
+    def test_login_with_email(self):
+        User.objects.create(
+            user_id="U8888",
+            username="emaillogin",
+            fname="Mail",
+            lname="Login",
+            bod="2000-01-01",
+            phone="0900000001",
+            email="emaillogin@example.com",
+            password=make_password("pass123"),
+        )
+
+        data = {
+            "identifier": "emaillogin@example.com",
+            "password": "pass123",
+        }
+
+        response = self.client.post(
+            "/api/users/login/",
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    # 30. Login rejects non-string password types
+    def test_login_password_wrong_type(self):
+        data = {
+            "identifier": "anyone",
+            "password": ["array-not-allowed"],
+        }
+
+        response = self.client.post(
+            "/api/users/login/",
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    # 31. Login rejects completely empty payload
+    def test_login_empty_payload(self):
+        response = self.client.post(
+            "/api/users/login/",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    # 32. Signup response contains success message
+    def test_signup_response_message(self):
+        data = {
+            "username": "messageuser",
+            "fname": "Msg",
+            "lname": "User",
+            "bod": "2004-01-02",
+            "phone": "0912345999",
+            "email": "message@example.com",
+            "password": "12345",
+        }
+
+        response = self.client.post(
+            "/api/users/signup/",
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json().get("message"), "Signup successful")
+
+    # 33. Login response returns username and email
+    def test_login_response_contains_user_data(self):
+        User.objects.create(
+            user_id="U9999",
+            username="respuser",
+            fname="Resp",
+            lname="User",
+            bod="2000-01-01",
+            phone="0912345000",
+            email="resp@example.com",
+            password=make_password("pwresp"),
+        )
+
+        data = {
+            "identifier": "resp@example.com",
+            "password": "pwresp",
+        }
+
+        response = self.client.post(
+            "/api/users/login/",
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json().get("username"), "respuser")
+        self.assertEqual(response.json().get("email"), "resp@example.com")
+
+    # 34. Signup auto-generates uppercase 10-char user_id
+    def test_signup_generates_user_id_format(self):
+        data = {
+            "username": "randomiduser",
+            "fname": "Random",
+            "lname": "Id",
+            "bod": "2004-02-01",
+            "phone": "0912345666",
+            "email": "randomid@example.com",
+            "password": "12345",
+        }
+
+        response = self.client.post(
+            "/api/users/signup/",
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        user = User.objects.get(email="randomid@example.com")
+        self.assertEqual(len(user.user_id), 10)
+        self.assertEqual(user.user_id, user.user_id.upper())
+
+    # 35. Login rejects invalid JSON payload
+    def test_login_invalid_json(self):
+        response = self.client.post(
+            "/api/users/login/",
+            data="not json",
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    # 36. Login username lookup is case-sensitive
+    def test_login_username_case_sensitive(self):
+        User.objects.create(
+            user_id="U1112",
+            username="casetest",
+            fname="Case",
+            lname="Test",
+            bod="2000-01-01",
+            phone="0900000002",
+            email="casetest@example.com",
+            password=make_password("casepass"),
+        )
+
+        data = {
+            "identifier": "CASETEST",
+            "password": "casepass",
+        }
+
+        response = self.client.post(
+            "/api/users/login/",
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 404)
