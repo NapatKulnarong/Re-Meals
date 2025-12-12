@@ -108,13 +108,6 @@ type NavItem = {
   icon?: ReactNode;
 };
 
-type RequestNeed = {
-  id: string;
-  item: string;
-  quantity: string;
-  urgency: string;
-};
-
 type DonationRequestForm = {
   requestTitle: string;
   communityName: string;
@@ -123,7 +116,6 @@ type DonationRequestForm = {
   recipientAddress: string;
   contactPhone: string;
   notes: string;
-  needs: RequestNeed[];
 };
 
 type DonationRequestRecord = DonationRequestForm & {
@@ -159,12 +151,6 @@ type DonationRequestApiRecord = {
   contact_phone: string;
   notes: string;
   created_at: string;
-  items: Array<{
-    need_id: string;
-    item: string;
-    quantity: number;
-    urgency: string;
-  }>;
 };
 
 type Warehouse = {
@@ -241,9 +227,10 @@ const formatRestaurantLabel = (restaurant: Restaurant) =>
   `${restaurant.name}${restaurant.branch_name ? ` (${restaurant.branch_name})` : ""}`.trim();
 
 const createFoodItemId = () => {
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 10000);
-  return `FOOD${timestamp}${random}`;
+  const suffix = Math.floor(Math.random() * 10_000_000)
+    .toString()
+    .padStart(7, "0");
+  return `FOO${suffix}`;
 };
 
 const createEmptyFoodItem = (): FoodItemForm => ({
@@ -268,19 +255,6 @@ const generateDonationId = () => {
   return `DON${timestamp}${random}`;
 };
 
-const createRequestNeedId = () => {
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 10000);
-  return `NEED${timestamp}${random}`;
-};
-
-const createEmptyRequestNeed = (): RequestNeed => ({
-  id: createRequestNeedId(),
-  item: "",
-  quantity: "1",
-  urgency: "Normal",
-});
-
 const createDonationRequestForm = (): DonationRequestForm => ({
   requestTitle: "",
   communityName: "",
@@ -289,20 +263,7 @@ const createDonationRequestForm = (): DonationRequestForm => ({
   recipientAddress: "",
   contactPhone: "",
   notes: "",
-  needs: [createEmptyRequestNeed()],
 });
-
-const generateRequestId = () => {
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 1000);
-  return `REQ${timestamp}${random}`;
-};
-
-const generateDeliveryId = () => {
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 1000);
-  return `DLV${timestamp}${random}`;
-};
 
 const API_PATHS = {
   deliveries: "/delivery/deliveries/",
@@ -1614,12 +1575,6 @@ function DonationRequestSection() {
               recipientAddress: record.recipient_address,
               contactPhone: record.contact_phone ?? "",
               notes: record.notes ?? "",
-              needs: record.items.map((item) => ({
-                id: item.need_id,
-                item: item.item,
-                quantity: item.quantity.toString(),
-                urgency: item.urgency,
-              })),
               createdAt: record.created_at,
             }))
           );
@@ -1649,36 +1604,6 @@ function DonationRequestSection() {
     setNotification({});
   };
 
-  const handleNeedChange = (
-    index: number,
-    field: keyof RequestNeed,
-    value: string
-  ) => {
-    setForm((prev) => ({
-      ...prev,
-      needs: prev.needs.map((need, needIndex) =>
-        needIndex === index ? { ...need, [field]: value } : need
-      ),
-    }));
-  };
-
-  const handleAddNeed = () => {
-    setForm((prev) => ({
-      ...prev,
-      needs: [...prev.needs, createEmptyRequestNeed()],
-    }));
-  };
-
-  const handleRemoveNeed = (index: number) => {
-    setForm((prev) => {
-      const nextNeeds = prev.needs.filter((_, idx) => idx !== index);
-      return {
-        ...prev,
-        needs: nextNeeds.length ? nextNeeds : [createEmptyRequestNeed()],
-      };
-    });
-  };
-
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setNotification({});
@@ -1703,29 +1628,6 @@ function DonationRequestSection() {
       return;
     }
 
-    const normalizedNeeds = form.needs
-      .map((need) => ({
-        ...need,
-        item: need.item.trim(),
-        quantity: need.quantity.trim(),
-        urgency: need.urgency || "Normal",
-      }))
-      .filter((need) => need.item);
-
-    if (!normalizedNeeds.length) {
-      setNotification({ error: "List at least one requested item." });
-      return;
-    }
-
-    for (const need of normalizedNeeds) {
-      const qtyValue = Number(need.quantity);
-      if (Number.isNaN(qtyValue) || qtyValue <= 0) {
-        setNotification({ error: "Requested quantities must be greater than zero." });
-        return;
-      }
-      need.quantity = qtyValue.toString();
-    }
-
     const numberOfPeopleValue = Number(form.numberOfPeople);
     if (Number.isNaN(numberOfPeopleValue) || numberOfPeopleValue <= 0) {
       setNotification({ error: "Number of people must be greater than zero." });
@@ -1735,7 +1637,6 @@ function DonationRequestSection() {
     setIsSubmitting(true);
 
     const payload = {
-      request_id: editingId ?? generateRequestId(),
       title: form.requestTitle.trim(),
       community_name: form.communityName.trim(),
       recipient_address: form.recipientAddress.trim(),
@@ -1743,12 +1644,6 @@ function DonationRequestSection() {
       people_count: numberOfPeopleValue,
       contact_phone: form.contactPhone.trim(),
       notes: form.notes.trim(),
-      items: normalizedNeeds.map((need) => ({
-        need_id: need.id,
-        item: need.item,
-        quantity: Number(need.quantity),
-        urgency: need.urgency,
-      })),
     };
 
     try {
@@ -1771,12 +1666,6 @@ function DonationRequestSection() {
         recipientAddress: result.recipient_address,
         contactPhone: result.contact_phone ?? "",
         notes: result.notes ?? "",
-        needs: result.items.map((item) => ({
-          id: item.need_id,
-          item: item.item,
-          quantity: item.quantity.toString(),
-          urgency: item.urgency,
-        })),
         createdAt: result.created_at,
       };
 
@@ -1812,10 +1701,6 @@ function DonationRequestSection() {
       recipientAddress: request.recipientAddress,
       contactPhone: request.contactPhone,
       notes: request.notes,
-      needs: request.needs.map((need) => ({
-        ...need,
-        id: need.id ?? createRequestNeedId(),
-      })),
     });
     setEditingId(request.id);
     setNotification({
@@ -1962,91 +1847,6 @@ function DonationRequestSection() {
             </div>
           </div>
 
-          <div className="space-y-4 rounded-2xl border border-[#E6B9A2] bg-white p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-700">Requested items</p>
-              <button
-                type="button"
-                className="text-xs font-semibold uppercase tracking-wide text-[#B86A49]"
-                onClick={handleAddNeed}
-              >
-                + Add need
-              </button>
-            </div>
-
-            {form.needs.map((need, index) => (
-              <div
-                key={need.id}
-                className="grid gap-3 rounded-2xl border border-dashed border-[#E6B9A2] bg-[#F8F3EE] p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-500">
-                    Need #{index + 1}
-                  </p>
-                  <button
-                    type="button"
-                    className="text-xs font-semibold text-red-500 underline-offset-2 hover:underline"
-                    onClick={() => handleRemoveNeed(index)}
-                  >
-                    Remove
-                  </button>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="md:col-span-2">
-                    <label className="mb-1 block text-xs font-semibold text-gray-600">
-                      Item description
-                    </label>
-                    <input
-                      type="text"
-                      className={INPUT_STYLES}
-                      placeholder="e.g. ready-to-eat meals"
-                      value={need.item}
-                      onChange={(event) =>
-                        handleNeedChange(index, "item", event.target.value)
-                      }
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-gray-600">
-                      Quantity
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      className={INPUT_STYLES}
-                      value={need.quantity}
-                      onChange={(event) =>
-                        handleNeedChange(index, "quantity", event.target.value)
-                      }
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-gray-600">
-                      Urgency
-                    </label>
-                    <select
-                      className={INPUT_STYLES}
-                      value={need.urgency}
-                      onChange={(event) =>
-                        handleNeedChange(index, "urgency", event.target.value)
-                      }
-                    >
-                      <option>Normal</option>
-                      <option>High</option>
-                      <option>Critical</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
           <div>
             <label className="mb-1 block text-sm font-semibold text-gray-700">
               Additional notes (optional)
@@ -2171,34 +1971,6 @@ function DonationRequestSection() {
                       {request.contactPhone || "N/A"}
                     </p>
                   </div>
-                </div>
-
-                <div className="mt-4 space-y-2">
-                  {request.needs.map((need) => (
-                    <div
-                      key={need.id}
-                      className="flex flex-wrap items-center justify-between rounded-2xl border border-[#E6B9A2] bg-[#F8F3EE] px-4 py-2 text-sm text-gray-700"
-                    >
-                      <div>
-                        <p className="font-semibold">{need.item}</p>
-                        <p className="text-xs text-gray-500">
-                          {need.quantity} unit(s)
-                        </p>
-                      </div>
-                      <span
-                    className={[
-                      "rounded-full px-3 py-1 text-xs font-semibold",
-                      need.urgency === "Critical"
-                        ? "bg-[#FDECEA] text-[#B42318]"
-                        : need.urgency === "High"
-                          ? "bg-[#F7E3D6] text-[#B86A49]"
-                          : "bg-[#F8F3EE] text-[#8B5B1F]",
-                    ].join(" ")}
-                  >
-                    {need.urgency}
-                  </span>
-                    </div>
-                  ))}
                 </div>
 
                 {request.notes && (
@@ -2471,7 +2243,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [staff, setStaff] = useState<DeliveryStaffInfo[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
-  const [requests, setRequests] = useState<DonationRequestApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -2480,7 +2251,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
   const [staffInputs, setStaffInputs] = useState<Record<string, { deliveredQty: string; notes: string }>>({});
 
   const [pickupForm, setPickupForm] = useState({
-    deliveryId: generateDeliveryId(),
     donationId: "",
     warehouseId: "",
     communityId: "",
@@ -2490,14 +2260,12 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
   });
 
   const [distributionForm, setDistributionForm] = useState({
-    deliveryId: generateDeliveryId(),
     donationId: "",
     warehouseId: "",
     communityId: "",
     userId: "",
     pickupTime: "",
     dropoffTime: "03:00:00",
-    requestItemId: "",
     deliveredQty: "",
   });
 
@@ -2539,8 +2307,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
       setStaff(staffData);
       setDeliveries(deliveryData);
       setRestaurants(restaurantData);
-      const requestData = await apiFetch<DonationRequestApiRecord[]>(API_PATHS.donationRequests);
-      setRequests(requestData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load delivery data.");
     } finally {
@@ -2578,7 +2344,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
         throw new Error("Pickup time is required.");
       }
       const payload: Record<string, unknown> = {
-        delivery_id: form.deliveryId || generateDeliveryId(),
         delivery_type: mode === "pickup" ? "donation" : "distribution",
         pickup_time: new Date(form.pickupTime).toISOString(),
         dropoff_time: normalizeDuration(form.dropoffTime),
@@ -2591,9 +2356,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
       };
       if (mode === "distribution") {
         const distForm = form as typeof distributionForm;
-        if (distForm.requestItemId) {
-          payload.request_item = distForm.requestItemId;
-        }
         if (distForm.deliveredQty) {
           payload.delivered_quantity = Number(distForm.deliveredQty);
         }
@@ -2609,7 +2371,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
       await loadData();
       if (mode === "pickup") {
         setPickupForm({
-          deliveryId: generateDeliveryId(),
           donationId: "",
           warehouseId: "",
           communityId: "",
@@ -2619,14 +2380,12 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
         });
       } else {
         setDistributionForm({
-          deliveryId: generateDeliveryId(),
           donationId: "",
           warehouseId: "",
           communityId: "",
           userId: "",
           pickupTime: "",
           dropoffTime: "03:00:00",
-          requestItemId: "",
           deliveredQty: "",
         });
       }
@@ -2862,22 +2621,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
                       {community.name} ({community.community_id})
                     </option>
                   ))}
-                </select>
-                <select
-                  className={INPUT_STYLES}
-                  value={distributionForm.requestItemId}
-                  onChange={(e) =>
-                    setDistributionForm((prev) => ({ ...prev, requestItemId: e.target.value }))
-                  }
-                >
-                  <option value="">Select request item (optional)</option>
-                  {requests.flatMap((req) =>
-                    req.items.map((item) => (
-                      <option key={item.need_id} value={item.need_id}>
-                        {req.community_name} • {item.item} ({item.quantity})
-                      </option>
-                    ))
-                  )}
                 </select>
                 <select
                   className={INPUT_STYLES}
