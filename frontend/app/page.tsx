@@ -131,6 +131,16 @@ type DonationRequestRecord = DonationRequestForm & {
   createdAt: string;
 };
 
+type DonationRequestApiRecord = DonationRequestForm & {
+  request_id: string;
+  items: Array<{
+    need_id: string;
+    item: string;
+    quantity: number;
+    urgency: string;
+  }>;
+};
+
 type DonationApiRecord = {
   donation_id: string;
   donated_at: string;
@@ -201,6 +211,8 @@ type DeliveryRecordApi = {
   user_id: string;
   donation_id: string;
   community_id: string;
+   status: "pending" | "in_transit" | "delivered" | "cancelled";
+   notes?: string;
 };
 
 const POPULAR_RESTAURANT_SUGGESTIONS: RestaurantSuggestion[] = [
@@ -313,7 +325,26 @@ const generateDeliveryId = (() => {
   };
 })();
 
+const API_PATHS = {
+  deliveries: "/delivery/deliveries/",
+  warehouses: "/warehouse/warehouses/",
+  communities: "/community/communities/",
+  donations: "/donations/",
+  restaurants: "/restaurants/",
+  deliveryStaff: "/users/delivery-staff/",
+  donationRequests: "/donation-requests/",
+};
+
 const getCurrentTimestamp = () => new Date().toISOString();
+
+const buildAuthHeaders = (user?: LoggedUser | null) =>
+  user
+    ? {
+        "X-USER-ID": user.userId,
+        "X-USER-IS-ADMIN": String(user.isAdmin),
+        "X-USER-IS-DELIVERY": String(user.isDeliveryStaff),
+      }
+    : {};
 
 const formatDisplayDate = (value: string) => {
   if (!value) {
@@ -1478,11 +1509,9 @@ function DonationRequestSection() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#F3C7A0] bg-[#FFF7EF] p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#C46A24]">
-              Community details
-            </p>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="space-y-4 rounded-2xl border border-[#F4D8C0] bg-white p-4">
+            <p className="text-sm font-semibold text-gray-700">Community details</p>
+            <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700">
                   Community name
@@ -1515,11 +1544,9 @@ function DonationRequestSection() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#F3C7A0] bg-[#FFF7EF] p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#C46A24]">
-              Recipient details
-            </p>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="space-y-4 rounded-2xl border border-[#F4D8C0] bg-white p-4">
+            <p className="text-sm font-semibold text-gray-700">Recipient details</p>
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
                 <label className="mb-1 block text-sm font-semibold text-gray-700">
                   Recipient address
@@ -1550,7 +1577,7 @@ function DonationRequestSection() {
             </div>
           </div>
 
-          <div className="space-y-4 rounded-2xl border border-[#F4C7A0] bg-[#FFF7EF] p-4">
+          <div className="space-y-4 rounded-2xl border border-[#F4D8C0] bg-white p-4">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-gray-700">Requested items</p>
               <button
@@ -1565,10 +1592,10 @@ function DonationRequestSection() {
             {form.needs.map((need, index) => (
               <div
                 key={need.id}
-                className="grid gap-3 rounded-2xl border border-dashed border-[#F3C7A0] bg-[#FFF9F2] p-4"
+                className="grid gap-3 rounded-2xl border border-dashed border-[#F3C7A0] bg-[#FFF8F4] p-4"
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#C46A24]">
+                  <p className="text-xs text-gray-500">
                     Need #{index + 1}
                   </p>
                   <button
@@ -1664,7 +1691,7 @@ function DonationRequestSection() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-2xl bg-[#E48A3A] px-6 py-3 text-sm font-semibold text-white shadow hover:bg-[#D37623] disabled:opacity-60"
+              className="rounded-2xl bg-[#E48A3A] px-6 py-3 text-sm font-semibold text-white shadow hover:bg-[#D37623] disabled:opacity-60 transition"
             >
               {isSubmitting
                 ? "Saving..."
@@ -1675,7 +1702,7 @@ function DonationRequestSection() {
             {editingId && (
               <button
                 type="button"
-                className="rounded-2xl border border-[#F4C7A0] px-6 py-3 text-sm font-semibold text-gray-700 transition hover:border-[#E48A3A]"
+                className="rounded-2xl border border-[#F4C7A0] px-6 py-3 text-sm font-semibold text-gray-600 transition hover:border-[#E48A3A]"
                 onClick={resetForm}
               >
                 Cancel edit
@@ -2059,10 +2086,13 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [staff, setStaff] = useState<DeliveryStaffInfo[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
+  const [requests, setRequests] = useState<DonationRequestApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [staffInputs, setStaffInputs] = useState<Record<string, { deliveredQty: string; notes: string }>>({});
 
   const [pickupForm, setPickupForm] = useState({
     deliveryId: generateDeliveryId(),
@@ -2082,6 +2112,8 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
     userId: "",
     pickupTime: "",
     dropoffTime: "03:00:00",
+    requestItemId: "",
+    deliveredQty: "",
   });
 
   const canEdit = currentUser?.isAdmin ?? false;
@@ -2101,18 +2133,20 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
     return value;
   };
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const [donationData, warehouseData, communityData, staffData, deliveryData, restaurantData] =
         await Promise.all([
-          apiFetch<DonationApiRecord[]>("/donations/"),
-          apiFetch<Warehouse[]>("/warehouse/warehouses/"),
-          apiFetch<Community[]>("/community/communities/"),
-          apiFetch<DeliveryStaffInfo[]>("/users/delivery-staff/"),
-          apiFetch<DeliveryRecordApi[]>("/deliveries/"),
-          apiFetch<Restaurant[]>("/restaurants/"),
+          apiFetch<DonationApiRecord[]>(API_PATHS.donations),
+          apiFetch<Warehouse[]>(API_PATHS.warehouses),
+          apiFetch<Community[]>(API_PATHS.communities),
+          apiFetch<DeliveryStaffInfo[]>(API_PATHS.deliveryStaff),
+          apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
+            headers: buildAuthHeaders(currentUser),
+          }),
+          apiFetch<Restaurant[]>(API_PATHS.restaurants),
         ]);
       setDonations(donationData);
       setWarehouses(warehouseData);
@@ -2120,16 +2154,29 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
       setStaff(staffData);
       setDeliveries(deliveryData);
       setRestaurants(restaurantData);
+      const requestData = await apiFetch<DonationRequestApiRecord[]>(API_PATHS.donationRequests);
+      setRequests(requestData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load delivery data.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
+
+  useEffect(() => {
+    const next: Record<string, { deliveredQty: string; notes: string }> = {};
+    deliveries.forEach((d) => {
+      next[d.delivery_id] = {
+        deliveredQty: d.delivered_quantity?.toString() ?? "",
+        notes: d.notes ?? "",
+      };
+    });
+    setStaffInputs(next);
+  }, [deliveries]);
 
   const handleSubmitDelivery = async (
     form: typeof pickupForm,
@@ -2145,7 +2192,7 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
       if (!form.pickupTime) {
         throw new Error("Pickup time is required.");
       }
-      const payload = {
+      const payload: Record<string, unknown> = {
         delivery_id: form.deliveryId || generateDeliveryId(),
         delivery_type: mode === "pickup" ? "donation" : "distribution",
         pickup_time: new Date(form.pickupTime).toISOString(),
@@ -2157,10 +2204,20 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
         donation_id: form.donationId,
         community_id: form.communityId,
       };
+      if (mode === "distribution") {
+        const distForm = form as typeof distributionForm;
+        if (distForm.requestItemId) {
+          payload.request_item = distForm.requestItemId;
+        }
+        if (distForm.deliveredQty) {
+          payload.delivered_quantity = Number(distForm.deliveredQty);
+        }
+      }
 
-      await apiFetch("/deliveries/", {
+      await apiFetch(API_PATHS.deliveries, {
         method: "POST",
         body: JSON.stringify(payload),
+        headers: buildAuthHeaders(currentUser),
       });
 
       setNotice("Delivery assignment saved.");
@@ -2184,6 +2241,8 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
           userId: "",
           pickupTime: "",
           dropoffTime: "03:00:00",
+          requestItemId: "",
+          deliveredQty: "",
         });
       }
     } catch (err) {
@@ -2204,6 +2263,50 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
     return match ? `${match.name}${match.branch_name ? ` (${match.branch_name})` : ""}` : donationId;
   };
 
+  const statusLabel = (status: DeliveryRecordApi["status"]) => {
+    switch (status) {
+      case "pending":
+        return { text: "Pending", className: "bg-[#FFF1E3] text-[#C46A24]" };
+      case "in_transit":
+        return { text: "In transit", className: "bg-[#E6F4FF] text-[#1D4ED8]" };
+      case "delivered":
+        return { text: "Delivered", className: "bg-[#E6F7EE] text-[#1F4D36]" };
+      case "cancelled":
+      default:
+        return { text: "Cancelled", className: "bg-[#FDECEA] text-[#B42318]" };
+    }
+  };
+
+  const updateStatus = async (deliveryId: string, nextStatus: DeliveryRecordApi["status"]) => {
+    setUpdatingStatusId(deliveryId);
+    setError(null);
+    setNotice(null);
+    try {
+      const staffInput = staffInputs[deliveryId] ?? { deliveredQty: "", notes: "" };
+      const payload: Record<string, unknown> = { status: nextStatus };
+      if (staffInput.deliveredQty) {
+        payload.delivered_quantity = Number(staffInput.deliveredQty);
+      }
+      if (staffInput.notes) {
+        payload.notes = staffInput.notes;
+      }
+
+      await apiFetch(`${API_PATHS.deliveries}${deliveryId}/`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+        headers: buildAuthHeaders(currentUser),
+      });
+      setDeliveries((prev) =>
+        prev.map((d) => (d.delivery_id === deliveryId ? { ...d, status: nextStatus } : d))
+      );
+      setNotice(`Updated delivery ${deliveryId} to ${nextStatus.replace("_", " ")}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update status.");
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-[28px] border border-[#F3C7A0] bg-[#FFF7EF] p-6 shadow-lg shadow-[#F2C08F]/30">
@@ -2213,10 +2316,12 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
               Delivery board
             </p>
             <h2 className="text-2xl font-semibold text-gray-900">
-              Assign pickups and drop-offs
+              {canEdit ? "Assign pickups and drop-offs" : "My assigned deliveries"}
             </h2>
             <p className="text-sm text-gray-600">
-              Link donations to warehouses and communities with a delivery staff contact.
+              {canEdit
+                ? "Link donations to warehouses and communities with a delivery staff contact."
+                : "Update status for deliveries assigned to you."}
             </p>
           </div>
           <div className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow">
@@ -2229,7 +2334,7 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
 
         {loading ? (
           <p className="mt-4 text-sm text-gray-600">Loading delivery data...</p>
-        ) : (
+        ) : canEdit ? (
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             <div className="space-y-3 rounded-2xl border border-[#F3C7A0] bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
@@ -2314,16 +2419,14 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
                     />
                   </div>
                 </div>
-                {canEdit && (
-                  <button
-                    type="button"
-                    disabled={submitting}
-                    onClick={() => handleSubmitDelivery(pickupForm, "pickup")}
-                    className="mt-2 w-full rounded-xl bg-[#E48A3A] px-4 py-3 text-sm font-semibold text-white shadow transition hover:bg-[#D37623] disabled:opacity-60"
-                  >
-                    Save pickup assignment
-                  </button>
-                )}
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => handleSubmitDelivery(pickupForm, "pickup")}
+                  className="mt-2 w-full rounded-xl bg-[#E48A3A] px-4 py-3 text-sm font-semibold text-white shadow transition hover:bg-[#D37623] disabled:opacity-60"
+                >
+                  Save pickup assignment
+                </button>
               </div>
             </div>
 
@@ -2377,6 +2480,22 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
                 </select>
                 <select
                   className={INPUT_STYLES}
+                  value={distributionForm.requestItemId}
+                  onChange={(e) =>
+                    setDistributionForm((prev) => ({ ...prev, requestItemId: e.target.value }))
+                  }
+                >
+                  <option value="">Select request item (optional)</option>
+                  {requests.flatMap((req) =>
+                    req.items.map((item) => (
+                      <option key={item.need_id} value={item.need_id}>
+                        {req.communityName} • {item.item} ({item.quantity})
+                      </option>
+                    ))
+                  )}
+                </select>
+                <select
+                  className={INPUT_STYLES}
                   value={distributionForm.userId}
                   onChange={(e) =>
                     setDistributionForm((prev) => ({ ...prev, userId: e.target.value }))
@@ -2417,19 +2536,35 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
                       }
                     />
                   </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">
+                      Delivered quantity
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      className={INPUT_STYLES}
+                      value={distributionForm.deliveredQty}
+                      onChange={(e) =>
+                        setDistributionForm((prev) => ({ ...prev, deliveredQty: e.target.value }))
+                      }
+                    />
+                  </div>
                 </div>
-                {(canEdit || currentUser?.isDeliveryStaff) && (
-                  <button
-                    type="button"
-                    disabled={submitting}
-                    onClick={() => handleSubmitDelivery(distributionForm, "distribution")}
-                    className="mt-2 w-full rounded-xl bg-[#E48A3A] px-4 py-3 text-sm font-semibold text-white shadow transition hover:bg-[#D37623] disabled:opacity-60"
-                  >
-                    Save community delivery
-                  </button>
-                )}
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => handleSubmitDelivery(distributionForm, "distribution")}
+                  className="mt-2 w-full rounded-xl bg-[#E48A3A] px-4 py-3 text-sm font-semibold text-white shadow transition hover:bg-[#D37623] disabled:opacity-60"
+                >
+                  Save community delivery
+                </button>
               </div>
             </div>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-2xl border border-[#CFE6D8] bg-[#F6FBF7] p-4 text-sm text-gray-700">
+            View your assigned deliveries below. Status updates will notify the admin of progress.
           </div>
         )}
       </div>
@@ -2450,7 +2585,9 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
           <p className="text-sm text-gray-600">Loading tasks...</p>
         ) : visibleDeliveries.length === 0 ? (
           <p className="rounded-xl border border-dashed border-gray-200 bg-white/70 p-4 text-sm text-gray-600">
-            No delivery tasks yet.
+            {canEdit
+              ? "No delivery tasks yet. Create assignments from the forms above."
+              : "No tasks assigned to you yet."}
           </p>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
@@ -2459,14 +2596,21 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
                 key={delivery.delivery_id}
                 className="space-y-2 rounded-2xl border border-[#CFE6D8] bg-white p-4 shadow-sm"
               >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {delivery.delivery_type === "donation"
-                      ? "Pickup to warehouse"
-                      : "Deliver to community"}
-                  </p>
-                  <span className="text-xs font-semibold text-[#2F855A]">
-                    {delivery.delivery_id}
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {delivery.delivery_type === "donation"
+                        ? "Pickup to warehouse"
+                        : "Deliver to community"}
+                    </p>
+                    <span className="text-xs font-semibold text-[#2F855A]">
+                      {delivery.delivery_id}
+                    </span>
+                  </div>
+                  <span
+                    className={`rounded-full px-3 py-1 text-[11px] font-semibold ${statusLabel(delivery.status).className}`}
+                  >
+                    {statusLabel(delivery.status).text}
                   </span>
                 </div>
                 <p className="text-xs text-gray-500">
@@ -2482,6 +2626,93 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
                   Transit: {delivery.dropoff_time} • From {delivery.pickup_location_type} →{" "}
                   {delivery.dropoff_location_type}
                 </p>
+                {!canEdit && (
+                  <div className="space-y-3">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-gray-700">
+                          Delivered quantity
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          className={INPUT_STYLES}
+                          value={staffInputs[delivery.delivery_id]?.deliveredQty ?? ""}
+                          onChange={(e) =>
+                            setStaffInputs((prev) => ({
+                              ...prev,
+                              [delivery.delivery_id]: {
+                                deliveredQty: e.target.value,
+                                notes: prev[delivery.delivery_id]?.notes ?? "",
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-gray-700">
+                          Notes
+                        </label>
+                        <input
+                          type="text"
+                          className={INPUT_STYLES}
+                          value={staffInputs[delivery.delivery_id]?.notes ?? ""}
+                          onChange={(e) =>
+                            setStaffInputs((prev) => ({
+                              ...prev,
+                              [delivery.delivery_id]: {
+                                deliveredQty: prev[delivery.delivery_id]?.deliveredQty ?? "",
+                                notes: e.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {delivery.status === "pending" && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={updatingStatusId === delivery.delivery_id}
+                            onClick={() => updateStatus(delivery.delivery_id, "in_transit")}
+                            className="rounded-lg bg-[#1D4ED8] px-3 py-2 text-xs font-semibold text-white hover:bg-[#153EAE] disabled:opacity-60"
+                          >
+                            Start
+                          </button>
+                          <button
+                            type="button"
+                            disabled={updatingStatusId === delivery.delivery_id}
+                            onClick={() => updateStatus(delivery.delivery_id, "cancelled")}
+                            className="rounded-lg bg-[#FDECEA] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FCD7D2] disabled:opacity-60"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                      {delivery.status === "in_transit" && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={updatingStatusId === delivery.delivery_id}
+                            onClick={() => updateStatus(delivery.delivery_id, "delivered")}
+                            className="rounded-lg bg-[#2F8A61] px-3 py-2 text-xs font-semibold text-white hover:bg-[#25724F] disabled:opacity-60"
+                          >
+                            Delivered
+                          </button>
+                          <button
+                            type="button"
+                            disabled={updatingStatusId === delivery.delivery_id}
+                            onClick={() => updateStatus(delivery.delivery_id, "cancelled")}
+                            className="rounded-lg bg-[#FDECEA] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FCD7D2] disabled:opacity-60"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -2902,13 +3133,12 @@ export default function Home() {
         { id: 3, label: "Dashboard", icon: <span aria-hidden>🛠️</span> },
         { id: 4, label: "Delivery", icon: <span aria-hidden>🚚</span> },
       ]
-    : [
-        ...(currentUser?.isDeliveryStaff
-          ? [{ id: 4, label: "Delivery board", icon: <span aria-hidden>🚚</span> }]
-          : []),
-        { id: 1, label: "Donate", icon: <span aria-hidden>💚</span> },
-        { id: 2, label: "Request food", icon: <span aria-hidden>🍽️</span> },
-      ];
+    : currentUser?.isDeliveryStaff
+      ? [{ id: 4, label: "Delivery board", icon: <span aria-hidden>🚚</span> }]
+      : [
+          { id: 1, label: "Donate", icon: <span aria-hidden>💚</span> },
+          { id: 2, label: "Request food", icon: <span aria-hidden>🍽️</span> },
+        ];
 
   const normalizedActiveTab = useMemo(() => {
     if (!currentUser && activeTab > 2) {
@@ -2935,6 +3165,7 @@ export default function Home() {
         }}
         tabs={navItems}
         isAdmin={currentUser?.isAdmin}
+        isDriver={currentUser?.isDeliveryStaff}
         currentUser={currentUser ? { username: currentUser.username, email: currentUser.email } : undefined}
         onProfileClick={() => setShowProfileModal(true)}
         onLogout={() => {

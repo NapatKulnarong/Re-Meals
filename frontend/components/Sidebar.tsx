@@ -21,6 +21,7 @@ type SidebarProps = {
   currentUser?: { username: string; email: string };
   tabs: SidebarTab[];
   isAdmin?: boolean;
+  isDriver?: boolean;
 };
 
 export default function Sidebar({
@@ -32,6 +33,7 @@ export default function Sidebar({
   currentUser,
   tabs,
   isAdmin = false,
+  isDriver = false,
 }: SidebarProps) {
   const primaryTabs = tabs.slice(0, 2);
   const secondaryTabs = tabs.slice(2);
@@ -66,7 +68,12 @@ export default function Sidebar({
             <span className="text-[25px] font-semibold text-[#111828]">Re-Meals</span>
             {isAdmin && (
               <span className="text-xs font-semibold uppercase tracking-wide text-[#C46A24]">
-                Admin
+                For admin
+              </span>
+            )}
+            {isDriver && !isAdmin && (
+              <span className="text-xs font-semibold uppercase tracking-wide text-[#2F855A]">
+                for Driver
               </span>
             )}
           </div>

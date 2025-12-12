@@ -16,6 +16,11 @@ def _admin_emails():
     return {email.strip().lower() for email in raw.split(",") if email.strip()}
 
 
+def _delivery_staff_emails():
+    raw = os.environ.get("DELIVERY_STAFF_EMAILS", "")
+    return {email.strip().lower() for email in raw.split(",") if email.strip()}
+
+
 @swagger_auto_schema(method="post", request_body=SignupSerializer)
 @api_view(["POST"])
 def signup(request):
@@ -59,6 +64,14 @@ def signup(request):
 
     if user.email.lower() in _admin_emails():
         Admin.objects.get_or_create(user=user)
+    if user.email.lower() in _delivery_staff_emails():
+        DeliveryStaff.objects.get_or_create(
+            user=user,
+            defaults={
+                "assigned_area": os.environ.get("DELIVERY_STAFF_DEFAULT_AREA", "General"),
+                "is_available": True,
+            },
+        )
 
     return Response({"message": "Signup successful"}, status=200)
 
@@ -88,6 +101,15 @@ def login(request):
         Admin.objects.get_or_create(user=user)
         is_admin = True
     is_delivery_staff = DeliveryStaff.objects.filter(user=user).exists()
+    if not is_delivery_staff and user.email.lower() in _delivery_staff_emails():
+        DeliveryStaff.objects.get_or_create(
+            user=user,
+            defaults={
+                "assigned_area": os.environ.get("DELIVERY_STAFF_DEFAULT_AREA", "General"),
+                "is_available": True,
+            },
+        )
+        is_delivery_staff = True
 
     return Response(
         {
