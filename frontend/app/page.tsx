@@ -494,7 +494,7 @@ function DonationSection() {
             donationsWithItems.map(({ donation, items }) => ({
               id: donation.donation_id,
               restaurantId: donation.restaurant,
-              restaurantName: donation.restaurant,
+              restaurantName: "",
               branch: "",
               note: "",
               items: items.map((item) => ({
@@ -532,12 +532,26 @@ function DonationSection() {
   );
 
   useEffect(() => {
-    if (!restaurants.length) {
+    if (!restaurants.length || !donations.length) {
       return;
     }
+
+    // Check if any donations need restaurant info
+    const needsUpdate = donations.some(
+      (d) => d.restaurantId && (!d.restaurantName || !d.restaurantName.trim())
+    );
+
+    if (!needsUpdate) {
+      return;
+    }
+
     setDonations((prev) =>
       prev.map((donation) => {
         if (!donation.restaurantId) {
+          return donation;
+        }
+        // Only update if restaurant name is missing or empty
+        if (donation.restaurantName && donation.restaurantName.trim()) {
           return donation;
         }
         const info = restaurants.find(
@@ -553,7 +567,7 @@ function DonationSection() {
         };
       })
     );
-  }, [restaurants]);
+  }, [restaurants, donations]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
