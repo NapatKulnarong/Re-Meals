@@ -750,6 +750,39 @@ function DonationSection({
   const [isSuggestionOpen, setIsSuggestionOpen] = useState(false);
   const suggestionBoxRef = useRef<HTMLDivElement | null>(null);
 
+  const prioritizeDonations = useCallback(
+    (list: DonationRecord[]) => {
+      const userId = currentUser?.userId;
+      if (!list.length) {
+        return list;
+      }
+      return [...list].sort((a, b) => {
+        const aOwned = Boolean(userId && a.ownerUserId === userId);
+        const bOwned = Boolean(userId && b.ownerUserId === userId);
+        if (aOwned !== bOwned) {
+          return aOwned ? -1 : 1;
+        }
+        const aTime = new Date(a.createdAt).getTime();
+        const bTime = new Date(b.createdAt).getTime();
+        const safeATime = Number.isNaN(aTime) ? 0 : aTime;
+        const safeBTime = Number.isNaN(bTime) ? 0 : bTime;
+        return safeBTime - safeATime;
+      });
+    },
+    [currentUser?.userId]
+  );
+
+  const updateDonations = useCallback(
+    (updater: (prev: DonationRecord[]) => DonationRecord[]) => {
+      setDonations((prev) => prioritizeDonations(updater(prev)));
+    },
+    [prioritizeDonations]
+  );
+
+  useEffect(() => {
+    setDonations((prev) => prioritizeDonations(prev));
+  }, [prioritizeDonations]);
+
   useEffect(() => {
     let ignore = false;
     async function loadRestaurants() {
@@ -796,23 +829,25 @@ function DonationSection({
         );
         if (!ignore) {
           setDonations(
-            donationsWithItems.map(({ donation, items }) => ({
-              id: donation.donation_id,
-              restaurantId: donation.restaurant,
-              restaurantName: donation.restaurant_name ?? "",
-              restaurantAddress: donation.restaurant_address ?? "",
-              branch: donation.restaurant_branch ?? "",
-              note: "",
-              items: items.map((item) => ({
-                id: item.food_id,
-                name: item.name,
-                quantity: item.quantity.toString(),
-                unit: item.unit,
-                expiredDate: item.expire_date,
-              })),
-              createdAt: donation.donated_at,
-              ownerUserId: donation.created_by_user_id ?? null,
-            }))
+            prioritizeDonations(
+              donationsWithItems.map(({ donation, items }) => ({
+                id: donation.donation_id,
+                restaurantId: donation.restaurant,
+                restaurantName: donation.restaurant_name ?? "",
+                restaurantAddress: donation.restaurant_address ?? "",
+                branch: donation.restaurant_branch ?? "",
+                note: "",
+                items: items.map((item) => ({
+                  id: item.food_id,
+                  name: item.name,
+                  quantity: item.quantity.toString(),
+                  unit: item.unit,
+                  expiredDate: item.expire_date,
+                })),
+                createdAt: donation.donated_at,
+                ownerUserId: donation.created_by_user_id ?? null,
+              }))
+            )
           );
         }
       } catch (error) {
@@ -852,7 +887,7 @@ function DonationSection({
       return;
     }
 
-    setDonations((prev) =>
+    updateDonations((prev) =>
       prev.map((donation) => {
         if (!donation.restaurantId) {
           return donation;
@@ -874,7 +909,7 @@ function DonationSection({
         };
       })
     );
-  }, [restaurants, donations]);
+  }, [restaurants, donations, updateDonations]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1153,7 +1188,7 @@ function DonationSection({
         });
       }
 
-      setDonations((prev) => {
+      updateDonations((prev) => {
         if (!previousId) {
           return [nextDonation, ...prev];
         }
@@ -1227,7 +1262,7 @@ function DonationSection({
         method: "DELETE",
         headers: buildAuthHeaders(currentUser),
       });
-      setDonations((prev) => prev.filter((donation) => donation.id !== donationId));
+      updateDonations((prev) => prev.filter((donation) => donation.id !== donationId));
       if (editingId === donationId) {
         resetForm();
       } else {
