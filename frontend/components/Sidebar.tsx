@@ -267,16 +267,13 @@ export default function Sidebar({
             >
               {currentUser.username}
             </button>
-            <div className="flex justify-between text-xs text-gray-600">
-              <span className="truncate">{currentUser.email}</span>
-              <button
-                onClick={onLogout}
-                className="font-semibold text-[#C46A24] hover:underline"
-                type="button"
-              >
-                Logout
-              </button>
-            </div>
+            <button
+              onClick={onLogout}
+              className="w-full text-center text-sm font-semibold text-[#C46A24] hover:underline"
+              type="button"
+            >
+              Logout
+            </button>
           </div>
         ) : (
           <button

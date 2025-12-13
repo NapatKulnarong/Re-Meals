@@ -278,6 +278,35 @@ const API_PATHS = {
   donationRequests: "/donation-requests/",
 };
 
+// Helper function to format API errors into user-friendly messages
+const formatErrorMessage = (error: unknown): string => {
+  if (!(error instanceof Error)) {
+    return "Unable to save donation. Please try again.";
+  }
+
+  const message = error.message;
+
+  // Check for specific validation errors
+  if (message.includes("expire_date") && message.includes("wrong format")) {
+    return "Please enter expiry dates in the correct format (YYYY-MM-DD). Example: 2024-12-25";
+  }
+
+  if (message.includes("is_expired") && message.includes("boolean")) {
+    return "There was an issue with the expiry date validation. Please check your dates and try again.";
+  }
+
+  if (message.includes("quantity") || message.includes("must be greater than")) {
+    return "Please ensure all quantities are valid numbers greater than zero.";
+  }
+
+  if (message.includes("restaurant") && message.includes("required")) {
+    return "Please select or enter a restaurant name.";
+  }
+
+  // Return the original message if no specific pattern matches
+  return message || "Unable to save donation. Please try again.";
+};
+
 const getCurrentTimestamp = () => new Date().toISOString();
 
 const buildAuthHeaders = (user?: LoggedUser | null): Record<string, string> => {
@@ -1001,14 +1030,18 @@ function DonationSection({
       .filter((item) => item.name);
 
     if (!normalizedItems.length) {
-      setNotification({ error: "Add at least one food item with a name." });
+      setNotification({ error: "Please add at least one food item before saving the donation." });
       return;
     }
 
     for (const item of normalizedItems) {
+      if (!item.name || !item.unit || !item.quantity) {
+        setNotification({ error: "All food items must have a name, quantity, and unit." });
+        return;
+      }
       const quantityValue = Number(item.quantity);
       if (Number.isNaN(quantityValue) || quantityValue <= 0) {
-        setNotification({ error: "Item quantities must be greater than zero." });
+        setNotification({ error: "All food item quantities must be valid numbers greater than zero." });
         return;
       }
       item.quantity = quantityValue.toString();
@@ -1117,10 +1150,7 @@ function DonationSection({
       setEditingId(null);
     } catch (error) {
       setNotification({
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to save donation. Please try again.",
+        error: formatErrorMessage(error),
       });
     } finally {
       setIsSubmitting(false);
@@ -1165,9 +1195,9 @@ function DonationSection({
   };
 
   return (
-    <div className="grid grid-cols-5 gap-6 h-full">
-      <div className="col-span-3 flex flex-col rounded-[32px] border border-[#C7D2C0] bg-[#F6F2EC] p-8 shadow-2xl shadow-[#C7D2C0]/30">
-        <div className="mb-6 flex items-center justify-between">
+    <div className="grid h-[calc(100vh-4rem)] min-h-0 grid-cols-5 gap-6">
+      <div className="col-span-3 flex h-full min-h-0 flex-col overflow-hidden rounded-[32px] border border-[#C7D2C0] bg-[#f4f7ef] p-8 shadow-2xl shadow-[#C7D2C0]/30">
+        <div className="mb-6 flex flex-shrink-0 items-center justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#5E7A4A]">
               Food donation
@@ -1181,8 +1211,11 @@ function DonationSection({
           </span>
         </div>
 
-        <div className="space-y-8">
-          <form className="space-y-6" onSubmit={handleSubmit}>
+        <div className="flex-1 overflow-hidden">
+          <form
+            className="space-y-6 h-full overflow-y-auto pr-1 pb-4 sm:pr-3"
+            onSubmit={handleSubmit}
+          >
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700">
@@ -1414,7 +1447,7 @@ function DonationSection({
             <button
               type="submit"
               disabled={isSubmitting || !currentUser}
-              className="rounded-2xl bg-[#5E7A4A] px-6 py-3 text-sm font-semibold text-white shadow hover:bg-[#4E653D] disabled:opacity-60 disabled:cursor-not-allowed"
+              className="rounded-2xl bg-[#7ba061] px-6 py-3 text-sm font-semibold text-white shadow hover:bg-[#4E653D] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isSubmitting
                 ? "Saving..."
@@ -1434,11 +1467,11 @@ function DonationSection({
             </div>
 
             {!currentUser && (
-              <div className="mt-4 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-6">
+              <div className="mt-4 rounded-2xl border-2 border-dashed border-[#d48a68] bg-[#f1cbb5]/80 p-6">
                 <div className="flex items-center justify-between gap-6">
                   <div>
-                    <p className="text-sm font-semibold text-gray-900 mb-2">
-                      🔒 Please sign up or log in to save donations
+                    <p className="text-[16px] font-semibold text-gray-900 mb-2">
+                      Please sign up or log in to save donations
                     </p>
                     <p className="text-sm text-gray-600">
                       You need an account to create and manage food donations.
@@ -1450,14 +1483,12 @@ function DonationSection({
                         setAuthMode("signup");
                         setShowAuthModal(true);
                       }}
-                      className="group inline-flex items-center gap-4 rounded-2xl border border-[#E6B9A2] bg-white px-6 py-4 text-left text-base font-semibold text-[#70402B] shadow-sm transition-all duration-200 hover:border-[#B86A49] hover:bg-[#F1CBB5] hover:text-[#4B2415] hover:shadow-md active:border-[#B86A49] active:bg-[#F1CBB5] active:text-[#4B2415] active:shadow-md"
+                      className="group inline-flex items-center gap-4 rounded-xl border border -[#E6B9A2] bg-white px-5 py-3 text-left text-sm font-semibold text-[#70402B] shadow-sm transition-all duration-200 active:border-[#B86A49] active:bg-[#F1CBB5] active:text-[#4B2415] active:shadow-md"
                     >
                       <span>Sign up</span>
-                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F3D6C3] text-[#9A5335] transition-all group-hover:bg-white group-hover:text-[#B86A49] group-active:bg-white group-active:text-[#B86A49]">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
                         </svg>
-                      </span>
                     </button>
                     <p className="text-sm text-[#5a4f45]">
                       Already have an account?{" "}
@@ -1479,13 +1510,13 @@ function DonationSection({
         </div>
       </div>
 
-      <div className="col-span-2 flex flex-col rounded-[32px] border border-[#C7D2C0] bg-[#F5F2EC] p-8">
-        <div className="flex items-center justify-between mb-5">
+      <div className="col-span-2 flex h-full min-h-0 flex-col overflow-hidden rounded-[32px] border border-[#4d673f]/40 bg-[#ccdab2] p-7">
+        <div className="mb-5 flex flex-shrink-0 items-center justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#5E7A4A]">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#4e673e]">
               Pending donations
             </p>
-            <h3 className="text-2xl font-semibold text-gray-900">Donation log</h3>
+            <h3 className="text-2xl font-semibold text-gray-800">Donation log</h3>
           </div>
           <span className="text-xs font-semibold text-gray-500">
             {donations.length} total
@@ -1493,10 +1524,10 @@ function DonationSection({
         </div>
 
         {donationsError && (
-          <p className="text-sm font-semibold text-red-500 mb-4">{donationsError}</p>
+          <p className="text-sm font-semibold text-red-500 mb-4 flex-shrink-0">{donationsError}</p>
         )}
 
-        <div className="overflow-y-auto flex-1 pr-2">
+        <div className="overflow-y-auto flex-1 min-h-0 pr-2">
           {donationsLoading ? (
             <p className="rounded-2xl border border-dashed border-gray-300 bg-white/70 p-6 text-sm text-gray-500">
               Loading donations...
@@ -1510,7 +1541,7 @@ function DonationSection({
             {donations.map((donation) => (
               <article
                 key={donation.id}
-                className="rounded-2xl border border-[#D7DCC7] bg-white/90 p-5 shadow"
+                className="rounded-2xl border border-dashed border-[#4d673f] bg-white/90 p-5 "
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -1559,17 +1590,17 @@ function DonationSection({
                   </p>
                 )}
 
-                <div className="mt-5 flex gap-3">
+                <div className="mt-5 flex gap-3 justify-end">
                   <button
                     type="button"
-                  className="rounded-full border border-[#C7D2C0] px-4 py-2 text-xs font-semibold text-[#4B5F39] transition hover:bg-[#EEF2EA]"
+                    className="rounded-full border-2 border-[#C7D2C0] bg-white px-5 py-2 text-sm font-semibold text-[#4B5F39] shadow-sm transition-all duration-200 hover:border-[#5E7A4A] hover:bg-[#EEF2EA] hover:shadow-md active:scale-95"
                     onClick={() => handleEdit(donation)}
                   >
                     Edit
                   </button>
                   <button
                     type="button"
-                    className="rounded-full border border-[#F7B0A0] px-4 py-2 text-xs font-semibold text-[#B42318] transition hover:bg-[#FFF1F0]"
+                    className="rounded-full border-2 border-[#F7B0A0] bg-white px-5 py-2 text-sm font-semibold text-[#B42318] shadow-sm transition-all duration-200 hover:border-[#E63946] hover:bg-[#FFF1F0] hover:shadow-md active:scale-95"
                     onClick={() => handleDelete(donation.id)}
                   >
                     Delete
@@ -1985,8 +2016,8 @@ function DonationRequestSection({
         </form>
       </div>
 
-      <div className="col-span-2 flex flex-col space-y-5 rounded-[32px] border border-[#E6B9A2] bg-[#F6F2EC] p-8">
-        <div className="flex items-center justify-between">
+      <div className="col-span-2 flex flex-col h-full rounded-[32px] border border-[#E6B9A2] bg-[#F6F2EC] p-8">
+        <div className="flex items-center justify-between mb-5 flex-shrink-0">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#B86A49]">
               Get meals log
@@ -2001,10 +2032,10 @@ function DonationRequestSection({
         </div>
 
         {requestsError && (
-          <p className="text-sm font-semibold text-red-500 mb-4">{requestsError}</p>
+          <p className="text-sm font-semibold text-red-500 mb-4 flex-shrink-0">{requestsError}</p>
         )}
 
-        <div className="overflow-y-auto flex-1 pr-2">
+        <div className="overflow-y-auto flex-1 min-h-0 pr-2">
           {loadingRequests ? (
             <p className="rounded-2xl border border-dashed border-gray-300 bg-white/80 p-6 text-sm text-gray-500">
               Loading requests...
@@ -2066,17 +2097,17 @@ function DonationRequestSection({
                   <p className="mt-4 text-xs italic text-gray-500">{request.notes}</p>
                 )}
 
-                <div className="mt-5 flex gap-3">
+                <div className="mt-5 flex gap-3 justify-end">
                   <button
                     type="button"
-                  className="rounded-full border border-[#E6B9A2] px-4 py-2 text-xs font-semibold text-[#8B5B1F] transition hover:bg-[#F8F3EE]"
+                    className="rounded-full border-2 border-[#E6B9A2] bg-white px-5 py-2 text-sm font-semibold text-[#8B5B1F] shadow-sm transition-all duration-200 hover:border-[#B86A49] hover:bg-[#F8F3EE] hover:shadow-md active:scale-95"
                     onClick={() => handleEdit(request)}
                   >
                     Edit
                   </button>
                   <button
                     type="button"
-                    className="rounded-full border border-[#F7B0A0] px-4 py-2 text-xs font-semibold text-[#B42318] transition hover:bg-[#FFF1F0]"
+                    className="rounded-full border-2 border-[#F7B0A0] bg-white px-5 py-2 text-sm font-semibold text-[#B42318] shadow-sm transition-all duration-200 hover:border-[#E63946] hover:bg-[#FFF1F0] hover:shadow-md active:scale-95"
                     onClick={() => handleDelete(request.id)}
                   >
                     Delete
@@ -3367,14 +3398,6 @@ export default function Home() {
       {/* relative is IMPORTANT so the modal overlay stays inside this area only */}
       <section className="relative flex-1 h-screen overflow-y-auto p-8">
         <TabContent tab={normalizedActiveTab} currentUser={currentUser} setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} />
-
-        {currentUser && (
-          <div className="mt-6 rounded-2xl border border-gray-200 bg-white/80 px-4 py-3 text-sm text-gray-700 shadow-sm">
-            Logged in as{" "}
-            <span className="font-semibold text-gray-900">{currentUser.username}</span>{" "}
-            <span className="text-xs text-gray-500 block">{currentUser.email}</span>
-          </div>
-        )}
 
         {/* Conditionally render modal */}
         {showAuthModal && (
