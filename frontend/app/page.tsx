@@ -2432,7 +2432,7 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
   }, [deliveries]);
 
   const handleSubmitDelivery = async (
-    form: typeof pickupForm,
+    form: typeof pickupForm | typeof distributionForm,
     mode: "pickup" | "distribution"
   ) => {
     setSubmitting(true);
