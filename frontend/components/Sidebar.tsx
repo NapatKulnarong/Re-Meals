@@ -278,23 +278,27 @@ export default function Sidebar({
       {/* Bottom section: Sign up / Login button */}
       <div className="mt-6 border-t border-gray-300 pt-4">
         {currentUser ? (
-          <button
-            onClick={onProfileClick}
-            className="w-full rounded-xl border border-[#B86A49] bg-[#F2D6C3] pl-4 pr-3 py-3 text-left text-sm font-semibold text-[#4B2415] transition hover:border-[#9F583C] hover:text-[#3A1A0F] flex items-center justify-between"
-          >
-            <span>{currentUser.username}</span>
+          <div className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#B86A49] bg-[#F2D6C3] pl-4 pr-3 py-3 text-sm font-semibold text-[#4B2415] transition hover:border-[#9F583C] hover:text-[#3A1A0F]">
+            <button
+              onClick={onProfileClick}
+              type="button"
+              className="flex-1 bg-transparent text-left text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B86A49]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F2D6C3]"
+            >
+              {currentUser.username}
+            </button>
             <button
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 onLogout?.();
               }}
-              className="flex items-center justify-center w-10 h-10 rounded-full bg-white text-[#B86A49] hover:bg-gray-100 transition flex-shrink-0"
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#B86A49] transition hover:bg-gray-100"
               type="button"
               aria-label="Logout"
             >
-              <ArrowRightOnRectangleIcon className="w-6 h-6" />
+              <ArrowRightOnRectangleIcon className="h-6 w-6" />
             </button>
-          </button>
+          </div>
         ) : (
           <button
               onClick={onAuthClick}
