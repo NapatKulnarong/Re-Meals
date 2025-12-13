@@ -246,10 +246,10 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 📧 Contact
 
-Karnpon Poochitkanon - karnpon14513@gmail.com
-Napat Kulnarong - kul.napat@hotmail.com
-Nisara Ploysuttipol - nisara.ploys@gmail.com
-Tanon Likhittaphong - 2005tanon@gmail.com
+- Karnpon Poochitkanon - karnpon14513@gmail.com
+- Napat Kulnarong - kul.napat@hotmail.com
+- Nisara Ploysuttipol - nisara.ploys@gmail.com
+- Tanon Likhittaphong - 2005tanon@gmail.com
 
 Project Link: [https://github.com/NapatKulnarong/Re-Meals](https://github.com/NapatKulnarong/Re-Meals)
 
