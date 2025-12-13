@@ -108,13 +108,6 @@ type NavItem = {
   icon?: ReactNode;
 };
 
-type RequestNeed = {
-  id: string;
-  item: string;
-  quantity: string;
-  urgency: string;
-};
-
 type DonationRequestForm = {
   requestTitle: string;
   communityName: string;
@@ -123,7 +116,6 @@ type DonationRequestForm = {
   recipientAddress: string;
   contactPhone: string;
   notes: string;
-  needs: RequestNeed[];
 };
 
 type DonationRequestRecord = DonationRequestForm & {
@@ -136,6 +128,9 @@ type DonationApiRecord = {
   donated_at: string;
   status: boolean;
   restaurant: string;
+  restaurant_name?: string;
+  restaurant_branch?: string;
+  restaurant_address?: string;
 };
 
 type FoodItemApiRecord = {
@@ -156,12 +151,6 @@ type DonationRequestApiRecord = {
   contact_phone: string;
   notes: string;
   created_at: string;
-  items: Array<{
-    need_id: string;
-    item: string;
-    quantity: number;
-    urgency: string;
-  }>;
 };
 
 type Warehouse = {
@@ -238,9 +227,10 @@ const formatRestaurantLabel = (restaurant: Restaurant) =>
   `${restaurant.name}${restaurant.branch_name ? ` (${restaurant.branch_name})` : ""}`.trim();
 
 const createFoodItemId = () => {
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 10000);
-  return `FOOD${timestamp}${random}`;
+  const suffix = Math.floor(Math.random() * 10_000_000)
+    .toString()
+    .padStart(7, "0");
+  return `FOO${suffix}`;
 };
 
 const createEmptyFoodItem = (): FoodItemForm => ({
@@ -265,19 +255,6 @@ const generateDonationId = () => {
   return `DON${timestamp}${random}`;
 };
 
-const createRequestNeedId = () => {
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 10000);
-  return `NEED${timestamp}${random}`;
-};
-
-const createEmptyRequestNeed = (): RequestNeed => ({
-  id: createRequestNeedId(),
-  item: "",
-  quantity: "1",
-  urgency: "Normal",
-});
-
 const createDonationRequestForm = (): DonationRequestForm => ({
   requestTitle: "",
   communityName: "",
@@ -286,20 +263,7 @@ const createDonationRequestForm = (): DonationRequestForm => ({
   recipientAddress: "",
   contactPhone: "",
   notes: "",
-  needs: [createEmptyRequestNeed()],
 });
-
-const generateRequestId = () => {
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 1000);
-  return `REQ${timestamp}${random}`;
-};
-
-const generateDeliveryId = () => {
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 1000);
-  return `DLV${timestamp}${random}`;
-};
 
 const API_PATHS = {
   deliveries: "/delivery/deliveries/",
@@ -353,7 +317,7 @@ const toDateTimeLocalValue = (value: string) => {
 };
 
 const INPUT_STYLES = `
-  w-full h-9 rounded-[7px] border border-[#E4DCCD] bg-white px-3 text-sm
+  w-full rounded-2xl border border-[#E4DCCD] bg-white px-3 py-2 text-sm
   text-gray-800 outline-none transition focus:border-[#E3B261] focus:ring-2
   focus:ring-[#E3B261]/40
 `.replace(/\s+/g, " ");
@@ -442,50 +406,37 @@ function HomePage() {
   ];
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-12 rounded-[48px] bg-white px-4 py-10 shadow-[0_65px_140px_-80px rgba(55,26,7,0.8)] sm:px-8">
-      <div className="relative overflow-hidden rounded-[40px] border border-[#EACFBD] bg-white p-8 shadow-[0_40px_120px_-45px rgba(59,31,16,0.6)] sm:p-10">
+    <div className="mx-auto w-full max-w-8xl space-y-12">
+      <div className="relative overflow-hidden rounded-[40px] bg-gradient-to-br from-[#e8ede3] to-[#f5f1ed] p-8 shadow-[0_40px_120px_-45px rgba(59,31,16,0.6)] sm:p-10">
         <div aria-hidden className="pointer-events-none absolute -right-8 top-6 hidden h-64 w-64 rounded-[40px] bg-[#DEF7EA]/60 blur-3xl lg:block" />
         <div aria-hidden className="pointer-events-none absolute bottom-8 left-4 h-24 w-24 rounded-full bg-[#F1FBF5]/70 blur-2xl" />
         <div className="relative grid items-center gap-10 lg:grid-cols-[1.15fr,0.85fr]">
           <div className="space-y-6 text-[#2C1A10]">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#28533A] shadow-sm ring-1 ring-[#E6D4C5]">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#708A58] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-md">
               <span aria-hidden className="text-lg">✦</span>
-              <span>Rescue more. Waste less.</span>
+              <span>Re-purpose every meal</span>
             </div>
-            <h1 className="text-[2.65rem] leading-tight text-[#1F252F] sm:text-[3.25rem] sm:leading-[1.1]">
-              Rescue surplus meals. <span className="text-[#22523A]">Fuel local relief.</span>
+            <h1 className="text-[2.65rem] leading-tight text-[#3a3a3a] sm:text-[3.25rem] sm:leading-[1.1]">
+              Redirect surplus meals. <span className="text-[#708A58]">Rebuild communities.</span>
             </h1>
-            <p className="max-w-2xl text-lg text-[#574635]">
+            <p className="max-w-2xl text-lg text-[#5a4f45]">
               Re-Meals links restaurants, drivers, and community leaders so good food never sits idle.
               Share donations, request support, and move meals where they are needed most.
             </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <button className="inline-flex items-center gap-2 rounded-full bg-[#24543D] px-6 py-3 text-sm font-semibold text-white shadow-[0_25px_50px_-25px rgba(36,84,61,0.8)] transition hover:translate-y-0.5 hover:bg-[#1E4632]">
-                <span>Share a donation</span>
-                <span aria-hidden className="text-lg">→</span>
-              </button>
-              <button className="inline-flex items-center gap-2 rounded-full border border-[#F2C797] bg-[#FFF8EE] px-6 py-3 text-sm font-semibold text-[#7D431C] shadow-sm transition hover:border-[#C5722B] hover:text-[#4A2611]">
-                <span>Request support</span>
-                <span aria-hidden className="text-lg">❤</span>
-              </button>
-              <span className="text-sm text-[#6F5B4B]">
-                Use the sidebar to start — we guide both donors and recipients.
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-3 text-sm text-[#5F4A3B]">
-              <div className="flex items-center gap-2 rounded-2xl border border-[#F0DFCE] bg-white/80 px-4 py-3 shadow-sm">
+            <div className="flex flex-wrap gap-3 text-sm text-[#3a3a3a]">
+              <div className="flex items-center gap-2 rounded-2xl border-2 border-[#708A58] bg-white px-4 py-3 shadow-sm hover:bg-[#708A58] hover:text-white transition-all">
                 <span className="text-lg" aria-hidden>
                   🚚
                 </span>
                 <span>Coordinated pickups & drop-offs</span>
               </div>
-              <div className="flex items-center gap-2 rounded-2xl border border-[#F0DFCE] bg-white/80 px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-2 rounded-2xl border-2 border-[#d48a68] bg-white px-4 py-3 shadow-sm hover:bg-[#d48a68] hover:text-white transition-all">
                 <span className="text-lg" aria-hidden>
                   🧊
                 </span>
                 <span>Freshness-first handling</span>
               </div>
-              <div className="flex items-center gap-2 rounded-2xl border border-[#F0DFCE] bg-white/80 px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-2 rounded-2xl border-2 border-[#708A58] bg-white px-4 py-3 shadow-sm hover:bg-[#708A58] hover:text-white transition-all">
                 <span className="text-lg" aria-hidden>
                   📍
                 </span>
@@ -493,15 +444,15 @@ function HomePage() {
               </div>
             </div>
           </div>
-          <div className="relative rounded-[32px] border border-[#E6D3C2] bg-white/95 p-6 shadow-[0_30px_70px_-45px rgba(42,22,8,0.7)]">
+          <div className="relative rounded-[32px] border-2 border-dashed border-[#708958] bg-white p-6">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#2F6C46]">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#708A58]">
                   Impact snapshot
                 </p>
-                <h3 className="text-2xl font-bold text-[#1F252F]">This week on Re-Meals</h3>
+                <h3 className="text-2xl font-bold text-[#3a3a3a]">This week on Re-Meals</h3>
               </div>
-              <div className="rounded-full bg-[#E6F4E8] px-3 py-1 text-xs font-semibold text-[#1F4D36]">
+              <div className="rounded-full bg-[#708A58] px-3 py-1 text-xs font-semibold text-white">
                 Live
               </div>
             </div>
@@ -509,139 +460,122 @@ function HomePage() {
               {stats.map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-2xl border border-[#EEE0D0] bg-[#FFFBF6] px-4 py-3 shadow-sm"
+                  className="rounded-2xl border-2 border-[#d48a68] bg-[#fdf8f4] px-4 py-3 shadow-sm hover:bg-[#d48a68] hover:text-white transition-all group"
                 >
-                  <p className="text-[0.55rem] font-semibold uppercase tracking-[0.15em] text-[#7E6A57]">
+                  <p className="text-[0.55rem] font-semibold uppercase tracking-[0.15em] text-[#7E6A57] group-hover:text-white">
                     {item.label}
                   </p>
-                  <p className="text-2xl font-bold text-[#1E1F24]">{item.value}</p>
-                  <p className="text-xs font-semibold text-[#1F4D36]">{item.helper}</p>
+                  <p className="text-2xl font-bold text-[#3a3a3a] group-hover:text-white">{item.value}</p>
+                  <p className="text-xs font-semibold text-[#708A58] group-hover:text-white">{item.helper}</p>
                 </div>
               ))}
             </div>
-            <div className="mt-5 rounded-2xl bg-gradient-to-r from-[#1F4D36] to-[#214833] px-4 py-3 text-sm text-white shadow-lg">
-              <div className="flex items-center gap-2">
-                <span className="text-lg" aria-hidden>
-                  ✨
-                </span>
-                <p className="leading-tight">
-                  Tap "Donate" or "Get meals" from the sidebar to add your drop in minutes.
-                </p>
-              </div>
-            </div>
+            
           </div>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr]">
-        <div className="rounded-[32px] border border-[#E5D0BF] bg-white p-7 shadow-[0_30px_90px_-50px rgba(86,45,17,0.35)]">
+        <div className="rounded-[32px] bg-[#e8ede3] p-7 shadow-lg">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-[#2F6C46]">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#708A58]">
                 For restaurants
               </p>
-              <h2 className="text-3xl font-semibold text-[#211A16]">Donate surplus easily</h2>
+              <h2 className="text-3xl font-semibold text-[#3a3a3a]">Donate surplus easily</h2>
             </div>
-            <span className="rounded-full bg-[#E4F5E8] px-3 py-1 text-sm font-semibold text-[#2F6C46] shadow-sm">
+            <span className="rounded-full bg-[#708A58] px-3 py-1 text-sm font-semibold text-white shadow-sm">
               Reduce waste
             </span>
           </div>
-          <p className="mt-3 text-[#5B4A3C]">
+          <p className="mt-3 text-[#5a4f45]">
             Log extra meals with quantities, expiry, and packaging notes so our delivery team can pick up while everything stays fresh.
           </p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-[#EADBCD] bg-white/90 p-4 shadow-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-lg" aria-hidden>
-                  💚
-                </span>
-                <p className="text-sm font-semibold text-[#211A16]">Smart item logging</p>
+          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="group aspect-square rounded-2xl border-2 border-[#708A58] bg-[#708A58] p-5 shadow-md transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-[#708A58]/40 cursor-pointer flex flex-col items-center justify-center text-center">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl shadow-lg transition-transform group-hover:rotate-12">
+                💚
               </div>
-              <p className="mt-1 text-sm text-[#5A4A3B]">
+              <p className="text-base font-bold text-white mb-2">Smart item logging</p>
+              <p className="text-xs text-white/90 leading-relaxed">
                 Capture portions, units, and expiry in seconds so we know what to rescue first.
               </p>
             </div>
-            <div className="rounded-2xl border border-[#EADBCD] bg-white/90 p-4 shadow-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-lg" aria-hidden>
-                  🧭
-                </span>
-                <p className="text-sm font-semibold text-[#211A16]">Route-friendly pickups</p>
+            <div className="group aspect-square rounded-2xl border-2 border-[#d48a68] bg-[#d48a68] p-5 shadow-md transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-[#d48a68]/40 cursor-pointer flex flex-col items-center justify-center text-center">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl shadow-lg transition-transform group-hover:rotate-12">
+                🧭
               </div>
-              <p className="mt-1 text-sm text-[#5A4A3B]">
+              <p className="text-base font-bold text-white mb-2">Route-friendly pickups</p>
+              <p className="text-xs text-white/90 leading-relaxed">
                 Drivers see your window and plan efficient routes to minimize food time in transit.
               </p>
             </div>
-            <div className="rounded-2xl border border-[#EADBCD] bg-white/90 p-4 shadow-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-lg" aria-hidden>
-                  📦
-                </span>
-                <p className="text-sm font-semibold text-[#211A16]">Packaging guidance</p>
+            <div className="group aspect-square rounded-2xl border-2 border-[#708A58] bg-[#708A58] p-5 shadow-md transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-[#708A58]/40 cursor-pointer flex flex-col items-center justify-center text-center">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl shadow-lg transition-transform group-hover:rotate-12">
+                📦
               </div>
-              <p className="mt-1 text-sm text-[#5A4A3B]">
+              <p className="text-base font-bold text-white mb-2">Packaging guidance</p>
+              <p className="text-xs text-white/90 leading-relaxed">
                 Tips for sealing, labeling, and keeping items cool before pickup arrives.
               </p>
             </div>
-            <div className="rounded-2xl border border-[#EADBCD] bg-white/90 p-4 shadow-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-lg" aria-hidden>
-                  🎧
-                </span>
-                <p className="text-sm font-semibold text-[#211A16]">Concierge support</p>
+            <div className="group aspect-square rounded-2xl border-2 border-[#d48a68] bg-[#d48a68] p-5 shadow-md transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-[#d48a68]/40 cursor-pointer flex flex-col items-center justify-center text-center">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl shadow-lg transition-transform group-hover:rotate-12">
+                🎧
               </div>
-              <p className="mt-1 text-sm text-[#5A4A3B]">
+              <p className="text-base font-bold text-white mb-2">Concierge support</p>
+              <p className="text-xs text-white/90 leading-relaxed">
                 Need help? Tag the admin team and we'll follow up before your shift ends.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-[32px] border border-[#E5D0BF] bg-white p-7 shadow-[0_30px_90px_-50px rgba(86,45,17,0.35)]">
+        <div className="rounded-[32px] bg-[#fdf8f4] p-7 shadow-lg">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-[#C96421]">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#d48a68]">
                 For communities
               </p>
-              <h2 className="text-3xl font-semibold text-[#211A16]">Request food support</h2>
+              <h2 className="text-3xl font-semibold text-[#3a3a3a]">Request food support</h2>
             </div>
-            <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-[#C96421] shadow-sm">
+            <span className="rounded-full bg-[#d48a68] px-3 py-1 text-sm font-semibold text-white shadow-sm">
               Right-sized aid
             </span>
           </div>
-          <p className="mt-3 text-[#5B4A3C]">
+          <p className="mt-3 text-[#5a4f45]">
             Share what your neighbors need, when, and where. We align donations to your delivery window and capacity.
           </p>
           <div className="mt-5 space-y-3">
-            <div className="flex items-start gap-3 rounded-2xl border border-[#EADBCD] bg-white/90 p-4 shadow-sm">
+            <div className="flex items-start gap-3 rounded-2xl border-2 border-[#d48a68] bg-white p-4 shadow-sm hover:bg-[#d48a68] hover:text-white transition-all group">
               <span className="text-lg" aria-hidden>
                 🍽️
               </span>
               <div>
-                <p className="text-sm font-semibold text-[#211A16]">Structured needs list</p>
-                <p className="text-sm text-[#5A4A3B]">
+                <p className="text-sm font-semibold text-[#3a3a3a] group-hover:text-white">Structured needs list</p>
+                <p className="text-sm text-[#5a4f45] group-hover:text-white">
                   Outline items, quantities, and urgency so matching stays accurate.
                 </p>
               </div>
             </div>
-            <div className="flex items-start gap-3 rounded-2xl border border-[#EADBCD] bg-white/90 p-4 shadow-sm">
+            <div className="flex items-start gap-3 rounded-2xl border-2 border-[#708A58] bg-white p-4 shadow-sm hover:bg-[#708A58] hover:text-white transition-all group">
               <span className="text-lg" aria-hidden>
                 🏠
               </span>
               <div>
-                <p className="text-sm font-semibold text-[#211A16]">Clear drop-off details</p>
-                <p className="text-sm text-[#5A4A3B]">
+                <p className="text-sm font-semibold text-[#3a3a3a] group-hover:text-white">Clear drop-off details</p>
+                <p className="text-sm text-[#5a4f45] group-hover:text-white">
                   Provide addresses, access notes, and an ideal delivery time for smooth arrivals.
                 </p>
               </div>
             </div>
-            <div className="flex items-start gap-3 rounded-2xl border border-[#EADBCD] bg-white/90 p-4 shadow-sm">
+            <div className="flex items-start gap-3 rounded-2xl border-2 border-[#d48a68] bg-white p-4 shadow-sm hover:bg-[#d48a68] hover:text-white transition-all group">
               <span className="text-lg" aria-hidden>
                 📱
               </span>
               <div>
-                <p className="text-sm font-semibold text-[#211A16]">Stay updated</p>
-                <p className="text-sm text-[#5A4A3B]">
+                <p className="text-sm font-semibold text-[#3a3a3a] group-hover:text-white">Stay updated</p>
+                <p className="text-sm text-[#5a4f45] group-hover:text-white">
                   Track confirmations from our team and know when a delivery is on the way.
                 </p>
               </div>
@@ -650,15 +584,15 @@ function HomePage() {
         </div>
       </div>
 
-      <div className="rounded-[40px] border border-[#E5D8CB] bg-white p-8 shadow-[0_35px_100px_-55px rgba(59,31,16,0.55)]">
+      <div className="rounded-[40px] bg-[#e8ede3] p-8 shadow-lg">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4F23]">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d48a68]">
               How Re-Meals works
             </p>
-            <h2 className="text-3xl font-semibold text-[#211A16]">Three guided steps</h2>
+            <h2 className="text-3xl font-semibold text-[#3a3a3a]">Three guided steps</h2>
           </div>
-          <div className="flex items-center gap-2 rounded-full bg-[#FFF3DF] px-4 py-2 text-xs font-semibold text-[#8A4F23]">
+          <div className="flex items-center gap-2 rounded-full bg-[#d48a68] px-4 py-2 text-xs font-semibold text-white">
             <span className="text-lg" aria-hidden>
               🧭
             </span>
@@ -669,48 +603,52 @@ function HomePage() {
           {journey.map((item) => (
             <div
               key={item.step}
-              className="rounded-2xl border border-[#EADBD0] bg-white/90 p-5 shadow-sm"
+              className="rounded-2xl border-2 border-[#708A58] bg-white p-5 shadow-md hover:bg-[#708A58] hover:text-white transition-all group"
             >
               <div className={`mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${item.accent}`}>
                 <span>Step {item.step}</span>
               </div>
-              <h3 className="text-lg font-semibold text-[#211A16]">{item.title}</h3>
-              <p className="mt-2 text-sm text-[#5A4A3B]">{item.copy}</p>
+              <h3 className="text-lg font-semibold text-[#3a3a3a] group-hover:text-white">{item.title}</h3>
+              <p className="mt-2 text-sm text-[#5a4f45] group-hover:text-white">{item.copy}</p>
             </div>
           ))}
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {promises.map((item) => (
+        {promises.map((item, index) => (
           <div
             key={item.title}
-            className="rounded-[28px] border border-[#E4D6C9] bg-white p-6 shadow-[0_30px_90px_-60px rgba(51,28,10,0.4)]"
+            className={`rounded-[28px] border-2 p-6 shadow-lg hover:scale-105 transition-all ${
+              index % 2 === 0
+                ? 'border-[#708A58] bg-[#708A58]'
+                : 'border-[#d48a68] bg-[#d48a68]'
+            }`}
           >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md">
               <span className="text-xl" aria-hidden>
                 {item.icon}
               </span>
             </div>
-            <h3 className="text-xl font-semibold text-[#211A16]">{item.title}</h3>
-            <p className="mt-2 text-sm text-[#5B4A3C]">{item.copy}</p>
+            <h3 className="text-xl font-semibold text-white">{item.title}</h3>
+            <p className="mt-2 text-sm text-white/90">{item.copy}</p>
           </div>
         ))}
       </div>
 
-      <div className="rounded-[40px] border border-[#DDE7D7] bg-gradient-to-br from-[#EEF8F0] via-white to-[#F4FBF1] p-10 shadow-[0_40px_110px_-55px rgba(39,56,38,0.45)]">
+      <div className="rounded-[40px] bg-gradient-to-br from-[#fdf8f4] to-[#e8ede3] p-10 shadow-xl">
         <div className="flex flex-col items-start gap-5 text-left sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-3xl font-bold text-[#1F252F]">Ready to keep good food moving?</h2>
-            <p className="mt-2 text-lg text-[#5C4C3F]">
+            <h2 className="text-3xl font-bold text-[#3a3a3a]">Ready to keep good food moving?</h2>
+            <p className="mt-2 text-lg text-[#5a4f45]">
               Use the sidebar to log a donation, request food, or manage deliveries.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <div className="rounded-2xl border border-[#1F4D36] bg-[#1F4D36] px-6 py-3 text-sm font-semibold text-white shadow-sm">
+            <div className="rounded-2xl border-2 border-[#708A58] bg-[#708A58] px-6 py-3 text-sm font-semibold text-white shadow-md hover:scale-105 transition-all cursor-pointer">
               Donate surplus meals
             </div>
-            <div className="rounded-2xl border border-[#F2C14E] bg-white px-6 py-3 text-sm font-semibold text-[#8B5B1F] shadow-sm">
+            <div className="rounded-2xl border-2 border-[#d48a68] bg-white px-6 py-3 text-sm font-semibold text-[#d48a68] shadow-md hover:bg-[#d48a68] hover:text-white transition-all cursor-pointer">
               Request food support
             </div>
           </div>
@@ -813,8 +751,8 @@ function DonationSection() {
             donationsWithItems.map(({ donation, items }) => ({
               id: donation.donation_id,
               restaurantId: donation.restaurant,
-              restaurantName: donation.restaurant,
-              branch: "",
+              restaurantName: donation.restaurant_name ?? "",
+              branch: donation.restaurant_branch ?? "",
               note: "",
               items: items.map((item) => ({
                 id: item.food_id,
@@ -851,12 +789,26 @@ function DonationSection() {
   );
 
   useEffect(() => {
-    if (!restaurants.length) {
+    if (!restaurants.length || !donations.length) {
       return;
     }
+
+    // Check if any donations need restaurant info
+    const needsUpdate = donations.some(
+      (d) => d.restaurantId && (!d.restaurantName || !d.restaurantName.trim())
+    );
+
+    if (!needsUpdate) {
+      return;
+    }
+
     setDonations((prev) =>
       prev.map((donation) => {
         if (!donation.restaurantId) {
+          return donation;
+        }
+        // Only update if restaurant name is missing or empty
+        if (donation.restaurantName && donation.restaurantName.trim()) {
           return donation;
         }
         const info = restaurants.find(
@@ -872,7 +824,7 @@ function DonationSection() {
         };
       })
     );
-  }, [restaurants]);
+  }, [restaurants, donations]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -958,7 +910,7 @@ function DonationSection() {
       ...prev,
       restaurantName: name,
       restaurantId: matched?.restaurant_id ?? "",
-      branch: matched?.branch_name ?? "",
+      branch: matched ? matched.branch_name ?? "" : prev.branch,
     }));
     setIsSuggestionOpen(name.trim().length > 0);
   };
@@ -1016,14 +968,24 @@ function DonationSection() {
     event.preventDefault();
     setNotification({});
 
-    if (!selectedRestaurant) {
+    const trimmedRestaurantName = form.restaurantName.trim();
+    const branchValue = form.branch.trim();
+    const selectedLabel = selectedRestaurant ? formatRestaurantLabel(selectedRestaurant) : "";
+    const nameMatchesSelected =
+      Boolean(selectedRestaurant) &&
+      (trimmedRestaurantName === selectedLabel ||
+        trimmedRestaurantName === (selectedRestaurant?.name ?? ""));
+    const branchMatchesSelected =
+      Boolean(selectedRestaurant) &&
+      branchValue === (selectedRestaurant?.branch_name ?? "");
+    const manualEntry = !selectedRestaurant || !nameMatchesSelected || !branchMatchesSelected;
+
+    if (manualEntry && !trimmedRestaurantName.length) {
       setNotification({
-        error: "Please select a restaurant from the suggestions.",
+        error: "Enter the restaurant name or choose one from the suggestions.",
       });
       return;
     }
-
-    const trimmedRestaurantName = form.restaurantName.trim();
 
     const normalizedItems = form.items
       .map((item) => ({
@@ -1051,18 +1013,23 @@ function DonationSection() {
     setIsSubmitting(true);
 
     try {
-      const donationId = editingId ?? generateDonationId();
-      if (editingId) {
-        await apiFetch(`/donations/${editingId}/`, { method: "DELETE" });
+      const previousId = editingId;
+      if (previousId) {
+        await apiFetch(`/donations/${previousId}/`, { method: "DELETE" });
       }
-      await apiFetch("/donations/", {
+      const donationPayload: Record<string, unknown> = {};
+      if (!manualEntry && selectedRestaurant) {
+        donationPayload.restaurant = selectedRestaurant.restaurant_id;
+      } else {
+        donationPayload.manual_restaurant_name = trimmedRestaurantName;
+        donationPayload.manual_branch_name = branchValue;
+        donationPayload.manual_restaurant_address = branchValue || trimmedRestaurantName;
+      }
+      const createdDonation = await apiFetch<DonationApiRecord>("/donations/", {
         method: "POST",
-        body: JSON.stringify({
-          donation_id: donationId,
-          restaurant: selectedRestaurant.restaurant_id,
-          status: "pending",
-        }),
+        body: JSON.stringify(donationPayload),
       });
+      const donationId = createdDonation.donation_id;
 
       await Promise.all(
         normalizedItems.map((item) =>
@@ -1084,31 +1051,62 @@ function DonationSection() {
         )
       );
 
-      const timestamp = getCurrentTimestamp();
-      const existingRecord = editingId
-        ? donations.find((donation) => donation.id === editingId)
+      const timestamp = createdDonation.donated_at || getCurrentTimestamp();
+      const resolvedRestaurantId = createdDonation.restaurant;
+      const resolvedRestaurantName =
+        createdDonation.restaurant_name ?? trimmedRestaurantName;
+      const resolvedBranch = createdDonation.restaurant_branch ?? branchValue;
+      const resolvedAddress =
+        createdDonation.restaurant_address ?? (branchValue || trimmedRestaurantName);
+      const existingRecord = previousId
+        ? donations.find((donation) => donation.id === previousId)
         : null;
 
       const nextDonation: DonationRecord = {
         id: donationId,
-        restaurantId: selectedRestaurant.restaurant_id,
-        restaurantName: trimmedRestaurantName,
-        branch: selectedRestaurant.branch_name,
+        restaurantId: resolvedRestaurantId,
+        restaurantName: resolvedRestaurantName,
+        branch: resolvedBranch,
         note: form.note.trim(),
         items: normalizedItems,
         createdAt: existingRecord?.createdAt ?? timestamp,
       };
 
-      setDonations((prev) =>
-        editingId
-          ? prev.map((donation) =>
-              donation.id === donationId ? nextDonation : donation
-            )
-          : [nextDonation, ...prev]
-      );
+      if (manualEntry) {
+        setRestaurants((prev) => {
+          if (prev.some((r) => r.restaurant_id === resolvedRestaurantId)) {
+            return prev;
+          }
+          return [
+            ...prev,
+            {
+              restaurant_id: resolvedRestaurantId,
+              name: resolvedRestaurantName,
+              branch_name: resolvedBranch,
+              address: resolvedAddress,
+              is_chain: Boolean(resolvedBranch),
+            },
+          ];
+        });
+      }
+
+      setDonations((prev) => {
+        if (!previousId) {
+          return [nextDonation, ...prev];
+        }
+        let replaced = false;
+        const updated = prev.map((donation) => {
+          if (donation.id === previousId) {
+            replaced = true;
+            return nextDonation;
+          }
+          return donation;
+        });
+        return replaced ? updated : [nextDonation, ...prev];
+      });
 
       setNotification({
-        message: editingId ? "Donation updated successfully." : "Donation saved.",
+        message: previousId ? "Donation updated successfully." : "Donation saved.",
       });
       setForm(createDonationFormState());
       setEditingId(null);
@@ -1161,7 +1159,7 @@ function DonationSection() {
   };
 
   return (
-    <div className="grid grid-cols-5 gap-6" style={{ height: 'calc(100vh - 4rem)' }}>
+    <div className="grid grid-cols-5 gap-6 h-full">
       <div className="col-span-3 flex flex-col rounded-[32px] border border-[#C7D2C0] bg-[#F6F2EC] p-8 shadow-2xl shadow-[#C7D2C0]/30">
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -1253,12 +1251,19 @@ function DonationSection() {
                 <input
                   type="text"
                   className={INPUT_STYLES}
-                  value={selectedRestaurant?.branch_name ?? form.branch}
-                  readOnly
-                  placeholder="Select a restaurant to populate branch"
+                  value={form.branch}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, branch: event.target.value }))
+                  }
+                  placeholder={
+                    selectedRestaurant
+                      ? "Branch is filled automatically. Adjust if needed."
+                      : "Enter branch or location (optional)"
+                  }
                 />
                 <p className="mt-2 text-xs text-gray-500">
-                  Branch information is filled automatically when a restaurant is selected.
+                  Branch information is filled automatically when a restaurant is selected, or
+                  you can type a custom branch/location.
                 </p>
               </div>
             </div>
@@ -1543,12 +1548,6 @@ function DonationRequestSection() {
               recipientAddress: record.recipient_address,
               contactPhone: record.contact_phone ?? "",
               notes: record.notes ?? "",
-              needs: record.items.map((item) => ({
-                id: item.need_id,
-                item: item.item,
-                quantity: item.quantity.toString(),
-                urgency: item.urgency,
-              })),
               createdAt: record.created_at,
             }))
           );
@@ -1578,36 +1577,6 @@ function DonationRequestSection() {
     setNotification({});
   };
 
-  const handleNeedChange = (
-    index: number,
-    field: keyof RequestNeed,
-    value: string
-  ) => {
-    setForm((prev) => ({
-      ...prev,
-      needs: prev.needs.map((need, needIndex) =>
-        needIndex === index ? { ...need, [field]: value } : need
-      ),
-    }));
-  };
-
-  const handleAddNeed = () => {
-    setForm((prev) => ({
-      ...prev,
-      needs: [...prev.needs, createEmptyRequestNeed()],
-    }));
-  };
-
-  const handleRemoveNeed = (index: number) => {
-    setForm((prev) => {
-      const nextNeeds = prev.needs.filter((_, idx) => idx !== index);
-      return {
-        ...prev,
-        needs: nextNeeds.length ? nextNeeds : [createEmptyRequestNeed()],
-      };
-    });
-  };
-
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setNotification({});
@@ -1632,29 +1601,6 @@ function DonationRequestSection() {
       return;
     }
 
-    const normalizedNeeds = form.needs
-      .map((need) => ({
-        ...need,
-        item: need.item.trim(),
-        quantity: need.quantity.trim(),
-        urgency: need.urgency || "Normal",
-      }))
-      .filter((need) => need.item);
-
-    if (!normalizedNeeds.length) {
-      setNotification({ error: "List at least one requested item." });
-      return;
-    }
-
-    for (const need of normalizedNeeds) {
-      const qtyValue = Number(need.quantity);
-      if (Number.isNaN(qtyValue) || qtyValue <= 0) {
-        setNotification({ error: "Requested quantities must be greater than zero." });
-        return;
-      }
-      need.quantity = qtyValue.toString();
-    }
-
     const numberOfPeopleValue = Number(form.numberOfPeople);
     if (Number.isNaN(numberOfPeopleValue) || numberOfPeopleValue <= 0) {
       setNotification({ error: "Number of people must be greater than zero." });
@@ -1664,7 +1610,6 @@ function DonationRequestSection() {
     setIsSubmitting(true);
 
     const payload = {
-      request_id: editingId ?? generateRequestId(),
       title: form.requestTitle.trim(),
       community_name: form.communityName.trim(),
       recipient_address: form.recipientAddress.trim(),
@@ -1672,12 +1617,6 @@ function DonationRequestSection() {
       people_count: numberOfPeopleValue,
       contact_phone: form.contactPhone.trim(),
       notes: form.notes.trim(),
-      items: normalizedNeeds.map((need) => ({
-        need_id: need.id,
-        item: need.item,
-        quantity: Number(need.quantity),
-        urgency: need.urgency,
-      })),
     };
 
     try {
@@ -1700,12 +1639,6 @@ function DonationRequestSection() {
         recipientAddress: result.recipient_address,
         contactPhone: result.contact_phone ?? "",
         notes: result.notes ?? "",
-        needs: result.items.map((item) => ({
-          id: item.need_id,
-          item: item.item,
-          quantity: item.quantity.toString(),
-          urgency: item.urgency,
-        })),
         createdAt: result.created_at,
       };
 
@@ -1741,10 +1674,6 @@ function DonationRequestSection() {
       recipientAddress: request.recipientAddress,
       contactPhone: request.contactPhone,
       notes: request.notes,
-      needs: request.needs.map((need) => ({
-        ...need,
-        id: need.id ?? createRequestNeedId(),
-      })),
     });
     setEditingId(request.id);
     setNotification({
@@ -1774,8 +1703,8 @@ function DonationRequestSection() {
   };
 
   return (
-    <div className="grid grid-cols-5 gap-6" style={{ height: 'calc(100vh - 4rem)' }}>
-      <div className="col-span-3 flex flex-col rounded-[32px] border border-[#E6B9A2] bg-[#F6F2EC] p-8 shadow-2xl shadow-[#E6B9A2]/35 overflow-hidden">
+    <div className="space-y-10">
+      <div className="rounded-[32px] border border-[#E6B9A2] bg-[#F6F2EC] p-8 shadow-2xl shadow-[#E6B9A2]/35">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#B86A49]">
@@ -1790,11 +1719,10 @@ function DonationRequestSection() {
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-2">
-          <form className="space-y-6" onSubmit={handleSubmit}>
+        <form className="space-y-8" onSubmit={handleSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="ml-[2px] mb-2 block text-sm font-semibold text-gray-700">
+              <label className="mb-1 block text-sm font-semibold text-gray-700">
                 Request title
               </label>
               <input
@@ -1809,7 +1737,7 @@ function DonationRequestSection() {
               />
             </div>
             <div>
-              <label className="ml-[2px] mb-2 block text-sm font-semibold text-gray-700">
+              <label className="mb-1 block text-sm font-semibold text-gray-700">
                 Expected delivery window
               </label>
               <input
@@ -1892,97 +1820,12 @@ function DonationRequestSection() {
             </div>
           </div>
 
-          <div className="space-y-4 rounded-2xl border border-[#E6B9A2] bg-white p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-700">Requested items</p>
-              <button
-                type="button"
-                className="text-xs font-semibold uppercase tracking-wide text-[#B86A49]"
-                onClick={handleAddNeed}
-              >
-                + Add need
-              </button>
-            </div>
-
-            {form.needs.map((need, index) => (
-              <div
-                key={need.id}
-                className="grid gap-3 rounded-[7px] border border-dashed border-[#E6B9A2] bg-[#F8F3EE] p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-500">
-                    Need #{index + 1}
-                  </p>
-                  <button
-                    type="button"
-                    className="text-xs font-semibold text-red-500 underline-offset-2 hover:underline"
-                    onClick={() => handleRemoveNeed(index)}
-                  >
-                    Remove
-                  </button>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="md:col-span-2">
-                    <label className="mb-1 block text-xs font-semibold text-gray-600">
-                      Item description
-                    </label>
-                    <input
-                      type="text"
-                      className={INPUT_STYLES}
-                      placeholder="e.g. ready-to-eat meals"
-                      value={need.item}
-                      onChange={(event) =>
-                        handleNeedChange(index, "item", event.target.value)
-                      }
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-gray-600">
-                      Quantity
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      className={INPUT_STYLES}
-                      value={need.quantity}
-                      onChange={(event) =>
-                        handleNeedChange(index, "quantity", event.target.value)
-                      }
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-gray-600">
-                      Urgency
-                    </label>
-                    <select
-                      className={INPUT_STYLES}
-                      value={need.urgency}
-                      onChange={(event) =>
-                        handleNeedChange(index, "urgency", event.target.value)
-                      }
-                    >
-                      <option>Normal</option>
-                      <option>High</option>
-                      <option>Critical</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
           <div>
-            <label className="ml-[2px] mb-2 block text-sm font-semibold text-gray-700">
+            <label className="mb-1 block text-sm font-semibold text-gray-700">
               Additional notes (optional)
             </label>
             <textarea
-              className={`${INPUT_STYLES} h-24 pt-2`}
+              className={`${INPUT_STYLES} h-24`}
               placeholder="Distribution plan, vulnerable households, delivery constraints..."
               value={form.notes}
               onChange={(event) =>
@@ -2025,10 +1868,9 @@ function DonationRequestSection() {
             )}
           </div>
         </form>
-        </div>
       </div>
 
-      <div className="col-span-2 flex flex-col rounded-[32px] border border-[#E6B9A2] bg-[#F6F2EC] p-8 overflow-hidden">
+      <div className="space-y-5 rounded-[32px] border border-[#E6B9A2] bg-[#F6F2EC] p-8">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#B86A49]">
@@ -2044,10 +1886,9 @@ function DonationRequestSection() {
         </div>
 
         {requestsError && (
-          <p className="text-sm font-semibold text-red-500 mb-4">{requestsError}</p>
+          <p className="text-sm font-semibold text-red-500">{requestsError}</p>
         )}
 
-        <div className="flex-1 overflow-y-auto pr-2 mt-6">
         {loadingRequests ? (
           <p className="rounded-2xl border border-dashed border-gray-300 bg-white/80 p-6 text-sm text-gray-500">
             Loading requests...
@@ -2105,34 +1946,6 @@ function DonationRequestSection() {
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-2">
-                  {request.needs.map((need) => (
-                    <div
-                      key={need.id}
-                      className="flex flex-wrap items-center justify-between rounded-2xl border border-[#E6B9A2] bg-[#F8F3EE] px-4 py-2 text-sm text-gray-700"
-                    >
-                      <div>
-                        <p className="font-semibold">{need.item}</p>
-                        <p className="text-xs text-gray-500">
-                          {need.quantity} unit(s)
-                        </p>
-                      </div>
-                      <span
-                    className={[
-                      "rounded-full px-3 py-1 text-xs font-semibold",
-                      need.urgency === "Critical"
-                        ? "bg-[#FDECEA] text-[#B42318]"
-                        : need.urgency === "High"
-                          ? "bg-[#F7E3D6] text-[#B86A49]"
-                          : "bg-[#F8F3EE] text-[#8B5B1F]",
-                    ].join(" ")}
-                  >
-                    {need.urgency}
-                  </span>
-                    </div>
-                  ))}
-                </div>
-
                 {request.notes && (
                   <p className="mt-4 text-xs italic text-gray-500">{request.notes}</p>
                 )}
@@ -2157,7 +1970,6 @@ function DonationRequestSection() {
             ))}
           </div>
         )}
-        </div>
       </div>
     </div>
   );
@@ -2404,7 +2216,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [staff, setStaff] = useState<DeliveryStaffInfo[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
-  const [requests, setRequests] = useState<DonationRequestApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -2413,7 +2224,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
   const [staffInputs, setStaffInputs] = useState<Record<string, { deliveredQty: string; notes: string }>>({});
 
   const [pickupForm, setPickupForm] = useState({
-    deliveryId: generateDeliveryId(),
     donationId: "",
     warehouseId: "",
     communityId: "",
@@ -2423,14 +2233,12 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
   });
 
   const [distributionForm, setDistributionForm] = useState({
-    deliveryId: generateDeliveryId(),
     donationId: "",
     warehouseId: "",
     communityId: "",
     userId: "",
     pickupTime: "",
     dropoffTime: "03:00:00",
-    requestItemId: "",
     deliveredQty: "",
   });
 
@@ -2472,8 +2280,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
       setStaff(staffData);
       setDeliveries(deliveryData);
       setRestaurants(restaurantData);
-      const requestData = await apiFetch<DonationRequestApiRecord[]>(API_PATHS.donationRequests);
-      setRequests(requestData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load delivery data.");
     } finally {
@@ -2511,7 +2317,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
         throw new Error("Pickup time is required.");
       }
       const payload: Record<string, unknown> = {
-        delivery_id: form.deliveryId || generateDeliveryId(),
         delivery_type: mode === "pickup" ? "donation" : "distribution",
         pickup_time: new Date(form.pickupTime).toISOString(),
         dropoff_time: normalizeDuration(form.dropoffTime),
@@ -2524,9 +2329,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
       };
       if (mode === "distribution") {
         const distForm = form as typeof distributionForm;
-        if (distForm.requestItemId) {
-          payload.request_item = distForm.requestItemId;
-        }
         if (distForm.deliveredQty) {
           payload.delivered_quantity = Number(distForm.deliveredQty);
         }
@@ -2542,7 +2344,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
       await loadData();
       if (mode === "pickup") {
         setPickupForm({
-          deliveryId: generateDeliveryId(),
           donationId: "",
           warehouseId: "",
           communityId: "",
@@ -2552,14 +2353,12 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
         });
       } else {
         setDistributionForm({
-          deliveryId: generateDeliveryId(),
           donationId: "",
           warehouseId: "",
           communityId: "",
           userId: "",
           pickupTime: "",
           dropoffTime: "03:00:00",
-          requestItemId: "",
           deliveredQty: "",
         });
       }
@@ -2795,22 +2594,6 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
                       {community.name} ({community.community_id})
                     </option>
                   ))}
-                </select>
-                <select
-                  className={INPUT_STYLES}
-                  value={distributionForm.requestItemId}
-                  onChange={(e) =>
-                    setDistributionForm((prev) => ({ ...prev, requestItemId: e.target.value }))
-                  }
-                >
-                  <option value="">Select request item (optional)</option>
-                  {requests.flatMap((req) =>
-                    req.items.map((item) => (
-                      <option key={item.need_id} value={item.need_id}>
-                        {req.community_name} • {item.item} ({item.quantity})
-                      </option>
-                    ))
-                  )}
                 </select>
                 <select
                   className={INPUT_STYLES}
@@ -3145,7 +2928,18 @@ function AuthModal({
         email: "",
         password: "",
       });
-      onModeChange("login");
+
+      // Automatically log the user in after successful signup
+      if (payload.username && payload.email) {
+        onAuthSuccess?.({
+          username: payload.username,
+          email: payload.email,
+          userId: payload.user_id ?? "",
+          isAdmin: Boolean(payload.is_admin),
+          isDeliveryStaff: Boolean(payload.is_delivery_staff),
+        });
+        onClose();
+      }
     } catch (error) {
       console.error("Signup error", error);
       setSignupStatus({
@@ -3481,7 +3275,7 @@ export default function Home() {
   }, [activeTab, currentUser]);
 
   return (
-    <main className="relative flex min-h-screen items-start bg-white">
+    <main className="relative flex min-h-screen items-start bg-[#f5f1ed]">
       {/* Sidebar on the left */}
       <Sidebar
         activeTab={normalizedActiveTab}
@@ -3502,7 +3296,7 @@ export default function Home() {
       />
       {/* Right side: content area */}
       {/* relative is IMPORTANT so the modal overlay stays inside this area only */}
-      <section className="relative flex-1 h-screen overflow-y-auto px-8 py-8">
+      <section className="relative flex-1 h-screen overflow-y-auto p-8">
         <TabContent tab={normalizedActiveTab} currentUser={currentUser} />
 
         {currentUser && (
