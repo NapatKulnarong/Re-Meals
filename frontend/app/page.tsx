@@ -251,12 +251,6 @@ const createDonationFormState = (): DonationFormState => ({
   items: [createEmptyFoodItem()],
 });
 
-const generateDonationId = () => {
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 1000);
-  return `DON${timestamp}${random}`;
-};
-
 const generateDeliveryId = () => {
   const suffix = Math.floor(Math.random() * 10_000_000)
     .toString()
@@ -511,7 +505,7 @@ function HomePage({
               <div>
                 <p className="text-sm font-semibold text-black/70">Concierge support</p>
                 <p className="text-sm text-black/70">
-                  Need help? Tag the admin team and we'll follow up before your shift ends.
+                  Need help? Tag the admin team and we&apos;ll follow up before your shift ends.
                 </p>
               </div>
             </div>

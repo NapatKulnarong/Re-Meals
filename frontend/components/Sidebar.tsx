@@ -25,6 +25,52 @@ type SidebarProps = {
   isDriver?: boolean;
 };
 
+const renderSidebarIcon = (id: number, className?: string) => {
+  if (id === 0) {
+    return (
+      <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <path d="M3 10.25 12 3l9 7.25V21a.75.75 0 0 1-.75.75H15a.75.75 0 0 1-.75-.75v-4.5h-4.5V21A.75.75 0 0 1 9 21.75H3.75A.75.75 0 0 1 3 21Z" />
+      </svg>
+    );
+  }
+  if (id === 1) {
+    return (
+      <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <path d="M12 21s-6.5-4.4-9-9a5.25 5.25 0 0 1 9-5 5.25 5.25 0 0 1 9 5c-2.5 4.6-9 9-9 9Z" />
+      </svg>
+    );
+  }
+  if (id === 2) {
+    return (
+      <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+        <path d="M7 6h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-4.4l-2.6 2.6a.75.75 0 0 1-1.28-.53V16H7a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
+        <path d="M10.25 10.25h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1 0-1.5Z" />
+        <path d="M10.25 12.75h2a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5Z" />
+      </svg>
+    );
+  }
+  if (id === 3) {
+    return <Squares2X2Icon className={className} />;
+  }
+  if (id === 4) {
+    return (
+      <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="6.5" width="11" height="9" rx="2.25" />
+        <path d="M14 9.5h2.9c.38 0 .74.15 1 .42l2.1 2.18c.19.2.3.47.3.75v2.65H17" />
+        <path d="M6.25 17.5a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5Z" />
+        <path d="M17.25 17.5a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5Z" />
+        <path d="M14 13.5h5.3" />
+        <path d="M3 13.5h11" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <circle cx="12" cy="12" r="4" />
+    </svg>
+  );
+};
+
 export default function Sidebar({
   activeTab,
   onTabChange,
@@ -39,54 +85,6 @@ export default function Sidebar({
   const homeTab = tabs.find(tab => tab.id === 0);
   const primaryTabs = tabs.filter(tab => tab.id === 1 || tab.id === 2);
   const secondaryTabs = tabs.filter(tab => tab.id > 2);
-
-  const Icon = ({ id, className }: { id: number; className?: string }) => {
-    if (id === 0) {
-      return (
-        <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-          <path d="M3 10.25 12 3l9 7.25V21a.75.75 0 0 1-.75.75H15a.75.75 0 0 1-.75-.75v-4.5h-4.5V21A.75.75 0 0 1 9 21.75H3.75A.75.75 0 0 1 3 21Z" />
-        </svg>
-      );
-    }
-    if (id === 1) {
-      return (
-        <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-          <path d="M12 21s-6.5-4.4-9-9a5.25 5.25 0 0 1 9-5 5.25 5.25 0 0 1 9 5c-2.5 4.6-9 9-9 9Z" />
-        </svg>
-      );
-    }
-    if (id === 2) {
-      return (
-        <svg viewBox="0 0 24 24" className={className} fill="currentColor">
-          <path d="M7 6h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-4.4l-2.6 2.6a.75.75 0 0 1-1.28-.53V16H7a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
-          <path d="M10.25 10.25h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1 0-1.5Z" />
-          <path d="M10.25 12.75h2a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5Z" />
-        </svg>
-      );
-    }
-    if (id === 3) {
-      return (
-        <Squares2X2Icon className={className} />
-      );
-    }
-    if (id === 4) {
-      return (
-        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="6.5" width="11" height="9" rx="2.25" />
-          <path d="M14 9.5h2.9c.38 0 .74.15 1 .42l2.1 2.18c.19.2.3.47.3.75v2.65H17" />
-          <path d="M6.25 17.5a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5Z" />
-          <path d="M17.25 17.5a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5Z" />
-          <path d="M14 13.5h5.3" />
-          <path d="M3 13.5h11" />
-        </svg>
-      );
-    }
-    return (
-      <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-        <circle cx="12" cy="12" r="4" />
-      </svg>
-    );
-  };
 
   return (
     // Sidebar container: flex-col + justify-between lets us push the auth button to the bottom
@@ -154,7 +152,7 @@ export default function Sidebar({
                   : "bg-[#F3D6C3] text-[#9A5335]",
               ].join(" ")}
             >
-              <Icon id={homeTab.id} className="h-5 w-5" />
+              {renderSidebarIcon(homeTab.id, "h-5 w-5")}
             </span>
           </button>
         )}
@@ -204,7 +202,7 @@ export default function Sidebar({
                     ].join(" ")}
                     aria-hidden
                   >
-                    <Icon id={tab.id} className="h-5 w-5" />
+                    {renderSidebarIcon(tab.id, "h-5 w-5")}
                   </span>
                   <span>{tab.label}</span>
                 </div>
@@ -245,9 +243,9 @@ export default function Sidebar({
                         "flex h-10 w-10 items-center justify-center rounded-full",
                         isActive ? palette.iconActive : palette.iconInactive,
                       ].join(" ")}
-                      aria-hidden
-                    >
-                      <Icon id={tab.id} className="h-5 w-5" />
+                    aria-hidden
+                  >
+                    {renderSidebarIcon(tab.id, "h-5 w-5")}
                     </span>
                     <span className="text-base">{tab.label}</span>
                   </div>
