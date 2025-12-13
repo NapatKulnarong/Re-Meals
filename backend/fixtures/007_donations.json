@@ -5,7 +5,8 @@
     "fields": {
       "donated_at": "2025-01-05T10:00:00Z",
       "status": "pending",
-      "restaurant": "RES0000001"
+      "restaurant": "RES0000001",
+      "created_by": "DON0000001"
     }
   },
   {
@@ -14,7 +15,8 @@
     "fields": {
       "donated_at": "2025-01-04T11:30:00Z",
       "status": "accepted",
-      "restaurant": "RES0000002"
+      "restaurant": "RES0000002",
+      "created_by": "DON0000003"
     }
   },
   {
@@ -23,7 +25,8 @@
     "fields": {
       "donated_at": "2025-01-03T09:15:00Z",
       "status": "declined",
-      "restaurant": "RES0000003"
+      "restaurant": "RES0000003",
+      "created_by": "DON0000002"
     }
   },
   {
@@ -32,7 +35,8 @@
     "fields": {
       "donated_at": "2025-01-06T15:45:00Z",
       "status": "pending",
-      "restaurant": "RES0000004"
+      "restaurant": "RES0000004",
+      "created_by": "DON0000004"
     }
   }
 ]

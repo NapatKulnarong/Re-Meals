@@ -65,6 +65,7 @@ type DonationRecord = {
   note: string;
   items: FoodItemForm[];
   createdAt: string;
+  ownerUserId?: string | null;
 };
 
 type DonationFormState = {
@@ -133,6 +134,7 @@ type DonationApiRecord = {
   restaurant_name?: string;
   restaurant_branch?: string;
   restaurant_address?: string;
+  created_by_user_id?: string;
 };
 
 type FoodItemApiRecord = {
@@ -809,6 +811,7 @@ function DonationSection({
                 expiredDate: item.expire_date,
               })),
               createdAt: donation.donated_at,
+              ownerUserId: donation.created_by_user_id ?? null,
             }))
           );
         }
@@ -1068,7 +1071,10 @@ function DonationSection({
     try {
       const previousId = editingId;
       if (previousId) {
-        await apiFetch(`/donations/${previousId}/`, { method: "DELETE" });
+        await apiFetch(`/donations/${previousId}/`, {
+          method: "DELETE",
+          headers: buildAuthHeaders(currentUser),
+        });
       }
       const donationPayload: Record<string, unknown> = {};
       if (!manualEntry && selectedRestaurant) {
@@ -1081,6 +1087,7 @@ function DonationSection({
       const createdDonation = await apiFetch<DonationApiRecord>("/donations/", {
         method: "POST",
         body: JSON.stringify(donationPayload),
+        headers: buildAuthHeaders(currentUser),
       });
       const donationId = createdDonation.donation_id;
 
@@ -1100,6 +1107,7 @@ function DonationSection({
                 true,
               donation: donationId,
             }),
+            headers: buildAuthHeaders(currentUser),
           })
         )
       );
@@ -1124,6 +1132,7 @@ function DonationSection({
         note: form.note.trim(),
         items: normalizedItems,
         createdAt: existingRecord?.createdAt ?? timestamp,
+        ownerUserId: currentUser?.userId ?? existingRecord?.ownerUserId ?? null,
       };
 
       if (manualEntry) {
@@ -1173,7 +1182,23 @@ function DonationSection({
     }
   };
 
+  const canManageDonation = (donation: DonationRecord) => {
+    if (currentUser?.isAdmin) {
+      return true;
+    }
+    if (!currentUser) {
+      return false;
+    }
+    return Boolean(donation.ownerUserId && donation.ownerUserId === currentUser.userId);
+  };
+
   const handleEdit = (donation: DonationRecord) => {
+    if (!canManageDonation(donation)) {
+      setNotification({
+        error: "You can only edit donations that you created.",
+      });
+      return;
+    }
     setForm({
       restaurantId: donation.restaurantId ?? "",
       restaurantName: donation.restaurantName,
@@ -1190,9 +1215,17 @@ function DonationSection({
   };
 
   const handleDelete = async (donationId: string) => {
+    const target = donations.find((donation) => donation.id === donationId);
+    if (!target || !canManageDonation(target)) {
+      setNotification({
+        error: "You can only delete donations that you created.",
+      });
+      return;
+    }
     try {
       await apiFetch(`/donations/${donationId}/`, {
         method: "DELETE",
+        headers: buildAuthHeaders(currentUser),
       });
       setDonations((prev) => prev.filter((donation) => donation.id !== donationId));
       if (editingId === donationId) {
@@ -1565,22 +1598,24 @@ function DonationSection({
                   </p>
                 )}
 
-                <div className="mt-5 flex gap-3 justify-end">
-                  <button
-                    type="button"
-                    className="rounded-full border-2 border-[#C7D2C0] bg-white px-5 py-2 text-sm font-semibold text-[#4B5F39] shadow-sm transition-all duration-200 hover:border-[#5E7A4A] hover:bg-[#EEF2EA] hover:shadow-md active:scale-95"
-                    onClick={() => handleEdit(donation)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-full border-2 border-[#F7B0A0] bg-white px-5 py-2 text-sm font-semibold text-[#B42318] shadow-sm transition-all duration-200 hover:border-[#E63946] hover:bg-[#FFF1F0] hover:shadow-md active:scale-95"
-                    onClick={() => handleDelete(donation.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
+                {canManageDonation(donation) && (
+                  <div className="mt-5 flex gap-3 justify-end">
+                    <button
+                      type="button"
+                      className="rounded-full border-2 border-[#C7D2C0] bg-white px-5 py-2 text-sm font-semibold text-[#4B5F39] shadow-sm transition-all duration-200 hover:border-[#5E7A4A] hover:bg-[#EEF2EA] hover:shadow-md active:scale-95"
+                      onClick={() => handleEdit(donation)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-full border-2 border-[#F7B0A0] bg-white px-5 py-2 text-sm font-semibold text-[#B42318] shadow-sm transition-all duration-200 hover:border-[#E63946] hover:bg-[#FFF1F0] hover:shadow-md active:scale-95"
+                      onClick={() => handleDelete(donation.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </article>
             ))}
           </div>

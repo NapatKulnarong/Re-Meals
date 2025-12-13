@@ -87,6 +87,17 @@ docker-compose exec backend python manage.py migrate
 docker-compose exec backend python manage.py createsuperuser
 ```
 
+If you've already set `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, and `DJANGO_SUPERUSER_PASSWORD` in your `.env`, you can auto-create the admin account without prompts (note the extra shell so the container expands the env vars, not your host shell):
+
+```bash
+docker-compose exec backend bash -c '
+  python manage.py createsuperuser \
+    --noinput \
+    --username "$DJANGO_SUPERUSER_USERNAME" \
+    --email "$DJANGO_SUPERUSER_EMAIL"
+'
+```
+
 ### Step 6: Load Sample Data (Optional)
 
 ```bash

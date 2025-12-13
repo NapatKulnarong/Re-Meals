@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase, APIClient
 from .models import Donation
 from restaurants.models import Restaurant
 from restaurant_chain.models import RestaurantChain
+from users.models import User
 
 
 class DonationTests(APITestCase):
@@ -25,6 +26,49 @@ class DonationTests(APITestCase):
             is_chain=True,
             chain=self.chain,
         )
+        self.owner = User.objects.create(
+            user_id="DONUSER01",
+            username="owner",
+            fname="Owner",
+            lname="User",
+            bod="1990-01-01",
+            phone="0800000001",
+            email="owner@example.com",
+            password="password",
+        )
+        self.other_user = User.objects.create(
+            user_id="DONUSER02",
+            username="other",
+            fname="Other",
+            lname="User",
+            bod="1991-01-01",
+            phone="0800000002",
+            email="other@example.com",
+            password="password",
+        )
+        self.admin_user = User.objects.create(
+            user_id="ADMIN001",
+            username="admin-user",
+            fname="Admin",
+            lname="User",
+            bod="1980-01-01",
+            phone="0800000003",
+            email="admin@example.com",
+            password="password",
+        )
+        self.owner_headers = {
+            "HTTP_X_USER_ID": self.owner.user_id,
+            "HTTP_X_USER_IS_ADMIN": "false",
+        }
+        self.other_headers = {
+            "HTTP_X_USER_ID": self.other_user.user_id,
+            "HTTP_X_USER_IS_ADMIN": "false",
+        }
+        self.admin_headers = {
+            "HTTP_X_USER_ID": self.admin_user.user_id,
+            "HTTP_X_USER_IS_ADMIN": "true",
+        }
+        self.client.defaults.update(self.admin_headers)
 
     # 1. Create donation successfully
     def test_create_donation(self):
@@ -321,7 +365,7 @@ class DonationTests(APITestCase):
             "restaurant": "RES001"
         }, format="json")
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
 
         d = Donation.objects.get(donation_id="DON1")
         self.assertEqual(d.status, "accepted")
@@ -350,6 +394,8 @@ class DonationTests(APITestCase):
             "restaurant_name",
             "restaurant_branch",
             "restaurant_address",
+            "created_by_user_id",
+            "created_by_username",
         }
         self.assertEqual(set(response.data.keys()), expected_keys)
 
@@ -364,3 +410,69 @@ class DonationTests(APITestCase):
         self.assertTrue(
             Donation.objects.filter(donation_id=response.data["donation_id"]).exists()
         )
+
+    # 35. Donation owner can delete pending donation
+    def test_owner_can_delete_pending_donation(self):
+        donation = Donation.objects.create(
+            donation_id="DONOWN1",
+            restaurant=self.restaurant,
+            status="pending",
+            created_by=self.owner,
+        )
+        response = self.client.delete(f"/api/donations/{donation.donation_id}/", **self.owner_headers)
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Donation.objects.filter(donation_id="DONOWN1").exists())
+
+    # 36. Non-owner cannot delete pending donation
+    def test_non_owner_cannot_delete_pending_donation(self):
+        donation = Donation.objects.create(
+            donation_id="DONFORBID",
+            restaurant=self.restaurant,
+            status="pending",
+            created_by=self.owner,
+        )
+        response = self.client.delete(f"/api/donations/{donation.donation_id}/", **self.other_headers)
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Donation.objects.filter(donation_id="DONFORBID").exists())
+
+    # 37. Admin can delete any pending donation
+    def test_admin_can_delete_pending_donation(self):
+        donation = Donation.objects.create(
+            donation_id="DONADMIN",
+            restaurant=self.restaurant,
+            status="pending",
+            created_by=self.owner,
+        )
+        response = self.client.delete(f"/api/donations/{donation.donation_id}/", **self.admin_headers)
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Donation.objects.filter(donation_id="DONADMIN").exists())
+
+    # 38. Cannot delete non-pending donation even if owner
+    def test_cannot_delete_non_pending(self):
+        donation = Donation.objects.create(
+            donation_id="DONLOCK",
+            restaurant=self.restaurant,
+            status="accepted",
+            created_by=self.owner,
+        )
+        response = self.client.delete(f"/api/donations/{donation.donation_id}/", **self.owner_headers)
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(Donation.objects.filter(donation_id="DONLOCK").exists())
+
+    # 39. Non-owner cannot update pending donation
+    def test_non_owner_cannot_update_pending(self):
+        donation = Donation.objects.create(
+            donation_id="DONUPD1",
+            restaurant=self.restaurant,
+            status="pending",
+            created_by=self.owner,
+        )
+        response = self.client.patch(
+            f"/api/donations/{donation.donation_id}/",
+            {"status": "accepted"},
+            format="json",
+            **self.other_headers,
+        )
+        self.assertEqual(response.status_code, 403)
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, "pending")

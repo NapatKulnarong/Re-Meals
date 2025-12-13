@@ -2,6 +2,7 @@ from django.db import models
 
 from re_meals_api.id_utils import generate_prefixed_id
 from restaurants.models import Restaurant
+from users.models import User
 
 
 class Donation(models.Model):
@@ -21,6 +22,15 @@ class Donation(models.Model):
         Restaurant,
         on_delete=models.CASCADE,
         related_name="donations",
+    )
+
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="donations",
+        null=True,
+        blank=True,
+        db_column="created_by",
     )
 
     class Meta:

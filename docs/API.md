@@ -87,22 +87,23 @@ GET /api/donations/
 ```
 
 **Query Parameters:**
-- `status`: Filter by donation status (pending, approved, in_transit, delivered, cancelled)
-- `donor`: Filter by donor ID
-- `date_from`: Filter donations from date (YYYY-MM-DD)
-- `date_to`: Filter donations to date (YYYY-MM-DD)
+- `status`: Filter by donation status (`pending`, `accepted`, `declined`)
+- `restaurant_id`: Filter donations originating from a restaurant
+- `date_from` / `date_to`: Filter by donation timestamp range (ISO date or datetime)
 
 **Response:**
 ```json
 [
   {
-    "id": "integer",
-    "donor": "integer",
-    "restaurant": "integer",
-    "status": "string",
-    "pickup_time": "datetime",
-    "created_at": "datetime",
-    "updated_at": "datetime"
+    "donation_id": "DON0000001",
+    "donated_at": "2025-01-05T10:00:00Z",
+    "status": "pending",
+    "restaurant": "RES0000001",
+    "restaurant_name": "KFC Central World",
+    "restaurant_branch": "CentralWorld",
+    "restaurant_address": "999/9 Rama I Rd, Bangkok",
+    "created_by_user_id": "DON0000001",
+    "created_by_username": "donor1"
   }
 ]
 ```
@@ -112,31 +113,43 @@ GET /api/donations/
 POST /api/donations/
 ```
 
-**Request Body:**
+Provide either an existing `restaurant` ID or manual restaurant info:
+
 ```json
 {
-  "donor": "integer",
-  "restaurant": "integer",
-  "pickup_time": "datetime",
-  "notes": "string"
+  "restaurant": "RES0000001"
+}
+```
+or
+```json
+{
+  "manual_restaurant_name": "Local Bakery",
+  "manual_branch_name": "Thonglor",
+  "manual_restaurant_address": "23 Sukhumvit 55, Bangkok"
 }
 ```
 
+The API automatically records the authenticated user (`X-USER-ID` header) as `created_by_user_id`.
+
 #### Get Donation Details
 ```http
-GET /api/donations/{id}/
+GET /api/donations/{donation_id}/
 ```
 
 #### Update Donation
 ```http
-PUT /api/donations/{id}/
-PATCH /api/donations/{id}/
+PUT /api/donations/{donation_id}/
+PATCH /api/donations/{donation_id}/
 ```
+
+Only the admin or the user who created the donation (`created_by_user_id`) can update it, and only while the donation status is `pending`.
 
 #### Delete Donation
 ```http
-DELETE /api/donations/{id}/
+DELETE /api/donations/{donation_id}/
 ```
+
+Deletion follows the same rule: only pending donations may be removed, and only by their creator or an admin.
 
 ### Food Items
 

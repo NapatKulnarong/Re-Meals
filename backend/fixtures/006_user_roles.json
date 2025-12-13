@@ -23,6 +23,22 @@
     }
   },
   {
+    "model": "users.donor",
+    "pk": 3,
+    "fields": {
+      "user": "DON0000003",
+      "restaurant_id": "RES0000002"
+    }
+  },
+  {
+    "model": "users.donor",
+    "pk": 4,
+    "fields": {
+      "user": "DON0000004",
+      "restaurant_id": "RES0000004"
+    }
+  },
+  {
     "model": "users.deliverystaff",
     "pk": 1,
     "fields": {
