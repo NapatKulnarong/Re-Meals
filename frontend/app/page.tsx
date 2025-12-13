@@ -2440,11 +2440,15 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
     setError(null);
     try {
       if (mode === "pickup") {
-        if (!form.donationId || !form.warehouseId || !form.userId) {
+        const pickup = form as typeof pickupForm;
+        if (!pickup.donationId || !pickup.warehouseId || !pickup.userId) {
           throw new Error("Select donation, warehouse, and delivery staff first.");
         }
-      } else if (!form.warehouseId || !form.communityId || !form.userId) {
-        throw new Error("Select warehouse, community, and delivery staff first.");
+      } else {
+        const distribution = form as typeof distributionForm;
+        if (!distribution.warehouseId || !distribution.communityId || !distribution.userId) {
+          throw new Error("Select warehouse, community, and delivery staff first.");
+        }
       }
       if (!form.pickupTime) {
         throw new Error("Pickup time is required.");
@@ -2460,9 +2464,9 @@ function DeliveryBoard({ currentUser }: { currentUser: LoggedUser | null }) {
         user_id: form.userId,
       };
       if (mode === "pickup") {
-        payload.donation_id = form.donationId;
+        payload.donation_id = (form as typeof pickupForm).donationId;
       } else {
-        payload.community_id = form.communityId;
+        payload.community_id = (form as typeof distributionForm).communityId;
       }
 
       await apiFetch(API_PATHS.deliveries, {
