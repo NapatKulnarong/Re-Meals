@@ -96,18 +96,18 @@ export default function Sidebar({
             z-10
             flex h-screen w-64 flex-col justify-between
             bg-[#D48B68]
-            px-4 py-6
+            px-4 pb-6
             shadow-2xl shadow-black/15
             border border-[#B86A49]
             "
     >
       <div>
       {/* LOGO + WEBSITE NAME SECTION */}
-      <div className="mb-6 px-0.5 pt-2">
-        <div className="flex items-center gap-1 rounded-2xl bg-white px-2 py-2">
+      <div className="mb-6 -mx-4 -mr-[17px]">
+        <div className="flex items-center gap-1 bg-white/85 px-4 py-3">
           <div className="flex h-16 w-16 items-center justify-center">
             <Image
-              src="/elements/logo_re-meals.png"
+              src="/elements/logo_re-meals_2.png"
               alt="Re-Meals logo"
               width={48}
               height={48}
@@ -115,7 +115,7 @@ export default function Sidebar({
             />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-[25px] font-semibold text-[#111828]">Re-Meals</span>
+            <span className="text-[26px] font-semibold text-[#d48a68]">Re-Meals</span>
             {isAdmin && (
               <span className="text-xs font-semibold uppercase tracking-wide text-[#C46A24]">
                 For admin
@@ -138,14 +138,22 @@ export default function Sidebar({
           <button
             onClick={() => onTabChange(homeTab.id)}
             className={[
-              "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold shadow-sm transition duration-200",
+              "flex items-center justify-between rounded-2xl border px-4 py-5 text-left text-base font-semibold shadow-sm transition duration-200",
               activeTab === homeTab.id
                 ? "border-[#B86A49] bg-[#F1CBB5] text-[#4B2415] shadow-md"
                 : "border-[#E6B9A2] bg-white text-[#70402B] hover:border-[#B86A49] hover:shadow",
             ].join(" ")}
           >
             <span>{homeTab.label}</span>
-            <span aria-hidden className="h-5 w-5 text-[#B86A49]">
+            <span
+              aria-hidden
+              className={[
+                "flex h-10 w-10 items-center justify-center rounded-full transition",
+                activeTab === homeTab.id
+                  ? "bg-white text-[#B86A49]"
+                  : "bg-[#F3D6C3] text-[#9A5335]",
+              ].join(" ")}
+            >
               <Icon id={homeTab.id} className="h-5 w-5" />
             </span>
           </button>

@@ -355,7 +355,13 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 }
 
 // Home Page Component
-function HomePage() {
+function HomePage({
+  setShowAuthModal,
+  setAuthMode
+}: {
+  setShowAuthModal: (show: boolean) => void;
+  setAuthMode: (mode: AuthMode) => void;
+}) {
   const stats = [
     { label: "Meals rescued", value: "2,340", helper: "+128 today" },
     { label: "Communities served", value: "48", helper: "active deliveries" },
@@ -387,62 +393,25 @@ function HomePage() {
     },
   ];
 
-  const promises = [
-    {
-      icon: "🧊",
-      title: "Food-safe handling",
-      copy: "Temperature-friendly guidance and quick routes keep every dish safe to serve.",
-    },
-    {
-      icon: "🛰️",
-      title: "Smart matching",
-      copy: "We prioritize the closest, best-fit requests to reduce travel and waste.",
-    },
-    {
-      icon: "🤝",
-      title: "Real partnership",
-      copy: "Restaurants, drivers, and community leads stay in the loop with clear updates.",
-    },
-  ];
-
   return (
-    <div className="mx-auto w-full max-w-8xl space-y-12">
-      <div className="relative overflow-hidden rounded-[40px] bg-gradient-to-br from-[#e8ede3] to-[#f5f1ed] p-8 shadow-[0_40px_120px_-45px rgba(59,31,16,0.6)] sm:p-10">
+    <div className="mx-auto w-full max-w-8xl space-y-8">
+      <div className="relative overflow-hidden rounded-[40px] bg-[#e8ede3] p-8 shadow-[0_40px_120px_-45px rgba(59,31,16,0.6)] sm:p-10">
         <div aria-hidden className="pointer-events-none absolute -right-8 top-6 hidden h-64 w-64 rounded-[40px] bg-[#DEF7EA]/60 blur-3xl lg:block" />
         <div aria-hidden className="pointer-events-none absolute bottom-8 left-4 h-24 w-24 rounded-full bg-[#F1FBF5]/70 blur-2xl" />
-        <div className="relative grid items-center gap-10 lg:grid-cols-[1.15fr,0.85fr]">
+        <div className="relative grid items-start gap-10 lg:grid-cols-[1.15fr,0.85fr]">
           <div className="space-y-6 text-[#2C1A10]">
             <div className="inline-flex items-center gap-2 rounded-full bg-[#708A58] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-md">
               <span aria-hidden className="text-lg">✦</span>
               <span>Re-purpose every meal</span>
             </div>
             <h1 className="text-[2.65rem] leading-tight text-[#3a3a3a] sm:text-[3.25rem] sm:leading-[1.1]">
-              Redirect surplus meals. <span className="text-[#708A58]">Rebuild communities.</span>
+              Redirect surplus meals. <span className="text-[#d48a68]">Rebuild communities.</span>
             </h1>
             <p className="max-w-2xl text-lg text-[#5a4f45]">
               Re-Meals links restaurants, drivers, and community leaders so good food never sits idle.
               Share donations, request support, and move meals where they are needed most.
             </p>
-            <div className="flex flex-wrap gap-3 text-sm text-[#3a3a3a]">
-              <div className="flex items-center gap-2 rounded-2xl border-2 border-[#708A58] bg-white px-4 py-3 shadow-sm hover:bg-[#708A58] hover:text-white transition-all">
-                <span className="text-lg" aria-hidden>
-                  🚚
-                </span>
-                <span>Coordinated pickups & drop-offs</span>
-              </div>
-              <div className="flex items-center gap-2 rounded-2xl border-2 border-[#d48a68] bg-white px-4 py-3 shadow-sm hover:bg-[#d48a68] hover:text-white transition-all">
-                <span className="text-lg" aria-hidden>
-                  🧊
-                </span>
-                <span>Freshness-first handling</span>
-              </div>
-              <div className="flex items-center gap-2 rounded-2xl border-2 border-[#708A58] bg-white px-4 py-3 shadow-sm hover:bg-[#708A58] hover:text-white transition-all">
-                <span className="text-lg" aria-hidden>
-                  📍
-                </span>
-                <span>Live matching + routing</span>
-              </div>
-            </div>
+            
           </div>
           <div className="relative rounded-[32px] border-2 border-dashed border-[#708958] bg-white p-6">
             <div className="mb-4 flex items-start justify-between gap-4">
@@ -452,7 +421,7 @@ function HomePage() {
                 </p>
                 <h3 className="text-2xl font-bold text-[#3a3a3a]">This week on Re-Meals</h3>
               </div>
-              <div className="rounded-full bg-[#708A58] px-3 py-1 text-xs font-semibold text-white">
+              <div className="rounded-full bg-[#D25D5D] px-3 py-1 text-sm font-semibold text-white">
                 Live
               </div>
             </div>
@@ -475,107 +444,115 @@ function HomePage() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr]">
-        <div className="rounded-[32px] bg-[#e8ede3] p-7 shadow-lg">
-          <div className="flex items-center justify-between gap-3">
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+        <div className="rounded-[32px] bg-[#fde5d6] p-7 flex flex-col">
+          <div className="flex items-center justify-between gap-3 mb-3">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-[#708A58]">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#d48a68]">
                 For restaurants
               </p>
-              <h2 className="text-3xl font-semibold text-[#3a3a3a]">Donate surplus easily</h2>
+              <h2 className="text-3xl font-semibold text-black/70">Donate surplus easily</h2>
             </div>
-            <span className="rounded-full bg-[#708A58] px-3 py-1 text-sm font-semibold text-white shadow-sm">
+            <span className="-mt-4 rounded-full border-2 border-dashed border-[#d48a68] bg-white px-3 py-2 text-sm font-semibold text-[#d48a68]">
               Reduce waste
             </span>
           </div>
-          <p className="mt-3 text-[#5a4f45]">
+          <p className="mt-3 text-black/70 mb-5">
             Log extra meals with quantities, expiry, and packaging notes so our delivery team can pick up while everything stays fresh.
           </p>
-          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="group aspect-square rounded-2xl border-2 border-[#708A58] bg-[#708A58] p-5 shadow-md transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-[#708A58]/40 cursor-pointer flex flex-col items-center justify-center text-center">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl shadow-lg transition-transform group-hover:rotate-12">
+          <div className="grid grid-cols-2 gap-3 flex-1">
+            <div className="flex items-start gap-4 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
+              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
                 💚
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-black/70">Smart item logging</p>
+                <p className="text-sm text-black/70">
+                  Capture portions, units, and expiry in seconds so we know what to rescue first.
+                </p>
               </div>
-              <p className="text-base font-bold text-white mb-2">Smart item logging</p>
-              <p className="text-xs text-white/90 leading-relaxed">
-                Capture portions, units, and expiry in seconds so we know what to rescue first.
-              </p>
             </div>
-            <div className="group aspect-square rounded-2xl border-2 border-[#d48a68] bg-[#d48a68] p-5 shadow-md transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-[#d48a68]/40 cursor-pointer flex flex-col items-center justify-center text-center">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl shadow-lg transition-transform group-hover:rotate-12">
+            <div className="flex items-start gap-4 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
+              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
                 🧭
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-black/70">Route-friendly pickups</p>
+                <p className="text-sm text-black/70">
+                  Drivers see your window and plan efficient routes to minimize food time in transit.
+                </p>
               </div>
-              <p className="text-base font-bold text-white mb-2">Route-friendly pickups</p>
-              <p className="text-xs text-white/90 leading-relaxed">
-                Drivers see your window and plan efficient routes to minimize food time in transit.
-              </p>
             </div>
-            <div className="group aspect-square rounded-2xl border-2 border-[#708A58] bg-[#708A58] p-5 shadow-md transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-[#708A58]/40 cursor-pointer flex flex-col items-center justify-center text-center">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl shadow-lg transition-transform group-hover:rotate-12">
+            <div className="flex items-start gap-4 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
+              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
                 📦
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-black/70">Packaging guidance</p>
+                <p className="text-sm text-black/70">
+                  Tips for sealing, labeling, and keeping items cool before pickup arrives.
+                </p>
               </div>
-              <p className="text-base font-bold text-white mb-2">Packaging guidance</p>
-              <p className="text-xs text-white/90 leading-relaxed">
-                Tips for sealing, labeling, and keeping items cool before pickup arrives.
-              </p>
             </div>
-            <div className="group aspect-square rounded-2xl border-2 border-[#d48a68] bg-[#d48a68] p-5 shadow-md transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-[#d48a68]/40 cursor-pointer flex flex-col items-center justify-center text-center">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl shadow-lg transition-transform group-hover:rotate-12">
+            <div className="flex items-start gap-4 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
+              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
                 🎧
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-black/70">Concierge support</p>
+                <p className="text-sm text-black/70">
+                  Need help? Tag the admin team and we'll follow up before your shift ends.
+                </p>
               </div>
-              <p className="text-base font-bold text-white mb-2">Concierge support</p>
-              <p className="text-xs text-white/90 leading-relaxed">
-                Need help? Tag the admin team and we'll follow up before your shift ends.
-              </p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-[32px] bg-[#fdf8f4] p-7 shadow-lg">
-          <div className="flex items-center justify-between gap-3">
+        <div className="rounded-[32px] bg-[#fde5d6] p-7 flex flex-col">
+          <div className="flex items-center justify-between gap-3 mb-3">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-[#d48a68]">
                 For communities
               </p>
-              <h2 className="text-3xl font-semibold text-[#3a3a3a]">Request food support</h2>
+              <h2 className="text-3xl font-semibold text-black/70">Request food support</h2>
             </div>
-            <span className="rounded-full bg-[#d48a68] px-3 py-1 text-sm font-semibold text-white shadow-sm">
+            <span className="-mt-4 rounded-full border-2 border-dashed border-[#d48a68] bg-white px-3 py-2 text-sm font-semibold text-[#d48a68]">
               Right-sized aid
             </span>
           </div>
-          <p className="mt-3 text-[#5a4f45]">
+          <p className="mt-3 text-black/70 mb-5">
             Share what your neighbors need, when, and where. We align donations to your delivery window and capacity.
           </p>
-          <div className="mt-5 space-y-3">
-            <div className="flex items-start gap-3 rounded-2xl border-2 border-[#d48a68] bg-white p-4 shadow-sm hover:bg-[#d48a68] hover:text-white transition-all group">
-              <span className="text-lg" aria-hidden>
+          <div className="space-y-3 flex-1">
+            <div className="flex items-start gap-3 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
+              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
                 🍽️
               </span>
               <div>
-                <p className="text-sm font-semibold text-[#3a3a3a] group-hover:text-white">Structured needs list</p>
-                <p className="text-sm text-[#5a4f45] group-hover:text-white">
+                <p className="text-sm font-semibold text-black/70">Structured needs list</p>
+                <p className="text-sm text-black/70">
                   Outline items, quantities, and urgency so matching stays accurate.
                 </p>
               </div>
             </div>
-            <div className="flex items-start gap-3 rounded-2xl border-2 border-[#708A58] bg-white p-4 shadow-sm hover:bg-[#708A58] hover:text-white transition-all group">
-              <span className="text-lg" aria-hidden>
+            <div className="flex items-start gap-3 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
+              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
                 🏠
               </span>
               <div>
-                <p className="text-sm font-semibold text-[#3a3a3a] group-hover:text-white">Clear drop-off details</p>
-                <p className="text-sm text-[#5a4f45] group-hover:text-white">
+                <p className="text-sm font-semibold text-black/70">Clear drop-off details</p>
+                <p className="text-sm text-black/70">
                   Provide addresses, access notes, and an ideal delivery time for smooth arrivals.
                 </p>
               </div>
             </div>
-            <div className="flex items-start gap-3 rounded-2xl border-2 border-[#d48a68] bg-white p-4 shadow-sm hover:bg-[#d48a68] hover:text-white transition-all group">
-              <span className="text-lg" aria-hidden>
+            <div className="flex items-start gap-3 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
+              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
                 📱
               </span>
               <div>
-                <p className="text-sm font-semibold text-[#3a3a3a] group-hover:text-white">Stay updated</p>
-                <p className="text-sm text-[#5a4f45] group-hover:text-white">
+                <p className="text-sm font-semibold text-black/70">Stay updated</p>
+                <p className="text-sm text-black/70">
                   Track confirmations from our team and know when a delivery is on the way.
                 </p>
               </div>
@@ -584,15 +561,15 @@ function HomePage() {
         </div>
       </div>
 
-      <div className="rounded-[40px] bg-[#e8ede3] p-8 shadow-lg">
+      <div className="rounded-[40px] bg-[#fde5d6] p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d48a68]">
               How Re-Meals works
             </p>
-            <h2 className="text-3xl font-semibold text-[#3a3a3a]">Three guided steps</h2>
+            <h2 className="text-3xl font-semibold text-black/70">Three guided steps</h2>
           </div>
-          <div className="flex items-center gap-2 rounded-full bg-[#d48a68] px-4 py-2 text-xs font-semibold text-white">
+          <div className="flex items-center gap-2 rounded-full border-2 border-dashed border-[#d48a68] bg-white px-4 py-2 text-xs font-semibold text-black/70">
             <span className="text-lg" aria-hidden>
               🧭
             </span>
@@ -603,54 +580,56 @@ function HomePage() {
           {journey.map((item) => (
             <div
               key={item.step}
-              className="rounded-2xl border-2 border-[#708A58] bg-white p-5 shadow-md hover:bg-[#708A58] hover:text-white transition-all group"
+              className="rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-5 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98]"
             >
               <div className={`mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${item.accent}`}>
                 <span>Step {item.step}</span>
               </div>
-              <h3 className="text-lg font-semibold text-[#3a3a3a] group-hover:text-white">{item.title}</h3>
-              <p className="mt-2 text-sm text-[#5a4f45] group-hover:text-white">{item.copy}</p>
+              <h3 className="text-lg font-semibold text-black/70">{item.title}</h3>
+              <p className="mt-2 text-sm text-black/70">{item.copy}</p>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {promises.map((item, index) => (
-          <div
-            key={item.title}
-            className={`rounded-[28px] border-2 p-6 shadow-lg hover:scale-105 transition-all ${
-              index % 2 === 0
-                ? 'border-[#708A58] bg-[#708A58]'
-                : 'border-[#d48a68] bg-[#d48a68]'
-            }`}
-          >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md">
-              <span className="text-xl" aria-hidden>
-                {item.icon}
-              </span>
-            </div>
-            <h3 className="text-xl font-semibold text-white">{item.title}</h3>
-            <p className="mt-2 text-sm text-white/90">{item.copy}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="rounded-[40px] bg-gradient-to-br from-[#fdf8f4] to-[#e8ede3] p-10 shadow-xl">
-        <div className="flex flex-col items-start gap-5 text-left sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-3xl font-bold text-[#3a3a3a]">Ready to keep good food moving?</h2>
-            <p className="mt-2 text-lg text-[#5a4f45]">
-              Use the sidebar to log a donation, request food, or manage deliveries.
+      <div className="rounded-[40px] bg-[#e8ede3] px-12 py-12">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-3">
+            <h2 className="text-3xl font-semibold text-[#3a3a3a]">
+              Ready to make a difference?
+            </h2>
+            <p className="text-base text-[#5a4f45]">
+              Join our community and help redirect surplus meals to those who need them most.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <div className="rounded-2xl border-2 border-[#708A58] bg-[#708A58] px-6 py-3 text-sm font-semibold text-white shadow-md hover:scale-105 transition-all cursor-pointer">
-              Donate surplus meals
-            </div>
-            <div className="rounded-2xl border-2 border-[#d48a68] bg-white px-6 py-3 text-sm font-semibold text-[#d48a68] shadow-md hover:bg-[#d48a68] hover:text-white transition-all cursor-pointer">
-              Request food support
-            </div>
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => {
+                setAuthMode("signup");
+                setShowAuthModal(true);
+              }}
+              className="group flex items-center justify-between rounded-2xl bg-white px-6 py-4 text-left text-base font-semibold text-[#70402B] shadow-sm transition-all duration-200 hover:border-[#B86A49] hover:bg-[#F1CBB5] hover:text-[#4B2415] hover:shadow-md active:border-[#B86A49] active:bg-[#F1CBB5] active:text-[#4B2415] active:shadow-md"
+            >
+              <span>Sign up</span>
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F3D6C3] text-[#9A5335] transition-all group-hover:bg-white group-hover:text-[#B86A49] group-active:bg-white group-active:text-[#B86A49]">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
+                </svg>
+              </span>
+            </button>
+            <p className="mt-1 text-sm text-[#5a4f45]">
+              Already have an account?{" "}
+              <button
+                onClick={() => {
+                  setAuthMode("login");
+                  setShowAuthModal(true);
+                }}
+                className="font-semibold text-[#d48a68] hover:underline"
+              >
+                Login
+              </button>
+            </p>
           </div>
         </div>
       </div>
@@ -659,9 +638,19 @@ function HomePage() {
 }
 
 // Content of each tab
-function TabContent({ tab, currentUser }: { tab: number; currentUser: LoggedUser | null }) {
+function TabContent({
+  tab,
+  currentUser,
+  setShowAuthModal,
+  setAuthMode
+}: {
+  tab: number;
+  currentUser: LoggedUser | null;
+  setShowAuthModal: (show: boolean) => void;
+  setAuthMode: (mode: AuthMode) => void;
+}) {
   if (tab === 0) {
-    return <HomePage />;
+    return <HomePage setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} />;
   }
   if (tab === 1) {
     return <DonationSection />;
@@ -2998,12 +2987,15 @@ function AuthModal({
   };
 
   return (
-    // overlay only over the content area (section is relative)
-    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-lg">
+    // overlay over the entire viewport
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-lg border-4 border-[#d48a68]/20">
         {/* Header row: title + close button */}
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">
+          <h2 className={[
+            "text-xl font-bold",
+            isSignup ? "text-[#d48a68]" : "text-[#708A58]"
+          ].join(" ")}>
             {isSignup ? "Create your account" : "Welcome back"}
           </h2>
           <button
@@ -3022,8 +3014,8 @@ function AuthModal({
             className={[
               "flex-1 rounded-full py-2 transition-colors",
               isSignup
-                ? "bg-[#FFE17E] text-gray-900"
-                : "text-gray-600 hover:bg-[#FFE17E]/50 hover:text-gray-900",
+                ? "bg-[#d48a68] text-white"
+                : "text-gray-600 hover:bg-[#d48a68]/30 hover:text-gray-900",
             ].join(" ")}
           >
             Sign up
@@ -3033,8 +3025,8 @@ function AuthModal({
             className={[
               "flex-1 rounded-full py-2 transition-colors",
               !isSignup
-                ? "bg-[#FFE17E] text-gray-900"
-                : "text-gray-600 hover:[#FFE17E]/50 hover:text-gray-900",
+                ? "bg-[#708A58] text-white"
+                : "text-gray-600 hover:bg-[#708A58]/30 hover:text-gray-900",
             ].join(" ")}
           >
             Login
@@ -3045,7 +3037,7 @@ function AuthModal({
         {isSignup ? (
           // SIGN UP FORM
           <form className="space-y-4" onSubmit={handleSignupSubmit}>
-            <div className="space-y-3 rounded-2xl border border-[#FFE17E]/60 bg-[#FFF9EC] p-4 text-gray-700">
+            <div className="space-y-3 rounded-2xl border-2 border-[#d48a68] bg-[#fdf8f4] p-4 text-gray-700">
               <div className="flex flex-col gap-1">
                 <p className="text-sm font-semibold text-gray-900">Username settings</p>
                 <span className="text-xs text-gray-500">
@@ -3063,7 +3055,7 @@ function AuthModal({
                     setSignupData((prev) => ({ ...prev, username: e.target.value }))
                   }
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#FFE17E] focus:ring-1 focus:ring-[#FFE17E] focus:bg-[#FFE17E]/30"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
                 />
               </div>
               <p className="text-xs text-gray-500">
@@ -3082,7 +3074,7 @@ function AuthModal({
                     setSignupData((prev) => ({ ...prev, fname: e.target.value }))
                   }
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#FFE17E] focus:ring-1 focus:ring-[#FFE17E] focus:bg-[#FFE17E]/30"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#708A58] focus:ring-1 focus:ring-[#708A58] focus:bg-[#e8ede3]"
                 />
               </div>
 
@@ -3097,7 +3089,7 @@ function AuthModal({
                     setSignupData((prev) => ({ ...prev, lname: e.target.value }))
                   }
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#FFE17E] focus:ring-1 focus:ring-[#FFE17E] focus:bg-[#FFE17E]/30"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#708A58] focus:ring-1 focus:ring-[#708A58] focus:bg-[#e8ede3]"
                 />
               </div>
             </div>
@@ -3129,7 +3121,7 @@ function AuthModal({
                     setSignupData((prev) => ({ ...prev, phone: e.target.value }))
                   }
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#FFE17E] focus:ring-1 focus:ring-[#FFE17E] focus:bg-[#FFE17E]/30"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#708A58] focus:ring-1 focus:ring-[#708A58] focus:bg-[#e8ede3]"
                 />
               </div>
 
@@ -3144,7 +3136,7 @@ function AuthModal({
                     setSignupData((prev) => ({ ...prev, email: e.target.value }))
                   }
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#FFE17E] focus:ring-1 focus:ring-[#FFE17E] focus:bg-[#FFE17E]/30"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#708A58] focus:ring-1 focus:ring-[#708A58] focus:bg-[#e8ede3]"
                 />
               </div>
             </div>
@@ -3174,7 +3166,7 @@ function AuthModal({
             <button
               type="submit"
               disabled={signupStatus.loading}
-              className="mt-2 w-full rounded-lg bg-[#FFE17E] px-4 py-2 text-sm font-semibold text-gray-900 transition hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-2 w-full rounded-lg bg-[#d48a68] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#c47958] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {signupStatus.loading ? "Creating account..." : "Create account"}
             </button>
@@ -3222,7 +3214,7 @@ function AuthModal({
             <button
               type="submit"
               disabled={loginStatus.loading}
-              className="mt-2 w-full rounded-lg bg-[#FFE17E] px-4 py-2 text-sm font-semibold text-black transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-2 w-full rounded-lg bg-[#708A58] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5a6e47] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loginStatus.loading ? "Logging in..." : "Login"}
             </button>
@@ -3297,7 +3289,7 @@ export default function Home() {
       {/* Right side: content area */}
       {/* relative is IMPORTANT so the modal overlay stays inside this area only */}
       <section className="relative flex-1 h-screen overflow-y-auto p-8">
-        <TabContent tab={normalizedActiveTab} currentUser={currentUser} />
+        <TabContent tab={normalizedActiveTab} currentUser={currentUser} setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} />
 
         {currentUser && (
           <div className="mt-6 rounded-2xl border border-gray-200 bg-white/80 px-4 py-3 text-sm text-gray-700 shadow-sm">
