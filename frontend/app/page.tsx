@@ -3004,233 +3004,318 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
   };
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-[28px] border border-[#CFE6D8] bg-[#F6FBF7] p-6 shadow-lg shadow-[#B6DEC8]/30">
-        <div className="flex items-center justify-between">
+    <div className="grid h-[calc(100vh-4rem)] min-h-0 grid-cols-5 gap-6">
+      {/* Left side: Form */}
+      <div className="col-span-3 flex h-full min-h-0 flex-col overflow-hidden rounded-[32px] border border-[#CFE6D8] bg-[#F6FBF7] p-8 shadow-2xl shadow-[#B6DEC8]/30">
+        <div className="mb-6 flex flex-shrink-0 items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#2F855A]">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#2F855A]">
               Deliver to community
             </p>
-            <h2 className="text-2xl font-semibold text-gray-900">
+            <h2 className="text-3xl font-semibold text-gray-900">
               {canEdit ? "Assign community deliveries" : "My assigned deliveries"}
             </h2>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 mt-1">
               {canEdit
                 ? "Assign delivery staff to transport food from warehouses to communities."
                 : "Update status for deliveries assigned to you."}
             </p>
           </div>
-          <div className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow">
-            {visibleDeliveries.length} task(s)
-          </div>
+          <span className="text-xs text-gray-500">
+            {new Date().toLocaleDateString()}
+          </span>
         </div>
 
-        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-        {notice && <p className="mt-4 text-sm text-emerald-600">{notice}</p>}
+        {error && <p className="mb-4 text-sm text-red-600 flex-shrink-0">{error}</p>}
+        {notice && <p className="mb-4 text-sm text-emerald-600 flex-shrink-0">{notice}</p>}
 
-        {loading ? (
-          <p className="mt-4 text-sm text-gray-600">Loading delivery data...</p>
-        ) : canEdit ? (
-          <div className="mt-6 space-y-3 rounded-2xl border border-[#CFE6D8] bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-900">Deliver to community</p>
-              <span className="text-xs text-gray-500">From warehouse</span>
-            </div>
-            <div className="grid gap-3">
-              <select
-                className={INPUT_STYLES}
-                value={distributionForm.warehouseId}
-                onChange={(e) =>
-                  setDistributionForm((prev) => ({ ...prev, warehouseId: e.target.value }))
-                }
-              >
-                <option value="">Select warehouse</option>
-                {warehouses.map((warehouse) => (
-                  <option key={warehouse.warehouse_id} value={warehouse.warehouse_id}>
-                    {warehouse.warehouse_id} — {warehouse.address}
-                  </option>
-                ))}
-              </select>
-              <select
-                className={INPUT_STYLES}
-                value={distributionForm.communityId}
-                onChange={(e) =>
-                  setDistributionForm((prev) => ({ ...prev, communityId: e.target.value }))
-                }
-              >
-                <option value="">Select community</option>
-                {communities.map((community) => (
-                  <option key={community.community_id} value={community.community_id}>
-                    {community.name} ({community.community_id})
-                  </option>
-                ))}
-              </select>
-              <select
-                className={INPUT_STYLES}
-                value={distributionForm.userId}
-                onChange={(e) =>
-                  setDistributionForm((prev) => ({ ...prev, userId: e.target.value }))
-                }
-              >
-                <option value="">Assign delivery staff</option>
-                {staff.map((member) => (
-                  <option key={member.user_id} value={member.user_id}>
-                    {member.name || member.username} ({member.assigned_area || "area n/a"})
-                  </option>
-                ))}
-              </select>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                  Pickup time
-                </label>
-                <input
-                  type="datetime-local"
-                  className={INPUT_STYLES}
-                  value={distributionForm.pickupTime}
-                  onChange={(e) =>
-                    setDistributionForm((prev) => ({ ...prev, pickupTime: e.target.value }))
-                  }
-                />
+        <div className="flex-1 overflow-hidden">
+          {loading ? (
+            <p className="text-sm text-gray-600">Loading delivery data...</p>
+          ) : canEdit ? (
+            <div className="h-full overflow-y-auto pr-1 pb-4 sm:pr-3">
+              <div className="space-y-4 rounded-2xl border border-[#CFE6D8] bg-white p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm font-semibold text-gray-900">Deliver to community</p>
+                  <span className="text-xs text-gray-500">From warehouse</span>
+                </div>
+                <div className="grid gap-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">
+                      Select warehouse
+                    </label>
+                    <select
+                      className={INPUT_STYLES}
+                      value={distributionForm.warehouseId}
+                      onChange={(e) =>
+                        setDistributionForm((prev) => ({ ...prev, warehouseId: e.target.value }))
+                      }
+                    >
+                      <option value="">Select warehouse</option>
+                      {warehouses.map((warehouse) => (
+                        <option key={warehouse.warehouse_id} value={warehouse.warehouse_id}>
+                          {warehouse.warehouse_id} — {warehouse.address}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">
+                      Select community
+                    </label>
+                    <select
+                      className={INPUT_STYLES}
+                      value={distributionForm.communityId}
+                      onChange={(e) =>
+                        setDistributionForm((prev) => ({ ...prev, communityId: e.target.value }))
+                      }
+                    >
+                      <option value="">Select community</option>
+                      {communities.map((community) => (
+                        <option key={community.community_id} value={community.community_id}>
+                          {community.name} ({community.community_id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">
+                      Assign delivery staff
+                    </label>
+                    <select
+                      className={INPUT_STYLES}
+                      value={distributionForm.userId}
+                      onChange={(e) =>
+                        setDistributionForm((prev) => ({ ...prev, userId: e.target.value }))
+                      }
+                    >
+                      <option value="">Assign delivery staff</option>
+                      {staff.map((member) => (
+                        <option key={member.user_id} value={member.user_id}>
+                          {member.name || member.username} ({member.assigned_area || "area n/a"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">
+                      Pickup time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      className={INPUT_STYLES}
+                      value={distributionForm.pickupTime}
+                      onChange={(e) =>
+                        setDistributionForm((prev) => ({ ...prev, pickupTime: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={handleSubmitDistribution}
+                    className="mt-4 w-full rounded-2xl bg-[#2F8A61] px-6 py-3 text-sm font-semibold text-white shadow hover:bg-[#25724F] disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  >
+                    {submitting ? "Saving..." : "Save delivery assignment"}
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={handleSubmitDistribution}
-                className="mt-2 w-full rounded-xl bg-[#2F8A61] px-4 py-3 text-sm font-semibold text-white shadow transition hover:bg-[#25724F] disabled:opacity-60"
-              >
-                Save community delivery
-              </button>
             </div>
-          </div>
-        ) : (
-          <div className="mt-4 rounded-2xl border border-[#CFE6D8] bg-[#F6FBF7] p-4 text-sm text-gray-700">
-            View your assigned deliveries below. Status updates will notify the admin of progress.
-          </div>
-        )}
+          ) : (
+            <div className="rounded-2xl border border-[#CFE6D8] bg-white p-6 text-sm text-gray-700">
+              View your assigned deliveries in the queue on the right. Status updates will notify the admin of progress.
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="space-y-4 rounded-[28px] border border-[#CFE6D8] bg-[#F6FBF7] p-6 shadow-lg shadow-[#B6DEC8]/30">
-        <div className="flex items-center justify-between">
+      {/* Right side: Queue */}
+      <div className="col-span-2 flex h-full min-h-0 flex-col overflow-hidden rounded-[32px] border border-[#CFE6D8]/40 bg-[#F6FBF7] p-7 shadow-2xl shadow-[#B6DEC8]/30">
+        <div className="mb-5 flex flex-shrink-0 items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#2F855A]">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#2F855A]">
               Delivery queue
             </p>
-            <h3 className="text-xl font-semibold text-gray-900">
-              {canEdit ? "All tasks" : "My assigned tasks"}
+            <h3 className="text-2xl font-semibold text-gray-800">
+              {canEdit ? "All delivery tasks" : "My assigned deliveries"}
             </h3>
           </div>
-          <span className="text-xs text-gray-500">{visibleDeliveries.length} active</span>
+          <span className="text-xs font-semibold text-gray-500">
+            {visibleDeliveries.length} total
+          </span>
         </div>
-        {loading ? (
-          <p className="text-sm text-gray-600">Loading tasks...</p>
-        ) : visibleDeliveries.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-gray-200 bg-white/70 p-4 text-sm text-gray-600">
-            {canEdit
-              ? "No delivery tasks yet. Create assignments from the form above."
-              : "No tasks assigned to you yet."}
-          </p>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {visibleDeliveries.map((delivery) => (
-              <div
-                key={delivery.delivery_id}
-                className="space-y-2 rounded-2xl border border-[#CFE6D8] bg-white p-4 shadow-sm"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">
-                      Deliver to community
-                    </p>
-                    <span className="text-xs font-semibold text-[#2F855A]">
-                      {delivery.delivery_id}
+
+        <div className="overflow-y-auto flex-1 min-h-0 pr-2">
+          {loading ? (
+            <p className="rounded-2xl border border-dashed border-gray-300 bg-white/70 p-6 text-sm text-gray-500">
+              Loading tasks...
+            </p>
+          ) : visibleDeliveries.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-gray-300 bg-white/70 p-6 text-sm text-gray-500">
+              {canEdit
+                ? "No delivery tasks yet. Create assignments from the form on the left."
+                : "No tasks assigned to you yet."}
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {visibleDeliveries.map((delivery) => (
+                <div
+                  key={delivery.delivery_id}
+                  className="rounded-2xl border border-[#CFE6D8] bg-white p-5 shadow-sm transition hover:shadow-md"
+                >
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="mb-2 flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#E6F7EE]">
+                          <span className="text-lg">📤</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
+                            Deliver to community
+                          </p>
+                          <span className="text-xs font-medium text-[#2F855A]">
+                            {delivery.delivery_id}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <span
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold ${statusLabel(delivery.status).className}`}
+                    >
+                      {statusLabel(delivery.status).text}
                     </span>
                   </div>
-                  <span
-                    className={`rounded-full px-3 py-1 text-[11px] font-semibold ${statusLabel(delivery.status).className}`}
-                  >
-                    {statusLabel(delivery.status).text}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500">
-                  Community: {lookupCommunityName(delivery.community_id || "")}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Warehouse: {delivery.warehouse_id} — {lookupWarehouseAddress(delivery.warehouse_id)}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Staff: {lookupStaffName(delivery.user_id)} • Pickup: {formatDisplayDate(delivery.pickup_time)}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Food Amount: Based on community request
-                </p>
-                {!canEdit && (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="mb-1 block text-[11px] font-semibold text-gray-700">
-                        Notes
-                      </label>
-                      <input
-                        type="text"
-                        className={INPUT_STYLES}
-                        value={staffInputs[delivery.delivery_id]?.notes ?? ""}
-                        onChange={(e) =>
-                          setStaffInputs((prev) => ({
-                            ...prev,
-                            [delivery.delivery_id]: {
-                              notes: e.target.value,
-                            },
-                          }))
-                        }
-                      />
+
+                  <div className="space-y-3 border-t border-gray-100 pt-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <span className="text-gray-400">🏘️</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-gray-500">Community</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {lookupCommunityName(delivery.community_id || "")}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {delivery.status === "pending" && (
-                        <>
-                          <button
-                            type="button"
-                            disabled={updatingStatusId === delivery.delivery_id}
-                            onClick={() => updateStatus(delivery.delivery_id, "in_transit")}
-                            className="rounded-lg bg-[#1D4ED8] px-3 py-2 text-xs font-semibold text-white hover:bg-[#153EAE] disabled:opacity-60"
-                          >
-                            Start
-                          </button>
-                          <button
-                            type="button"
-                            disabled={updatingStatusId === delivery.delivery_id}
-                            onClick={() => updateStatus(delivery.delivery_id, "cancelled")}
-                            className="rounded-lg bg-[#FDECEA] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FCD7D2] disabled:opacity-60"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      )}
-                      {delivery.status === "in_transit" && (
-                        <>
-                          <button
-                            type="button"
-                            disabled={updatingStatusId === delivery.delivery_id}
-                            onClick={() => updateStatus(delivery.delivery_id, "delivered")}
-                            className="rounded-lg bg-[#2F8A61] px-3 py-2 text-xs font-semibold text-white hover:bg-[#25724F] disabled:opacity-60"
-                          >
-                            Delivered
-                          </button>
-                          <button
-                            type="button"
-                            disabled={updatingStatusId === delivery.delivery_id}
-                            onClick={() => updateStatus(delivery.delivery_id, "cancelled")}
-                            className="rounded-lg bg-[#FDECEA] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FCD7D2] disabled:opacity-60"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      )}
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <span className="text-gray-400">📦</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-gray-500">Warehouse</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {delivery.warehouse_id} — {lookupWarehouseAddress(delivery.warehouse_id)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <span className="text-gray-400">👤</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-gray-500">Assigned Staff</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {lookupStaffName(delivery.user_id)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <span className="text-gray-400">🕐</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-gray-500">Pickup Time</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {formatDisplayDate(delivery.pickup_time)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <span className="text-gray-400">🥘</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-gray-500">Food Amount</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          Based on community request
+                        </p>
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                  {!canEdit && (
+                    <div className="space-y-3 mt-4 border-t border-gray-100 pt-4">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-gray-700">
+                          Notes
+                        </label>
+                        <input
+                          type="text"
+                          className={INPUT_STYLES}
+                          value={staffInputs[delivery.delivery_id]?.notes ?? ""}
+                          onChange={(e) =>
+                            setStaffInputs((prev) => ({
+                              ...prev,
+                              [delivery.delivery_id]: {
+                                notes: e.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {delivery.status === "pending" && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={updatingStatusId === delivery.delivery_id}
+                              onClick={() => updateStatus(delivery.delivery_id, "in_transit")}
+                              className="rounded-lg bg-[#1D4ED8] px-3 py-2 text-xs font-semibold text-white hover:bg-[#153EAE] disabled:opacity-60"
+                            >
+                              Start
+                            </button>
+                            <button
+                              type="button"
+                              disabled={updatingStatusId === delivery.delivery_id}
+                              onClick={() => updateStatus(delivery.delivery_id, "cancelled")}
+                              className="rounded-lg bg-[#FDECEA] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FCD7D2] disabled:opacity-60"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        )}
+                        {delivery.status === "in_transit" && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={updatingStatusId === delivery.delivery_id}
+                              onClick={() => updateStatus(delivery.delivery_id, "delivered")}
+                              className="rounded-lg bg-[#2F8A61] px-3 py-2 text-xs font-semibold text-white hover:bg-[#25724F] disabled:opacity-60"
+                            >
+                              Delivered
+                            </button>
+                            <button
+                              type="button"
+                              disabled={updatingStatusId === delivery.delivery_id}
+                              onClick={() => updateStatus(delivery.delivery_id, "cancelled")}
+                              className="rounded-lg bg-[#FDECEA] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FCD7D2] disabled:opacity-60"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
