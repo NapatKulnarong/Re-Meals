@@ -40,6 +40,32 @@
   },
   {
     "model": "users.user",
+    "pk": "DON0000003",
+    "fields": {
+      "username": "donor3",
+      "fname": "Mikel",
+      "lname": "Manzano",
+      "bod": "1991-09-12",
+      "phone": "0812345008",
+      "email": "mikel.manzano@gmail.com",
+      "password": "pbkdf2_sha256$1000000$Vz2xAbQuXxWgDnc7SJvMy0$nFAFBosDMKYWUbXi3guwJ78fOj4XygRoSfoR8bGoZ2k="
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": "DON0000004",
+    "fields": {
+      "username": "donor4",
+      "fname": "Tawan",
+      "lname": "Sriprasert",
+      "bod": "1993-04-03",
+      "phone": "0812345009",
+      "email": "tawan.sri@gmail.com",
+      "password": "pbkdf2_sha256$1000000$Vz2xAbQuXxWgDnc7SJvMy0$nFAFBosDMKYWUbXi3guwJ78fOj4XygRoSfoR8bGoZ2k="
+    }
+  },
+  {
+    "model": "users.user",
     "pk": "DEL0000001",
     "fields": {
       "username": "delivery1",

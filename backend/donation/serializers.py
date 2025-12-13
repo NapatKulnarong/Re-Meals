@@ -13,6 +13,16 @@ class DonationSerializer(serializers.ModelSerializer):
     manual_restaurant_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
     manual_branch_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
     manual_restaurant_address = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    created_by_user_id = serializers.CharField(
+        source="created_by.user_id",
+        read_only=True,
+        allow_null=True,
+    )
+    created_by_username = serializers.CharField(
+        source="created_by.username",
+        read_only=True,
+        allow_null=True,
+    )
 
     class Meta:
         model = Donation
@@ -27,6 +37,8 @@ class DonationSerializer(serializers.ModelSerializer):
             "manual_restaurant_name",
             "manual_branch_name",
             "manual_restaurant_address",
+            "created_by_user_id",
+            "created_by_username",
         ]
         extra_kwargs = {
             "restaurant": {"required": False, "allow_null": True},
@@ -37,6 +49,8 @@ class DonationSerializer(serializers.ModelSerializer):
             "restaurant_name",
             "restaurant_branch",
             "restaurant_address",
+            "created_by_user_id",
+            "created_by_username",
         )
 
     def validate(self, attrs):

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { ReactNode } from "react";
-import { Squares2X2Icon } from "@heroicons/react/24/solid";
+import { Squares2X2Icon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/solid";
 
 // This marks the component as a Client Component (required because we use state + event handlers)
 
@@ -257,26 +257,47 @@ export default function Sidebar({
       </nav>
       </div>
 
+      {/* Account notice - only shown when not logged in, above the white line */}
+      {!currentUser && (
+        <div className="mt-auto mb-0 pt-8 px-1.5">
+          <div className="flex flex-col items-start gap-3">
+            <div className="flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.0} stroke="white" className="w-10 h-10">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white leading-relaxed text-left">
+                Please sign up or log in to use all features on this website.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bottom section: Sign up / Login button */}
       <div className="mt-6 border-t border-gray-300 pt-4">
         {currentUser ? (
-          <div className="space-y-2">
+          <div className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#B86A49] bg-[#F2D6C3] pl-4 pr-3 py-3 text-sm font-semibold text-[#4B2415] transition hover:border-[#9F583C] hover:text-[#3A1A0F]">
             <button
               onClick={onProfileClick}
-              className="w-full rounded-xl border border-[#B86A49] bg-[#F2D6C3] px-4 py-3 text-center text-sm font-semibold text-[#4B2415] transition hover:border-[#9F583C] hover:text-[#3A1A0F]"
+              type="button"
+              className="flex-1 bg-transparent text-left text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B86A49]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F2D6C3]"
             >
               {currentUser.username}
             </button>
-            <div className="flex justify-between text-xs text-gray-600">
-              <span className="truncate">{currentUser.email}</span>
-              <button
-                onClick={onLogout}
-                className="font-semibold text-[#C46A24] hover:underline"
-                type="button"
-              >
-                Logout
-              </button>
-            </div>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onLogout?.();
+              }}
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#B86A49] transition hover:bg-gray-100"
+              type="button"
+              aria-label="Logout"
+            >
+              <ArrowRightOnRectangleIcon className="h-6 w-6" />
+            </button>
           </div>
         ) : (
           <button
