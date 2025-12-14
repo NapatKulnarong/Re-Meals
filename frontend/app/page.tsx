@@ -213,6 +213,17 @@ type ImpactRecord = {
   food: string;
 };
 
+type LooseImpactRecord = {
+  impact_id?: string;
+  pk?: string;
+  id?: string;
+  meals_saved?: number | string;
+  weight_saved_kg?: number | string;
+  co2_reduced_kg?: number | string;
+  impact_date?: string;
+  food?: string;
+};
+
 // Interactive Weekly Meals Chart Component
 function WeeklyMealsChart({ data }: { data: Array<{ weekKey: string; meals: number; co2: number; startDate: Date; endDate: Date }> }) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -221,8 +232,8 @@ function WeeklyMealsChart({ data }: { data: Array<{ weekKey: string; meals: numb
   const maxMeals = Math.max(...data.map(d => d.meals), 1);
   const chartHeight = 280;
   const chartPadding = { top: 20, right: 20, bottom: 40, left: 50 };
-  const availableWidth = 800;
   const barSpacing = 8;
+  const availableWidth = 800;
   const barWidth = Math.max(32, Math.min(60, (availableWidth - chartPadding.left - chartPadding.right - (data.length - 1) * barSpacing) / data.length));
   const chartWidth = data.length * (barWidth + barSpacing) + chartPadding.left + chartPadding.right;
 
@@ -389,7 +400,6 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
   const maxCO2 = Math.max(...data.map(d => d.co2), 1);
   const chartHeight = 280;
   const chartPadding = { top: 20, right: 20, bottom: 40, left: 50 };
-  const availableWidth = 800;
   const chartWidth = Math.max(600, data.length * 60 + chartPadding.left + chartPadding.right);
 
   const formatWeekLabel = (startDate: Date, endDate: Date) => {
@@ -606,17 +616,17 @@ const normalizeImpactData = (raw: unknown): ImpactRecord[] => {
     }
   }
   
-  return data.map((record: any) => {
+  return data.map((record: LooseImpactRecord) => {
     // Handle both 'impact_id' and 'pk' field names
-    const impactId = record.impact_id || record.pk || record.id || "";
+    const impactId = record.impact_id ?? record.pk ?? record.id ?? "";
     
     return {
-      impact_id: impactId,
-      meals_saved: Number(record.meals_saved) || 0,
-      weight_saved_kg: Number(record.weight_saved_kg) || 0,
-      co2_reduced_kg: Number(record.co2_reduced_kg) || 0,
-      impact_date: record.impact_date || "",
-      food: record.food || "",
+      impact_id: typeof impactId === "string" ? impactId : "",
+      meals_saved: Number(record.meals_saved ?? 0),
+      weight_saved_kg: Number(record.weight_saved_kg ?? 0),
+      co2_reduced_kg: Number(record.co2_reduced_kg ?? 0),
+      impact_date: record.impact_date ?? "",
+      food: typeof record.food === "string" ? record.food : "",
     };
   });
 };
@@ -825,8 +835,8 @@ function HomePage({
   const [impactLoading, setImpactLoading] = useState(false);
   const [impactError, setImpactError] = useState<string | null>(null);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [donations, setDonations] = useState<any[]>([]);
-  const [foodItems, setFoodItems] = useState<any[]>([]);
+  const [donations, setDonations] = useState<DonationApiRecord[]>([]);
+  const [foodItems, setFoodItems] = useState<FoodItemApiRecord[]>([]);
 
   const journey = [
     {
@@ -907,8 +917,8 @@ function HomePage({
       try {
         const [restaurantsData, donationsData, foodItemsData] = await Promise.all([
           apiFetch<Restaurant[]>("/restaurants/").catch(() => []),
-          apiFetch<any[]>("/donations/").catch(() => []),
-          apiFetch<any[]>("/fooditems/").catch(() => []),
+          apiFetch<DonationApiRecord[]>("/donations/").catch(() => []),
+          apiFetch<FoodItemApiRecord[]>("/fooditems/").catch(() => []),
         ]);
         
         if (!ignore) {
@@ -916,7 +926,7 @@ function HomePage({
           setDonations(donationsData);
           setFoodItems(foodItemsData);
         }
-      } catch (err) {
+      } catch {
         // Silently fail - leaderboard is optional
       }
     }
@@ -991,11 +1001,11 @@ function HomePage({
     }
 
     const restaurantMap = new Map(restaurants.map(r => [r.restaurant_id, r]));
-    const donationMap = new Map(donations.map(d => [d.donation_id || d.id, d]));
+    const donationMap = new Map(donations.map(d => [d.donation_id, d]));
     
-    const foodItemMap = new Map<string, any>();
+    const foodItemMap = new Map<string, FoodItemApiRecord>();
     foodItems.forEach(f => {
-      const foodId = f.food_id || f.id;
+      const foodId = f.food_id;
       if (foodId) {
         const normalized = normalizeFoodId(foodId);
         foodItemMap.set(normalized, f);
@@ -1011,13 +1021,13 @@ function HomePage({
       
       if (!foodItem) return;
 
-      const donationId = foodItem.donation || foodItem.donation_id;
+      const donationId = foodItem.donation;
       if (!donationId) return;
       
       const donation = donationMap.get(donationId);
       if (!donation) return;
 
-      const restaurantId = donation.restaurant || donation.restaurant_id;
+      const restaurantId = donation.restaurant;
       if (!restaurantId) return;
       
       const restaurant = restaurantMap.get(restaurantId);
@@ -1195,7 +1205,14 @@ function HomePage({
             ) : weeklyMealsData.length === 0 ? (
               <p className="text-sm text-gray-600 py-8 text-center">No CO₂ data available yet.</p>
             ) : (
-              <CO2TrendChart data={weeklyMealsData.map(({ meals, ...rest }) => rest)} />
+              <CO2TrendChart
+                data={weeklyMealsData.map(({ weekKey, co2, startDate, endDate }) => ({
+                  weekKey,
+                  co2,
+                  startDate,
+                  endDate,
+                }))}
+              />
             )}
           </div>
         </div>
@@ -1477,15 +1494,12 @@ function TabContent({
   );
 }
 
-function DonationSection({
-  currentUser,
-  setShowAuthModal,
-  setAuthMode
-}: {
+function DonationSection(props: {
   currentUser: LoggedUser | null;
   setShowAuthModal: (show: boolean) => void;
   setAuthMode: (mode: AuthMode) => void;
 }) {
+  const { currentUser } = props;
   const [form, setForm] = useState<DonationFormState>(createDonationFormState());
   const [donations, setDonations] = useState<DonationRecord[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1632,7 +1646,7 @@ function DonationSection({
         if (!ignore) {
           setDeliveries(deliveryData);
         }
-      } catch (error) {
+      } catch {
         // Silently fail - deliveries are optional for this check
       }
     }
@@ -2027,7 +2041,7 @@ function DonationSection({
     return true;
   };
 
-  const canShowEditDeleteButtons = (donation: DonationRecord) => {
+  const canShowEditDeleteButtons = () => {
     // Show buttons if user is logged in
     // The buttons will be disabled if canManageDonation returns false
     return Boolean(currentUser);
@@ -2437,7 +2451,7 @@ function DonationSection({
         {currentUser && !currentUser.isAdmin && (
           <div className="mb-4 flex-shrink-0 rounded-xl border border-[#D7DCC7] bg-[#F4F7EF] p-3">
             <p className="text-xs text-gray-700 leading-relaxed">
-              <span className="font-semibold">Note:</span> You can edit or delete your donations only if they haven't been assigned to a pickup task yet. Once the admin assigns your donation to a delivery staff, it can no longer be modified.
+              <span className="font-semibold">Note:</span> You can edit or delete your donations only if they haven&apos;t been assigned to a pickup task yet. Once the admin assigns your donation to a delivery staff, it can no longer be modified.
             </p>
           </div>
         )}
@@ -2475,7 +2489,7 @@ function DonationSection({
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    {canShowEditDeleteButtons(donation) && (
+                    {canShowEditDeleteButtons() && (
                       <div className="flex gap-2">
                         <button
                           type="button"
@@ -2587,15 +2601,12 @@ function DonationSection({
   );
 }
 
-function DonationRequestSection({
-  currentUser,
-  setShowAuthModal,
-  setAuthMode
-}: {
+function DonationRequestSection(props: {
   currentUser: LoggedUser | null;
   setShowAuthModal: (show: boolean) => void;
   setAuthMode: (mode: AuthMode) => void;
 }) {
+  const { currentUser } = props;
   const [form, setForm] = useState<DonationRequestForm>(createDonationRequestForm());
   const [requests, setRequests] = useState<DonationRequestRecord[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -2698,7 +2709,7 @@ function DonationRequestSection({
     return () => {
       ignore = true;
     };
-  }, [currentUser?.userId, currentUser?.isAdmin, prioritizeRequests]);
+  }, [currentUser, prioritizeRequests]);
 
   // Check if a request has been accepted (has a distribution delivery to its community)
   const isRequestAccepted = useCallback((request: DonationRequestRecord) => {
@@ -4247,7 +4258,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
         try {
           const items = await apiFetch<FoodItemApiRecord[]>(`/fooditems/?donation=${donation.donation_id}`);
           allFoodItems.push(...items);
-        } catch (err) {
+        } catch {
           // Ignore errors for individual donation food items
         }
       }
@@ -4416,11 +4427,6 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
   const lookupStaffName = (userId: string) => {
     const member = staff.find((s) => s.user_id === userId);
     return member ? (member.name || member.username) : userId;
-  };
-
-  const lookupWarehouseAddress = (warehouseId: string) => {
-    const warehouse = warehouses.find((w) => w.warehouse_id === warehouseId);
-    return warehouse ? warehouse.address : warehouseId;
   };
 
   const getFoodItemsForDelivery = (donationId: string) => {
@@ -4894,7 +4900,6 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
   const [communities, setCommunities] = useState<Community[]>([]);
   const [staff, setStaff] = useState<DeliveryStaffInfo[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
-  const [donationRequests, setDonationRequests] = useState<DonationRequestApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -4916,7 +4921,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
     setLoading(true);
     setError(null);
     try {
-      const [warehouseData, communityData, staffData, deliveryData, requestData] =
+      const [warehouseData, communityData, staffData, deliveryData] =
         await Promise.all([
           apiFetch<Warehouse[]>(API_PATHS.warehouses),
           apiFetch<Community[]>(API_PATHS.communities),
@@ -4924,13 +4929,11 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
           apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
             headers: buildAuthHeaders(currentUser),
           }),
-          apiFetch<DonationRequestApiRecord[]>(API_PATHS.donationRequests),
         ]);
       setWarehouses(warehouseData);
       setCommunities(communityData);
       setStaff(staffData);
       setDeliveries(deliveryData);
-      setDonationRequests(requestData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load delivery data.");
     } finally {
@@ -5387,7 +5390,6 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [foodItems, setFoodItems] = useState<FoodItemApiRecord[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
-  const [donations, setDonations] = useState<DonationApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>("");
@@ -5406,7 +5408,6 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
       ]);
       setWarehouses(warehouseData);
       setDeliveries(deliveryData);
-      setDonations(donationData);
 
       // Load food items for all donations
       const allFoodItems: FoodItemApiRecord[] = [];
@@ -5414,7 +5415,7 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
         try {
           const items = await apiFetch<FoodItemApiRecord[]>(`/fooditems/?donation=${donation.donation_id}`);
           allFoodItems.push(...items);
-        } catch (err) {
+        } catch {
           // Ignore errors for individual donation food items
         }
       }
