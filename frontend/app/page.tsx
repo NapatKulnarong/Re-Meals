@@ -5710,7 +5710,7 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
                       <div className="flex-1">
                         <p className="text-xs font-medium text-gray-500">Donation</p>
                         <p className="text-sm font-semibold text-gray-900">
-                          {item.donation_id}
+                          {item.donation}
                         </p>
                       </div>
                     </div>
