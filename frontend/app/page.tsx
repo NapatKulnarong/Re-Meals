@@ -16,6 +16,10 @@ type SignupCredentials = {
   phone: string;
   email: string;
   password: string;
+  restaurant_id?: string;
+  restaurant_name?: string;
+  branch?: string;
+  restaurant_address?: string;
 };
 
 type LoginCredentials = {
@@ -38,6 +42,10 @@ type LoggedUser = {
   fname?: string;
   lname?: string;
   phone?: string;
+  restaurantId?: string;
+  restaurantName?: string;
+  branch?: string;
+  restaurantAddress?: string;
 };
 
 type Restaurant = {
@@ -1528,34 +1536,18 @@ function DonationSection({
     setDonations((prev) => prioritizeDonations(prev));
   }, [prioritizeDonations]);
 
+  // Auto-populate restaurant info from user profile when user changes
   useEffect(() => {
-    let ignore = false;
-    async function loadRestaurants() {
-      setRestaurantsLoading(true);
-      setRestaurantLoadError(null);
-      try {
-        const data = await apiFetch<Restaurant[]>("/restaurants/");
-        if (!ignore) {
-          setRestaurants(data);
-        }
-      } catch (error) {
-        if (!ignore) {
-          setRestaurantLoadError(
-            error instanceof Error ? error.message : "Unable to load restaurants"
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setRestaurantsLoading(false);
-        }
-      }
+    if (currentUser) {
+      setForm((prev) => ({
+        ...prev,
+        restaurantId: currentUser.restaurantId ?? "",
+        restaurantName: currentUser.restaurantName ?? "",
+        branch: currentUser.branch ?? "",
+        restaurantAddress: currentUser.restaurantAddress ?? "",
+      }));
     }
-
-    loadRestaurants();
-    return () => {
-      ignore = true;
-    };
-  }, []);
+  }, [currentUser]);
 
   const loadDonationsData = useCallback(async () => {
     try {
@@ -1825,24 +1817,41 @@ function DonationSection({
     event.preventDefault();
     setNotification({});
 
-    const trimmedRestaurantName = form.restaurantName.trim();
-    const branchValue = form.branch.trim();
-    const selectedLabel = selectedRestaurant ? formatRestaurantLabel(selectedRestaurant) : "";
-    const nameMatchesSelected =
-      Boolean(selectedRestaurant) &&
-      (trimmedRestaurantName === selectedLabel ||
-        trimmedRestaurantName === (selectedRestaurant?.name ?? ""));
-    const branchMatchesSelected =
-      Boolean(selectedRestaurant) &&
-      branchValue === (selectedRestaurant?.branch_name ?? "");
-    const manualEntry = !selectedRestaurant || !nameMatchesSelected || !branchMatchesSelected;
+    // Validate restaurant info from user profile
+    if (!currentUser) {
+      setNotification({ error: "Please log in to create donations." });
+      return;
+    }
 
-    if (manualEntry && !trimmedRestaurantName.length) {
+    if (!currentUser.restaurantName && !currentUser.restaurantId) {
       setNotification({
-        error: "Enter the restaurant name or choose one from the suggestions.",
+        error: "Please set your restaurant information in Settings before creating donations.",
       });
       return;
     }
+
+    const trimmedRestaurantName = form.restaurantName.trim() || currentUser.restaurantName || "";
+    const branchValue = form.branch.trim() || currentUser.branch || "";
+    const restaurantAddress = form.restaurantAddress.trim() || currentUser.restaurantAddress || "";
+
+    if (!trimmedRestaurantName) {
+      setNotification({
+        error: "Restaurant name is required. Please update your profile in Settings.",
+      });
+      return;
+    }
+
+    if (!restaurantAddress) {
+      setNotification({
+        error: "Restaurant address is required. Please update your profile in Settings.",
+      });
+      return;
+    }
+
+    // Determine if using existing restaurant or manual entry
+    const restaurantId = currentUser.restaurantId || form.restaurantId;
+    const selectedRestaurant = restaurantId ? restaurants.find(r => r.restaurant_id === restaurantId) : null;
+    const manualEntry = !selectedRestaurant || !restaurantId;
 
     const normalizedItems = form.items
       .map((item) => ({
@@ -1887,7 +1896,7 @@ function DonationSection({
       } else {
         donationPayload.manual_restaurant_name = trimmedRestaurantName;
         donationPayload.manual_branch_name = branchValue;
-        donationPayload.manual_restaurant_address = form.restaurantAddress.trim();
+        donationPayload.manual_restaurant_address = restaurantAddress;
       }
       const createdDonation = await apiFetch<DonationApiRecord>("/donations/", {
         method: "POST",
@@ -2159,111 +2168,54 @@ function DonationSection({
             className="space-y-6 h-full overflow-y-auto pr-1 pb-4 sm:pr-3"
             onSubmit={handleSubmit}
           >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-semibold text-gray-700">
-                  Restaurant name
-                </label>
-                <div ref={suggestionBoxRef} className="relative">
-                  <input
-                    type="text"
-                    className={INPUT_STYLES}
-                    placeholder="Type or paste the restaurant name"
-                    value={form.restaurantName}
-                    autoComplete="off"
-                    onChange={(event) => handleRestaurantNameChange(event.target.value)}
-                    onFocus={() =>
-                      setIsSuggestionOpen(form.restaurantName.trim().length > 0)
-                    }
-                    required
-                  />
-                  {shouldShowSuggestions && (
-                    <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-[#D7DCC7] bg-white shadow-xl shadow-[#D7DCC7]/30">
-                      <div className="max-h-72 overflow-y-auto">
-                        {visibleSuggestions.map((suggestion) => (
-                          <button
-                            key={suggestion.key}
-                            type="button"
-                            className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left transition hover:bg-[#F2F6EE]"
-                            onClick={() => handleSelectSuggestion(suggestion)}
-                          >
-                            <div className="space-y-0.5">
-                              <p className="text-sm font-semibold text-gray-900">
-                                {suggestion.label}
-                              </p>
-                              {suggestion.description ? (
-                                <p className="text-xs text-gray-500">
-                                  {suggestion.description}
-                                </p>
-                              ) : null}
-                            </div>
-                            <span
-                              className={`whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold ${
-                                suggestion.kind === "restaurant"
-                                  ? "bg-[#E9F1E3] text-[#5E7A4A]"
-                                  : "bg-[#F7E3D6] text-[#B86A49]"
-                              }`}
-                            >
-                              {suggestion.kind === "restaurant" ? "In network" : "Popular"}
-                            </span>
-                          </button>
-                        ))}
+            {/* Restaurant Information - Auto-populated from user profile */}
+            {currentUser && (currentUser.restaurantName || currentUser.restaurantId) ? (
+              <div className="space-y-3 rounded-2xl border border-[#D7DCC7] bg-[#F4F7EF] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#5E7A4A]">
+                  Restaurant Information
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-600">
+                      Restaurant name
+                    </label>
+                    <div className="rounded-lg border border-[#D7DCC7] bg-white px-3 py-2 text-sm font-semibold text-gray-900">
+                      {form.restaurantName || currentUser.restaurantName || "Not set"}
+                    </div>
+                  </div>
+                  {form.branch || currentUser.branch ? (
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-gray-600">
+                        Branch / location
+                      </label>
+                      <div className="rounded-lg border border-[#D7DCC7] bg-white px-3 py-2 text-sm font-semibold text-gray-900">
+                        {form.branch || currentUser.branch || "—"}
                       </div>
                     </div>
-                  )}
+                  ) : null}
                 </div>
-                <p className="mt-2 text-xs text-gray-500">
-                  Type at least one letter to see in-line suggestions from the restaurant list.
-                  {restaurantsLoading ? " Loading restaurants..." : ""}
-                </p>
-                {restaurantLoadError && (
-                  <p className="mt-1 text-xs text-red-500">{restaurantLoadError}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-semibold text-gray-700">
-                  Branch / location
-                </label>
-                <input
-                  type="text"
-                  className={INPUT_STYLES}
-                  value={form.branch}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, branch: event.target.value }))
-                  }
-                  placeholder={
-                    selectedRestaurant
-                      ? "Branch is filled automatically. Adjust if needed."
-                      : "Enter branch or location (optional)"
-                  }
-                />
-                <p className="mt-2 text-xs text-gray-500">
-                  Branch information is filled automatically when a restaurant is selected, or
-                  you can type a custom branch/location.
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-gray-600">
+                    Restaurant address
+                  </label>
+                  <div className="rounded-lg border border-[#D7DCC7] bg-white px-3 py-2 text-sm font-semibold text-gray-900">
+                    {form.restaurantAddress || currentUser.restaurantAddress || "Not set"}
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Restaurant information is linked to your account. Update it in Settings if needed.
                 </p>
               </div>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-semibold text-gray-700">
-                Restaurant address
-              </label>
-              <input
-                type="text"
-                className={INPUT_STYLES}
-                placeholder="Enter restaurant address"
-                value={form.restaurantAddress}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, restaurantAddress: event.target.value }))
-                }
-                required
-              />
-              <p className="mt-2 text-xs text-gray-500">
-                Address is filled automatically when a restaurant is selected, or you can type a
-                custom address.
-              </p>
-            </div>
+            ) : (
+              <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4">
+                <p className="text-sm font-semibold text-yellow-800">
+                  ⚠️ Restaurant information required
+                </p>
+                <p className="mt-1 text-xs text-yellow-700">
+                  Please set your restaurant information in Settings before creating donations.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-4 rounded-2xl border border-[#D7DCC7] bg-white p-4">
               <div className="flex items-center justify-between">
@@ -2600,6 +2552,16 @@ function DonationRequestSection({
   const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
   const [communities, setCommunities] = useState<Community[]>([]);
 
+  // Auto-populate contact phone from user profile
+  useEffect(() => {
+    if (currentUser?.phone) {
+      setForm((prev) => ({
+        ...prev,
+        contactPhone: currentUser.phone || "",
+      }));
+    }
+  }, [currentUser?.phone]);
+
   const prioritizeRequests = useCallback(
     (list: DonationRequestRecord[]) => {
       const userId = currentUser?.userId;
@@ -2759,7 +2721,7 @@ function DonationRequestSection({
       recipient_address: form.recipientAddress.trim(),
       expected_delivery: new Date(form.expectedDelivery).toISOString(),
       people_count: numberOfPeopleValue,
-      contact_phone: form.contactPhone.trim(),
+      contact_phone: currentUser.phone?.trim() || form.contactPhone.trim(),
       notes: form.notes.trim(),
     };
 
@@ -2829,7 +2791,7 @@ function DonationRequestSection({
       numberOfPeople: request.numberOfPeople,
       expectedDelivery: toDateTimeLocalValue(request.expectedDelivery),
       recipientAddress: request.recipientAddress,
-      contactPhone: request.contactPhone,
+      contactPhone: currentUser?.phone || request.contactPhone || "",
       notes: request.notes,
     });
     setEditingId(request.id);
@@ -2930,36 +2892,40 @@ function DonationRequestSection({
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-semibold text-gray-700">
-                  Community name
-                </label>
-                <input
-                  type="text"
-                  className={INPUT_STYLES}
-                  value={form.communityName}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, communityName: event.target.value }))
-                  }
-                  required
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-semibold text-gray-700">
-                  Contact phone
-                </label>
-                <input
-                  type="tel"
-                  className={INPUT_STYLES}
-                  value={form.contactPhone}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, contactPhone: event.target.value }))
-                  }
-                  required
-                />
-              </div>
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-gray-700">
+                Community name
+              </label>
+              <input
+                type="text"
+                className={INPUT_STYLES}
+                value={form.communityName}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, communityName: event.target.value }))
+                }
+                required
+              />
             </div>
+
+            {/* Contact Phone - Auto-populated from user profile */}
+            {currentUser?.phone && (
+              <div className="rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#B25C23] mb-2">
+                  Contact Information
+                </p>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-[#B25C23]">
+                    Contact phone
+                  </label>
+                  <div className="rounded-lg border border-[#F3C7A0] bg-white px-3 py-2 text-sm font-semibold text-[#B25C23]">
+                    {currentUser.phone}
+                  </div>
+                  <p className="mt-2 text-xs text-[#B25C23]/70">
+                    Phone number is linked to your account. Update it in Settings if needed.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="mb-1 block text-sm font-semibold text-gray-700">
@@ -3104,7 +3070,7 @@ function DonationRequestSection({
                       Contact phone
                     </p>
                     <p className="font-semibold">
-                      {request.contactPhone || "N/A"}
+                      {currentUser?.phone || request.contactPhone || "N/A"}
                     </p>
                   </div>
                 </div>
@@ -3164,10 +3130,37 @@ function ProfileModal({
     fname: user.fname ?? "",
     lname: user.lname ?? "",
     phone: user.phone ?? "",
+    restaurant_id: user.restaurantId ?? "",
+    restaurant_name: user.restaurantName ?? "",
+    branch: user.branch ?? "",
+    restaurant_address: user.restaurantAddress ?? "",
   });
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [restaurantSelectionMode, setRestaurantSelectionMode] = useState<"existing" | "manual">(
+    user.restaurantId ? "existing" : "manual"
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Load restaurants for dropdown
+  useEffect(() => {
+    let ignore = false;
+    async function loadRestaurants() {
+      try {
+        const data = await apiFetch<Restaurant[]>("/restaurants/");
+        if (!ignore) {
+          setRestaurants(data);
+        }
+      } catch (error) {
+        console.error("Failed to load restaurants:", error);
+      }
+    }
+    loadRestaurants();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const handleSave = async () => {
     setSaving(true);
@@ -3182,6 +3175,10 @@ function ProfileModal({
         fname: string;
         lname: string;
         phone: string;
+        restaurant_id?: string;
+        restaurant_name?: string;
+        branch?: string;
+        restaurant_address?: string;
       }>("/users/profile/", {
         method: "PATCH",
         headers: buildAuthHeaders(user),
@@ -3195,6 +3192,10 @@ function ProfileModal({
         fname: response.fname,
         lname: response.lname,
         phone: response.phone,
+        restaurantId: (response as any).restaurant_id ?? undefined,
+        restaurantName: (response as any).restaurant_name ?? undefined,
+        branch: (response as any).branch ?? undefined,
+        restaurantAddress: (response as any).restaurant_address ?? undefined,
       });
 
       setSuccess(true);
@@ -3281,6 +3282,104 @@ function ProfileModal({
               onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
             />
           </div>
+        </div>
+
+        {/* Restaurant Information Section */}
+        <div className="mt-4 space-y-3 rounded-xl border border-[#F3C7A0] bg-[#FFF8F0] p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-[#B25C23]">Restaurant Information</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setRestaurantSelectionMode("existing");
+                  setForm((prev) => ({ ...prev, restaurant_name: "", branch: "", restaurant_address: "" }));
+                }}
+                className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
+                  restaurantSelectionMode === "existing"
+                    ? "bg-[#d48a68] text-white"
+                    : "bg-white text-[#d48a68] border border-[#d48a68]"
+                }`}
+              >
+                Select
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRestaurantSelectionMode("manual");
+                  setForm((prev) => ({ ...prev, restaurant_id: "" }));
+                }}
+                className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
+                  restaurantSelectionMode === "manual"
+                    ? "bg-[#d48a68] text-white"
+                    : "bg-white text-[#d48a68] border border-[#d48a68]"
+                }`}
+              >
+                Manual
+              </button>
+            </div>
+          </div>
+
+          {restaurantSelectionMode === "existing" ? (
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-700">Restaurant</label>
+              <select
+                value={form.restaurant_id || ""}
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  const selected = restaurants.find(r => r.restaurant_id === selectedId);
+                  setForm((prev) => ({
+                    ...prev,
+                    restaurant_id: selectedId,
+                    restaurant_name: selected?.name || "",
+                    branch: selected?.branch_name || "",
+                    restaurant_address: selected?.address || "",
+                  }));
+                }}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-[#d48a68] focus:ring-2 focus:ring-[#d48a68]/20"
+              >
+                <option value="">Choose a restaurant...</option>
+                {restaurants.map((restaurant) => (
+                  <option key={restaurant.restaurant_id} value={restaurant.restaurant_id}>
+                    {restaurant.name} {restaurant.branch_name ? `(${restaurant.branch_name})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-700">Restaurant Name</label>
+                <input
+                  type="text"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-[#d48a68] focus:ring-2 focus:ring-[#d48a68]/20"
+                  value={form.restaurant_name}
+                  onChange={(e) => setForm((prev) => ({ ...prev, restaurant_name: e.target.value }))}
+                  placeholder="e.g. KFC, McDonald's"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-700">Branch (optional)</label>
+                <input
+                  type="text"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-[#d48a68] focus:ring-2 focus:ring-[#d48a68]/20"
+                  value={form.branch}
+                  onChange={(e) => setForm((prev) => ({ ...prev, branch: e.target.value }))}
+                  placeholder="e.g. Central World"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-700">Restaurant Address</label>
+                <input
+                  type="text"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-[#d48a68] focus:ring-2 focus:ring-[#d48a68]/20"
+                  value={form.restaurant_address}
+                  onChange={(e) => setForm((prev) => ({ ...prev, restaurant_address: e.target.value }))}
+                  placeholder="Full address"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-5 flex justify-end gap-3">
@@ -5927,7 +6026,38 @@ function AuthModal({
     phone: "",
     email: "",
     password: "",
+    restaurant_id: "",
+    restaurant_name: "",
+    branch: "",
+    restaurant_address: "",
   });
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [restaurantSelectionMode, setRestaurantSelectionMode] = useState<"existing" | "manual">("existing");
+  const [restaurantsLoading, setRestaurantsLoading] = useState(false);
+
+  // Load restaurants for dropdown
+  useEffect(() => {
+    let ignore = false;
+    async function loadRestaurants() {
+      setRestaurantsLoading(true);
+      try {
+        const data = await apiFetch<Restaurant[]>("/restaurants/");
+        if (!ignore) {
+          setRestaurants(data);
+        }
+      } catch (error) {
+        console.error("Failed to load restaurants:", error);
+      } finally {
+        if (!ignore) {
+          setRestaurantsLoading(false);
+        }
+      }
+    }
+    loadRestaurants();
+    return () => {
+      ignore = true;
+    };
+  }, []);
   const [loginData, setLoginData] = useState<LoginCredentials>({
     identifier: "",
     password: "",
@@ -5975,6 +6105,10 @@ function AuthModal({
         phone: "",
         email: "",
         password: "",
+        restaurant_id: "",
+        restaurant_name: "",
+        branch: "",
+        restaurant_address: "",
       });
 
       // Automatically log the user in after successful signup
@@ -5985,6 +6119,10 @@ function AuthModal({
           userId: payload.user_id ?? "",
           isAdmin: Boolean(payload.is_admin),
           isDeliveryStaff: Boolean(payload.is_delivery_staff),
+          restaurantId: payload.restaurant_id ?? undefined,
+          restaurantName: payload.restaurant_name ?? undefined,
+          branch: payload.branch ?? undefined,
+          restaurantAddress: payload.restaurant_address ?? undefined,
         });
         onClose();
       }
@@ -6033,6 +6171,10 @@ function AuthModal({
           userId: payload.user_id ?? "",
           isAdmin: Boolean(payload.is_admin),
           isDeliveryStaff: Boolean(payload.is_delivery_staff),
+          restaurantId: payload.restaurant_id ?? undefined,
+          restaurantName: payload.restaurant_name ?? undefined,
+          branch: payload.branch ?? undefined,
+          restaurantAddress: payload.restaurant_address ?? undefined,
         });
         onClose();
       }
@@ -6213,6 +6355,127 @@ function AuthModal({
                 required
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
               />
+            </div>
+
+            {/* Restaurant Selection Section */}
+            <div className="space-y-3 rounded-2xl border-2 border-[#d48a68] bg-[#fdf8f4] p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-900">Restaurant Information</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRestaurantSelectionMode("existing");
+                      setSignupData((prev) => ({ ...prev, restaurant_id: "", restaurant_name: "", branch: "", restaurant_address: "" }));
+                    }}
+                    className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                      restaurantSelectionMode === "existing"
+                        ? "bg-[#d48a68] text-white"
+                        : "bg-white text-[#d48a68] border border-[#d48a68]"
+                    }`}
+                  >
+                    Select Existing
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRestaurantSelectionMode("manual");
+                      setSignupData((prev) => ({ ...prev, restaurant_id: "" }));
+                    }}
+                    className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                      restaurantSelectionMode === "manual"
+                        ? "bg-[#d48a68] text-white"
+                        : "bg-white text-[#d48a68] border border-[#d48a68]"
+                    }`}
+                  >
+                    Add New
+                  </button>
+                </div>
+              </div>
+
+              {restaurantSelectionMode === "existing" ? (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Select Restaurant
+                  </label>
+                  <select
+                    value={signupData.restaurant_id || ""}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      const selected = restaurants.find(r => r.restaurant_id === selectedId);
+                      setSignupData((prev) => ({
+                        ...prev,
+                        restaurant_id: selectedId,
+                        restaurant_name: selected?.name || "",
+                        branch: selected?.branch_name || "",
+                        restaurant_address: selected?.address || "",
+                      }));
+                    }}
+                    required
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                  >
+                    <option value="">Choose a restaurant...</option>
+                    {restaurants.map((restaurant) => (
+                      <option key={restaurant.restaurant_id} value={restaurant.restaurant_id}>
+                        {restaurant.name} {restaurant.branch_name ? `(${restaurant.branch_name})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {signupData.restaurant_id && (
+                    <div className="mt-2 space-y-1 text-xs text-gray-600">
+                      {signupData.branch && <p>Branch: {signupData.branch}</p>}
+                      {signupData.restaurant_address && <p>Address: {signupData.restaurant_address}</p>}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Restaurant Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={signupData.restaurant_name || ""}
+                      onChange={(e) =>
+                        setSignupData((prev) => ({ ...prev, restaurant_name: e.target.value }))
+                      }
+                      required
+                      placeholder="e.g. KFC, McDonald's"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Branch (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={signupData.branch || ""}
+                      onChange={(e) =>
+                        setSignupData((prev) => ({ ...prev, branch: e.target.value }))
+                      }
+                      placeholder="e.g. Central World, Siam Paragon"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Restaurant Address *
+                    </label>
+                    <input
+                      type="text"
+                      value={signupData.restaurant_address || ""}
+                      onChange={(e) =>
+                        setSignupData((prev) => ({ ...prev, restaurant_address: e.target.value }))
+                      }
+                      required
+                      placeholder="Full address of the restaurant"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {signupStatus.error && (

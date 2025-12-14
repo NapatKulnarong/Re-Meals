@@ -11,6 +11,8 @@ from django.contrib.auth.hashers import make_password, check_password, identify_
 
 from .serializers import SignupSerializer, LoginSerializer, UpdateProfileSerializer
 from .models import User, Admin, DeliveryStaff
+from restaurants.models import Restaurant
+from restaurant_chain.models import RestaurantChain
 
 def _is_hashed(value: str) -> bool:
     try:
@@ -60,6 +62,46 @@ def signup(request):
 
     random_id = uuid.uuid4().hex[:10].upper()
 
+    # Handle restaurant assignment
+    restaurant = None
+    restaurant_id = data.get("restaurant_id", "").strip()
+    restaurant_name = data.get("restaurant_name", "").strip()
+    branch = data.get("branch", "").strip()
+    restaurant_address = data.get("restaurant_address", "").strip()
+
+    if restaurant_id:
+        # Use existing restaurant
+        try:
+            restaurant = Restaurant.objects.get(restaurant_id=restaurant_id)
+        except Restaurant.DoesNotExist:
+            return Response({"error": "Restaurant not found"}, status=400)
+    elif restaurant_name:
+        # Create new restaurant if it doesn't exist
+        chain = RestaurantChain.objects.filter(chain_name__iexact=restaurant_name).first()
+        if chain is None:
+            chain = RestaurantChain(chain_name=restaurant_name)
+            chain.save()
+
+        branch_name = branch or "Main Location"
+        address = restaurant_address or branch or restaurant_name
+
+        # Check if restaurant already exists
+        restaurant = Restaurant.objects.filter(
+            name__iexact=restaurant_name,
+            branch_name__iexact=branch_name,
+        ).first()
+
+        if restaurant is None:
+            restaurant = Restaurant.objects.create(
+                name=restaurant_name,
+                branch_name=branch_name,
+                address=address,
+                is_chain=bool(branch),
+                chain=chain,
+            )
+    else:
+        return Response({"error": "Restaurant information is required"}, status=400)
+
     user = User.objects.create(
         user_id=random_id,
         username=data.get("username"),
@@ -69,6 +111,9 @@ def signup(request):
         phone=data.get("phone"),
         email=data.get("email"),
         password=make_password(data.get("password")),
+        restaurant=restaurant,
+        branch=branch,
+        restaurant_address=restaurant_address or restaurant.address if restaurant else "",
     )
 
     is_admin = False
@@ -94,6 +139,10 @@ def signup(request):
         "user_id": user.user_id,
         "is_admin": is_admin,
         "is_delivery_staff": is_delivery_staff,
+        "restaurant_id": user.restaurant.restaurant_id if user.restaurant else None,
+        "restaurant_name": user.restaurant.name if user.restaurant else None,
+        "branch": user.branch,
+        "restaurant_address": user.restaurant_address or (user.restaurant.address if user.restaurant else ""),
     }, status=200)
 
 @swagger_auto_schema(method="post", request_body=LoginSerializer)
@@ -147,6 +196,10 @@ def login(request):
             "user_id": user.user_id,
             "is_admin": is_admin,
             "is_delivery_staff": is_delivery_staff,
+            "restaurant_id": user.restaurant.restaurant_id if user.restaurant else None,
+            "restaurant_name": user.restaurant.name if user.restaurant else None,
+            "branch": user.branch,
+            "restaurant_address": user.restaurant_address or (user.restaurant.address if user.restaurant else ""),
         },
         status=200,
     )
@@ -213,6 +266,49 @@ def update_profile(request):
     if "phone" in data:
         user.phone = data["phone"]
 
+    # Handle restaurant changes
+    restaurant_id = data.get("restaurant_id", "").strip()
+    restaurant_name = data.get("restaurant_name", "").strip()
+    branch = data.get("branch", "").strip()
+    restaurant_address = data.get("restaurant_address", "").strip()
+
+    if restaurant_id:
+        # Use existing restaurant
+        try:
+            restaurant = Restaurant.objects.get(restaurant_id=restaurant_id)
+            user.restaurant = restaurant
+        except Restaurant.DoesNotExist:
+            return Response({"error": "Restaurant not found"}, status=400)
+    elif restaurant_name:
+        # Create or find restaurant
+        chain = RestaurantChain.objects.filter(chain_name__iexact=restaurant_name).first()
+        if chain is None:
+            chain = RestaurantChain(chain_name=restaurant_name)
+            chain.save()
+
+        branch_name = branch or "Main Location"
+        address = restaurant_address or branch or restaurant_name
+
+        restaurant = Restaurant.objects.filter(
+            name__iexact=restaurant_name,
+            branch_name__iexact=branch_name,
+        ).first()
+
+        if restaurant is None:
+            restaurant = Restaurant.objects.create(
+                name=restaurant_name,
+                branch_name=branch_name,
+                address=address,
+                is_chain=bool(branch),
+                chain=chain,
+            )
+        user.restaurant = restaurant
+
+    if "branch" in data:
+        user.branch = branch
+    if "restaurant_address" in data:
+        user.restaurant_address = restaurant_address or (user.restaurant.address if user.restaurant else "")
+
     user.save()
 
     return Response({
@@ -222,4 +318,8 @@ def update_profile(request):
         "fname": user.fname,
         "lname": user.lname,
         "phone": user.phone,
+        "restaurant_id": user.restaurant.restaurant_id if user.restaurant else None,
+        "restaurant_name": user.restaurant.name if user.restaurant else None,
+        "branch": user.branch,
+        "restaurant_address": user.restaurant_address,
     }, status=200)

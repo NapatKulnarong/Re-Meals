@@ -8,6 +8,10 @@ class SignupSerializer(serializers.Serializer):
     phone = serializers.CharField()
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+    restaurant_id = serializers.CharField(required=False, allow_blank=True)
+    restaurant_name = serializers.CharField(required=False, allow_blank=True)
+    branch = serializers.CharField(required=False, allow_blank=True, default="")
+    restaurant_address = serializers.CharField(required=False, allow_blank=True, default="")
 
     class Meta:
         swagger_schema_fields = {
@@ -40,3 +44,7 @@ class UpdateProfileSerializer(serializers.Serializer):
     lname = serializers.CharField(required=False)
     phone = serializers.CharField(required=False)
     email = serializers.EmailField(required=False)
+    restaurant_id = serializers.CharField(required=False, allow_blank=True)
+    restaurant_name = serializers.CharField(required=False, allow_blank=True)
+    branch = serializers.CharField(required=False, allow_blank=True)
+    restaurant_address = serializers.CharField(required=False, allow_blank=True)
