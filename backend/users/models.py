@@ -12,6 +12,8 @@ class User(models.Model):
     phone = models.CharField(max_length=10)
     email = models.CharField(max_length=100, unique=True)
     password = models.CharField(max_length=128)
+    is_donor = models.BooleanField(default=False)
+    is_recipient = models.BooleanField(default=False)
     restaurant = models.ForeignKey(
         Restaurant,
         on_delete=models.SET_NULL,
