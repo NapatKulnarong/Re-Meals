@@ -171,6 +171,21 @@ type Warehouse = {
   exp_date: string;
 };
 
+const BANGKOK_METRO_LOCATIONS = [
+  "bangkok",
+  "pathum thani",
+  "nonthaburi",
+  "samut prakan",
+  "samut sakhon",
+  "nakhon pathom",
+  "ayutthaya",
+];
+
+const isBangkokMetroArea = (address: string) => {
+  const normalized = address.toLowerCase();
+  return BANGKOK_METRO_LOCATIONS.some((keyword) => normalized.includes(keyword));
+};
+
 type Community = {
   community_id: string;
   name: string;
@@ -202,6 +217,433 @@ type DeliveryRecordApi = {
   community_id?: string | null;
   status: "pending" | "in_transit" | "delivered" | "cancelled";
   notes?: string;
+};
+
+type ImpactRecord = {
+  impact_id: string;
+  meals_saved: number;
+  weight_saved_kg: number;
+  co2_reduced_kg: number;
+  impact_date: string;
+  food: string;
+};
+
+type LooseImpactRecord = {
+  impact_id?: string;
+  pk?: string;
+  id?: string;
+  meals_saved?: number | string;
+  weight_saved_kg?: number | string;
+  co2_reduced_kg?: number | string;
+  impact_date?: string;
+  food?: string;
+};
+
+// Interactive Weekly Meals Chart Component
+function WeeklyMealsChart({ data }: { data: Array<{ weekKey: string; meals: number; co2: number; startDate: Date; endDate: Date }> }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; week: string; meals: number } | null>(null);
+
+  const maxMeals = Math.max(...data.map(d => d.meals), 1);
+  const chartHeight = 280;
+  const chartPadding = { top: 20, right: 20, bottom: 40, left: 50 };
+  const barSpacing = 8;
+  const availableWidth = 800;
+  const barWidth = Math.max(32, Math.min(60, (availableWidth - chartPadding.left - chartPadding.right - (data.length - 1) * barSpacing) / data.length));
+  const chartWidth = data.length * (barWidth + barSpacing) + chartPadding.left + chartPadding.right;
+
+  const formatWeekLabel = (startDate: Date, endDate: Date) => {
+    const start = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const end = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${start} - ${end}`;
+  };
+
+  const handleBarHover = (e: React.MouseEvent<SVGRectElement>, index: number, week: string, meals: number) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredIndex(index);
+    setTooltip({
+      x: rect.left + rect.width / 2,
+      y: rect.top - 10,
+      week,
+      meals,
+    });
+  };
+
+  const handleBarLeave = () => {
+    setHoveredIndex(null);
+    setTooltip(null);
+  };
+
+  return (
+    <div className="relative">
+      {tooltip && (
+        <div
+          className="fixed z-50 rounded-lg bg-white px-3 py-2 text-xs shadow-lg pointer-events-none border border-gray-200"
+          style={{
+            left: `${tooltip.x}px`,
+            top: `${tooltip.y}px`,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          <div className="font-semibold mb-1 text-[#d48a68]">{tooltip.week}</div>
+          <div className="text-[#d48a68]">{tooltip.meals.toLocaleString()} meals saved</div>
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          className="w-full h-[280px]"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <linearGradient id="barGradient" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#7BA061" stopOpacity="1" />
+              <stop offset="100%" stopColor="#4E673E" stopOpacity="1" />
+            </linearGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const y = chartHeight - chartPadding.bottom - (chartHeight - chartPadding.top - chartPadding.bottom) * ratio;
+            const value = Math.round(maxMeals * ratio);
+            return (
+              <g key={ratio}>
+                <line
+                  x1={chartPadding.left}
+                  y1={y}
+                  x2={chartWidth - chartPadding.right}
+                  y2={y}
+                  stroke="#E5E7EB"
+                  strokeWidth="0.5"
+                  strokeDasharray="2,2"
+                />
+                <text
+                  x={chartPadding.left - 10}
+                  y={y + 4}
+                  fontSize="10"
+                  fill="#6B7280"
+                  textAnchor="end"
+                >
+                  {value.toLocaleString()}
+                </text>
+              </g>
+            );
+          })}
+
+          {data.map((week, index) => {
+            const barHeight = ((week.meals / maxMeals) * (chartHeight - chartPadding.top - chartPadding.bottom));
+            const x = chartPadding.left + index * (barWidth + barSpacing);
+            const y = chartHeight - chartPadding.bottom - barHeight;
+            const isHovered = hoveredIndex === index;
+
+            return (
+              <g key={week.weekKey}>
+                <rect
+                  x={x}
+                  y={y}
+                  width={barWidth}
+                  height={barHeight}
+                  fill={isHovered ? "#d48a68" : "#A8B99A"}
+                  rx="4"
+                  ry="4"
+                  className="transition-all duration-200 cursor-pointer"
+                  style={{
+                    filter: isHovered ? "url(#glow)" : "none",
+                    transform: isHovered ? "scale(1.05)" : "scale(1)",
+                    transformOrigin: `${x + barWidth / 2}px ${chartHeight - chartPadding.bottom}px`,
+                  }}
+                  onMouseEnter={(e) => handleBarHover(e, index, formatWeekLabel(week.startDate, week.endDate), week.meals)}
+                  onMouseLeave={handleBarLeave}
+                />
+                
+                {barHeight > 20 && (
+                  <text
+                    x={x + barWidth / 2}
+                    y={y - 5}
+                    fontSize="11"
+                    fill={isHovered ? "#d48a68" : "#365032"}
+                    textAnchor="middle"
+                    fontWeight="600"
+                    className="pointer-events-none"
+                  >
+                    {week.meals.toLocaleString()}
+                  </text>
+                )}
+
+                {index % Math.ceil(data.length / 8) === 0 && (
+                  <text
+                    x={x + barWidth / 2}
+                    y={chartHeight - chartPadding.bottom + 20}
+                    fontSize="9"
+                    fill="#6B7280"
+                    textAnchor="middle"
+                    className="pointer-events-none"
+                  >
+                    {week.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          <line
+            x1={chartPadding.left}
+            y1={chartHeight - chartPadding.bottom}
+            x2={chartWidth - chartPadding.right}
+            y2={chartHeight - chartPadding.bottom}
+            stroke="#D1D5DB"
+            strokeWidth="1"
+          />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// Interactive CO₂ Reduction Trend Chart Component
+function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; startDate: Date; endDate: Date }> }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; week: string; co2: number } | null>(null);
+
+  const maxCO2 = Math.max(...data.map(d => d.co2), 1);
+  const chartHeight = 280;
+  const chartPadding = { top: 20, right: 20, bottom: 40, left: 50 };
+  const chartWidth = Math.max(600, data.length * 60 + chartPadding.left + chartPadding.right);
+
+  const formatWeekLabel = (startDate: Date, endDate: Date) => {
+    const start = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const end = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${start} - ${end}`;
+  };
+
+  const calculatePoints = () => {
+    const step = (chartWidth - chartPadding.left - chartPadding.right) / Math.max(data.length - 1, 1);
+    return data.map((week, index) => {
+      const x = chartPadding.left + index * step;
+      const y = chartHeight - chartPadding.bottom - ((week.co2 / maxCO2) * (chartHeight - chartPadding.top - chartPadding.bottom));
+      return { x, y, ...week, index };
+    });
+  };
+
+  const points = calculatePoints();
+
+  const handlePointHover = (e: React.MouseEvent<SVGElement>, point: typeof points[0]) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredIndex(point.index);
+    setTooltip({
+      x: rect.left + rect.width / 2,
+      y: rect.top - 10,
+      week: formatWeekLabel(point.startDate, point.endDate),
+      co2: point.co2,
+    });
+  };
+
+  const handlePointLeave = () => {
+    setHoveredIndex(null);
+    setTooltip(null);
+  };
+
+  const pathData = points.length > 1 
+    ? `M ${points.map(p => `${p.x},${p.y}`).join(' L ')}`
+    : '';
+
+  const areaPath = points.length > 1
+    ? `M ${points[0].x} ${chartHeight - chartPadding.bottom} L ${pathData.replace('M ', '')} L ${points[points.length - 1].x} ${chartHeight - chartPadding.bottom} Z`
+    : '';
+
+  return (
+    <div className="relative">
+      {tooltip && (
+        <div
+          className="fixed z-50 rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-lg pointer-events-none"
+          style={{
+            left: `${tooltip.x}px`,
+            top: `${tooltip.y}px`,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          <div className="font-semibold mb-1">{tooltip.week}</div>
+          <div className="text-[#F59E0B]">{tooltip.co2.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg CO₂ reduced</div>
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          className="w-full h-[280px]"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <linearGradient id="co2AreaGradient" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#F59E0B" stopOpacity="0.05" />
+            </linearGradient>
+            <linearGradient id="co2LineGradient" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0%" stopColor="#F59E0B" />
+              <stop offset="100%" stopColor="#D97706" />
+            </linearGradient>
+            <filter id="co2Glow">
+              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const y = chartHeight - chartPadding.bottom - (chartHeight - chartPadding.top - chartPadding.bottom) * ratio;
+            const value = maxCO2 * ratio;
+            return (
+              <g key={ratio}>
+                <line
+                  x1={chartPadding.left}
+                  y1={y}
+                  x2={chartWidth - chartPadding.right}
+                  y2={y}
+                  stroke="#E5E7EB"
+                  strokeWidth="0.5"
+                  strokeDasharray="2,2"
+                />
+                <text
+                  x={chartPadding.left - 10}
+                  y={y + 4}
+                  fontSize="10"
+                  fill="#6B7280"
+                  textAnchor="end"
+                >
+                  {value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                </text>
+              </g>
+            );
+          })}
+
+          {areaPath && (
+            <path
+              d={areaPath}
+              fill="url(#co2AreaGradient)"
+              className="transition-opacity duration-200"
+              opacity={hoveredIndex !== null ? 0.5 : 0.3}
+            />
+          )}
+
+          {pathData && (
+            <path
+              d={pathData}
+              fill="none"
+              stroke="url(#co2LineGradient)"
+              strokeWidth="2.5"
+              className="transition-all duration-200"
+              style={{
+                filter: hoveredIndex !== null ? "url(#co2Glow)" : "none",
+              }}
+            />
+          )}
+
+          {points.map((point) => {
+            const isHovered = hoveredIndex === point.index;
+            return (
+              <g key={point.weekKey}>
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r="8"
+                  fill="transparent"
+                  className="cursor-pointer"
+                  onMouseEnter={(e) => handlePointHover(e, point)}
+                  onMouseLeave={handlePointLeave}
+                />
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r={isHovered ? "5" : "4"}
+                  fill={isHovered ? "#F59E0B" : "#D97706"}
+                  stroke="white"
+                  strokeWidth="2"
+                  className="transition-all duration-200"
+                  style={{
+                    filter: isHovered ? "url(#co2Glow)" : "none",
+                  }}
+                />
+                
+                {isHovered && (
+                  <text
+                    x={point.x}
+                    y={point.y - 12}
+                    fontSize="11"
+                    fill="#D97706"
+                    textAnchor="middle"
+                    fontWeight="600"
+                    className="pointer-events-none"
+                  >
+                    {point.co2.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
+                  </text>
+                )}
+
+                {point.index % Math.ceil(data.length / 8) === 0 && (
+                  <text
+                    x={point.x}
+                    y={chartHeight - chartPadding.bottom + 20}
+                    fontSize="9"
+                    fill="#6B7280"
+                    textAnchor="middle"
+                    className="pointer-events-none"
+                  >
+                    {point.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          <line
+            x1={chartPadding.left}
+            y1={chartHeight - chartPadding.bottom}
+            x2={chartWidth - chartPadding.right}
+            y2={chartHeight - chartPadding.bottom}
+            stroke="#D1D5DB"
+            strokeWidth="1"
+          />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+const normalizeImpactData = (raw: unknown): ImpactRecord[] => {
+  // Handle paginated response
+  let data: ImpactRecord[] = [];
+  if (Array.isArray(raw)) {
+    data = raw;
+  } else if (raw && typeof raw === "object") {
+    const obj = raw as { results?: unknown; data?: unknown };
+    if (Array.isArray(obj.results)) {
+      data = obj.results;
+    } else if (Array.isArray(obj.data)) {
+      data = obj.data;
+    }
+  }
+  
+  return data.map((record: LooseImpactRecord) => {
+    // Handle both 'impact_id' and 'pk' field names
+    const impactId = record.impact_id ?? record.pk ?? record.id ?? "";
+    
+    return {
+      impact_id: typeof impactId === "string" ? impactId : "",
+      meals_saved: Number(record.meals_saved ?? 0),
+      weight_saved_kg: Number(record.weight_saved_kg ?? 0),
+      co2_reduced_kg: Number(record.co2_reduced_kg ?? 0),
+      impact_date: record.impact_date ?? "",
+      food: typeof record.food === "string" ? record.food : "",
+    };
+  });
 };
 
 const POPULAR_RESTAURANT_SUGGESTIONS: RestaurantSuggestion[] = [
@@ -284,6 +726,7 @@ const API_PATHS = {
   restaurants: "/restaurants/",
   deliveryStaff: "/users/delivery-staff/",
   donationRequests: "/donation-requests/",
+  impact: "/impact/",
 };
 
 // Helper function to format API errors into user-friendly messages
@@ -403,12 +846,12 @@ function HomePage({
   setShowAuthModal: (show: boolean) => void;
   setAuthMode: (mode: AuthMode) => void;
 }) {
-  const stats = [
-    { label: "Meals rescued", value: "2,340", helper: "+128 today" },
-    { label: "Communities served", value: "48", helper: "active deliveries" },
-    { label: "Avg. pickup", value: "22 mins", helper: "from restaurant ping" },
-    { label: "Food saved", value: "3.8 tons", helper: "kept out of landfills" },
-  ];
+  const [impactRecords, setImpactRecords] = useState<ImpactRecord[]>([]);
+  const [impactLoading, setImpactLoading] = useState(false);
+  const [impactError, setImpactError] = useState<string | null>(null);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [donations, setDonations] = useState<DonationApiRecord[]>([]);
+  const [foodItems, setFoodItems] = useState<FoodItemApiRecord[]>([]);
 
   const journey = [
     {
@@ -434,56 +877,383 @@ function HomePage({
     },
   ];
 
+  useEffect(() => {
+    let ignore = false;
+    async function loadImpact() {
+      setImpactLoading(true);
+      setImpactError(null);
+      try {
+        const candidates = [
+          API_PATHS.impact,
+          "/impact/",
+        ];
+
+        let loaded: ImpactRecord[] = [];
+        let lastError: unknown = null;
+
+        for (const path of candidates) {
+          try {
+            const raw = await apiFetch<unknown>(path);
+            loaded = normalizeImpactData(raw);
+            if (loaded.length) break;
+          } catch (err) {
+            lastError = err;
+          }
+        }
+
+        if (!ignore) {
+          if (!loaded.length && lastError) {
+            throw lastError;
+          }
+          setImpactRecords(loaded);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setImpactError(
+            err instanceof Error ? err.message : "Unable to load impact data."
+          );
+        }
+      } finally {
+        if (!ignore) {
+          setImpactLoading(false);
+        }
+      }
+    }
+    loadImpact();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  // Load restaurants, donations, and food items for leaderboard
+  useEffect(() => {
+    let ignore = false;
+    async function loadLeaderboardData() {
+      try {
+        const [restaurantsData, donationsData, foodItemsData] = await Promise.all([
+          apiFetch<Restaurant[]>("/restaurants/").catch(() => []),
+          apiFetch<DonationApiRecord[]>("/donations/").catch(() => []),
+          apiFetch<FoodItemApiRecord[]>("/fooditems/").catch(() => []),
+        ]);
+        
+        if (!ignore) {
+          setRestaurants(restaurantsData);
+          setDonations(donationsData);
+          setFoodItems(foodItemsData);
+        }
+      } catch {
+        // Silently fail - leaderboard is optional
+      }
+    }
+    loadLeaderboardData();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const impactTotals = useMemo(() => {
+    return impactRecords.reduce(
+      (acc, record) => ({
+        meals: acc.meals + (record.meals_saved || 0),
+        weight: acc.weight + (record.weight_saved_kg || 0),
+        co2: acc.co2 + (record.co2_reduced_kg || 0),
+      }),
+      { meals: 0, weight: 0, co2: 0 }
+    );
+  }, [impactRecords]);
+
+  // Calculate weekly meals saved
+  const weeklyMealsData = useMemo(() => {
+    const weeks = new Map<string, { meals: number; co2: number; startDate: Date; endDate: Date }>();
+    
+    impactRecords.forEach(record => {
+      const date = new Date(record.impact_date);
+      const weekStart = new Date(date);
+      weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+      weekStart.setHours(0, 0, 0, 0);
+      
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      
+      const weekKey = weekStart.toISOString().split('T')[0];
+      
+      const current = weeks.get(weekKey) || { 
+        meals: 0,
+        co2: 0,
+        startDate: weekStart, 
+        endDate: weekEnd 
+      };
+      current.meals += record.meals_saved || 0;
+      current.co2 += record.co2_reduced_kg || 0;
+      weeks.set(weekKey, current);
+    });
+
+    return Array.from(weeks.entries())
+      .map(([key, data]) => ({
+        weekKey: key,
+        ...data,
+      }))
+      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+      .slice(-12); // Last 12 weeks
+  }, [impactRecords]);
+
+  // Helper to normalize food IDs
+  const normalizeFoodId = (foodId: string): string => {
+    if (!foodId) return foodId;
+    const digits = foodId.replace(/\D/g, '');
+    if (!digits) return foodId;
+    return `FOO${digits.padStart(7, '0')}`;
+  };
+
+  // Calculate restaurant leaderboard
+  const restaurantLeaderboard = useMemo(() => {
+    if (!impactRecords.length) {
+      return [];
+    }
+
+    if (!restaurants.length || !donations.length || !foodItems.length) {
+      return [];
+    }
+
+    const restaurantMap = new Map(restaurants.map(r => [r.restaurant_id, r]));
+    const donationMap = new Map(donations.map(d => [d.donation_id, d]));
+    
+    const foodItemMap = new Map<string, FoodItemApiRecord>();
+    foodItems.forEach(f => {
+      const foodId = f.food_id;
+      if (foodId) {
+        const normalized = normalizeFoodId(foodId);
+        foodItemMap.set(normalized, f);
+        foodItemMap.set(foodId, f);
+      }
+    });
+
+    const restaurantImpact = new Map<string, { meals: number; weight: number; co2: number; name: string }>();
+
+    impactRecords.forEach(impact => {
+      const normalizedFoodId = normalizeFoodId(impact.food);
+      const foodItem = foodItemMap.get(normalizedFoodId) || foodItemMap.get(impact.food);
+      
+      if (!foodItem) return;
+
+      const donationId = foodItem.donation;
+      if (!donationId) return;
+      
+      const donation = donationMap.get(donationId);
+      if (!donation) return;
+
+      const restaurantId = donation.restaurant;
+      if (!restaurantId) return;
+      
+      const restaurant = restaurantMap.get(restaurantId);
+      if (!restaurant) return;
+
+      const restaurantName = donation.restaurant_name || restaurant.name || 
+        (restaurant.branch_name ? `${restaurant.name || ''} - ${restaurant.branch_name}`.trim() : '') ||
+        restaurant.restaurant_id;
+
+      const current = restaurantImpact.get(restaurantId) || {
+        meals: 0,
+        weight: 0,
+        co2: 0,
+        name: restaurantName,
+      };
+
+      current.meals += impact.meals_saved || 0;
+      current.weight += impact.weight_saved_kg || 0;
+      current.co2 += impact.co2_reduced_kg || 0;
+
+      restaurantImpact.set(restaurantId, current);
+    });
+
+    return Array.from(restaurantImpact.entries())
+      .map(([id, data]) => ({ restaurantId: id, ...data }))
+      .sort((a, b) => b.meals - a.meals)
+      .slice(0, 5); // Top 5 only
+  }, [impactRecords, restaurants, donations, foodItems]);
+
   return (
     <div className="mx-auto w-full max-w-8xl space-y-8">
       <div className="relative overflow-hidden rounded-[40px] bg-[#e8ede3] p-8 shadow-[0_40px_120px_-45px rgba(59,31,16,0.6)] sm:p-10">
         <div aria-hidden className="pointer-events-none absolute -right-8 top-6 hidden h-64 w-64 rounded-[40px] bg-[#DEF7EA]/60 blur-3xl lg:block" />
         <div aria-hidden className="pointer-events-none absolute bottom-8 left-4 h-24 w-24 rounded-full bg-[#F1FBF5]/70 blur-2xl" />
-        <div className="relative grid items-start gap-10 lg:grid-cols-[1.15fr,0.85fr]">
-          <div className="space-y-6 text-[#2C1A10]">
-            <div className="inline-flex items-center gap-2 rounded-full bg-[#708A58] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-md">
-              <span aria-hidden className="text-lg">✦</span>
-              <span>Re-purpose every meal</span>
-            </div>
-            <h1 className="text-[2.65rem] leading-tight text-[#3a3a3a] sm:text-[3.25rem] sm:leading-[1.1]">
-              Redirect surplus meals. <span className="text-[#d48a68]">Rebuild communities.</span>
-            </h1>
-            <p className="max-w-2xl text-lg text-[#5a4f45]">
-              Re-Meals links restaurants, drivers, and community leaders so good food never sits idle.
-              Share donations, request support, and move meals where they are needed most.
-            </p>
-            
+        <div className="relative space-y-6 text-[#2C1A10]">
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#708A58] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-md">
+            <span aria-hidden className="text-lg">✦</span>
+            <span>Re-purpose every meal</span>
           </div>
-          <div className="relative rounded-[32px] border-2 border-dashed border-[#708958] bg-white p-6">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#708A58]">
-                  Impact snapshot
-                </p>
-                <h3 className="text-2xl font-bold text-[#3a3a3a]">This week on Re-Meals</h3>
-              </div>
-              <div className="rounded-full bg-[#D25D5D] px-3 py-1 text-sm font-semibold text-white">
-                Live
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {stats.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-2xl border-2 border-[#d48a68] bg-[#fdf8f4] px-4 py-3 shadow-sm hover:bg-[#d48a68] hover:text-white transition-all group"
-                >
-                  <p className="text-[0.55rem] font-semibold uppercase tracking-[0.15em] text-[#7E6A57] group-hover:text-white">
-                    {item.label}
-                  </p>
-                  <p className="text-2xl font-bold text-[#3a3a3a] group-hover:text-white">{item.value}</p>
-                  <p className="text-xs font-semibold text-[#708A58] group-hover:text-white">{item.helper}</p>
-                </div>
-              ))}
-            </div>
-            
+          <h1 className="text-[2.65rem] leading-tight text-[#3a3a3a] sm:text-[3.25rem] sm:leading-[1.1]">
+            Redirect surplus meals. <span className="text-[#d48a68]">Rebuild communities.</span>
+          </h1>
+          <p className="max-w-3xl text-lg text-[#5a4f45]">
+            Re-Meals links restaurants, drivers, and community leaders so good food never sits idle.
+            Share donations, request support, and move meals where they are needed most.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <button
+              className="rounded-full bg-[#708A58] px-5 py-3 text-sm font-semibold text-white shadow hover:bg-[#576c45] transition"
+              onClick={() => {
+                setAuthMode("signup");
+                setShowAuthModal(true);
+              }}
+              type="button"
+            >
+              Join the rescue
+            </button>
+            <button
+              className="rounded-full border border-[#d48a68] bg-white px-5 py-3 text-sm font-semibold text-[#d48a68] shadow-sm hover:bg-[#fde5d6] transition"
+              onClick={() => {
+                setAuthMode("login");
+                setShowAuthModal(true);
+              }}
+              type="button"
+            >
+              Login to donate / request
+            </button>
           </div>
         </div>
       </div>
+
+      <section className="rounded-[32px] border border-[#C7D2C0] bg-[#F4F7EF] p-6 shadow-inner shadow-[#C7D2C0]/30">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#4E673E]">
+              Impact dashboard
+            </p>
+            <h2 className="text-2xl font-semibold text-gray-900">Food rescued at a glance</h2>
+            <p className="text-sm text-gray-600">
+              Live from impact records: meals saved, weight diverted, and CO₂ reduced.
+            </p>
+          </div>
+          <span className="rounded-full border border-[#A8B99A] bg-white px-3 py-1 text-xs font-semibold text-[#365032] shadow-sm">
+            {impactRecords.length} records
+          </span>
+        </div>
+
+        {impactError && (
+          <p className="mt-3 rounded-xl border border-[#FDECEA] bg-[#FFF1F0] px-4 py-3 text-sm font-semibold text-[#B42318]">
+            {impactError}
+          </p>
+        )}
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          {[
+            { label: "Meals saved", value: impactTotals.meals, suffix: "", classes: "text-[#365032]" },
+            { label: "Weight saved (kg)", value: impactTotals.weight, suffix: " kg", classes: "text-[#365032]" },
+            { label: "CO₂ reduced (kg)", value: impactTotals.co2, suffix: " kg", classes: "text-[#d48a68]" },
+          ].map((card) => (
+            <div
+              key={card.label}
+              className="rounded-2xl border border-dashed border-[#A8B99A] bg-white p-4 shadow-sm"
+            >
+              <p className={`text-xs font-semibold uppercase tracking-wide ${card.label === "CO₂ reduced (kg)" ? "text-[#d48a68]" : "text-[#708A58]"}`}>
+                {card.label}
+              </p>
+              <p className={`text-3xl font-bold ${card.classes}`}>
+                {impactLoading ? "…" : card.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}{card.suffix}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* Top Restaurants and CO₂ Chart Row */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          {/* Top Restaurants Leaderboard - First visualization */}
+          <div className="rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-5 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Top Restaurants by Impact</h3>
+              <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#B25C23] border border-[#F3C7A0]">
+                Top 5
+              </span>
+            </div>
+            {impactLoading ? (
+              <p className="text-sm text-gray-600">Loading leaderboard...</p>
+            ) : restaurantLeaderboard.length === 0 ? (
+              <p className="text-sm text-gray-600">No restaurant data available yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {restaurantLeaderboard.map((restaurant, index) => (
+                  <div
+                    key={restaurant.restaurantId}
+                    className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F3C7A0] text-sm font-bold text-[#B25C23]">
+                        {index + 1}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-gray-900">
+                          {restaurant.name}
+                        </p>
+                        <div className="mt-1 flex gap-4 text-xs text-gray-600">
+                          <span className="font-semibold text-[#365032]">
+                            {restaurant.meals.toLocaleString(undefined, { maximumFractionDigits: 0 })} meals
+                          </span>
+                          <span className="text-[#708A58]">
+                            {restaurant.weight.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
+                          </span>
+                          <span className="text-[#B25C23]">
+                            {restaurant.co2.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg CO₂
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* CO₂ Reduction Trend Chart */}
+          <div className="rounded-2xl border border-[#F3C7A0] bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">CO₂ Reduction Trend</h3>
+                <p className="text-xs text-gray-500 mt-1">Hover over points to see details</p>
+              </div>
+              <span className="rounded-full bg-[#FFF4E6] px-3 py-1 text-[11px] font-semibold text-[#D97706]">
+                Last {weeklyMealsData.length} weeks
+              </span>
+            </div>
+            {impactLoading ? (
+              <p className="text-sm text-gray-600 py-8 text-center">Loading CO₂ data...</p>
+            ) : weeklyMealsData.length === 0 ? (
+              <p className="text-sm text-gray-600 py-8 text-center">No CO₂ data available yet.</p>
+            ) : (
+              <CO2TrendChart
+                data={weeklyMealsData.map(({ weekKey, co2, startDate, endDate }) => ({
+                  weekKey,
+                  co2,
+                  startDate,
+                  endDate,
+                }))}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Weekly Meals Saved Chart - Full Width */}
+        <div className="mt-6">
+          <div className="rounded-2xl border border-[#A8B99A] bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Weekly Meals Saved</h3>
+                <p className="text-xs text-gray-500 mt-1">Hover over bars to see details</p>
+              </div>
+              <span className="rounded-full bg-[#E9F1E3] px-3 py-1 text-[11px] font-semibold text-[#365032]">
+                Last {weeklyMealsData.length} weeks
+              </span>
+            </div>
+            {impactLoading ? (
+              <p className="text-sm text-gray-600 py-8 text-center">Loading weekly data...</p>
+            ) : weeklyMealsData.length === 0 ? (
+              <p className="text-sm text-gray-600 py-8 text-center">No weekly data available yet.</p>
+            ) : (
+              <WeeklyMealsChart data={weeklyMealsData} />
+            )}
+          </div>
+        </div>
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
         <div className="rounded-[32px] bg-[#fde5d6] p-7 flex flex-col">
@@ -730,7 +1500,7 @@ function TabContent({
     return <AccessDenied message="Admin access required." />;
   }
   if (tab === 7) {
-    return <StatusSection currentUser={currentUser} />;
+    return <StatusSection currentUser={currentUser} setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} />;
   }
 
   return (
@@ -739,15 +1509,12 @@ function TabContent({
   );
 }
 
-function DonationSection({
-  currentUser,
-  setShowAuthModal,
-  setAuthMode
-}: {
+function DonationSection(props: {
   currentUser: LoggedUser | null;
   setShowAuthModal: (show: boolean) => void;
   setAuthMode: (mode: AuthMode) => void;
 }) {
+  const { currentUser } = props;
   const [form, setForm] = useState<DonationFormState>(createDonationFormState());
   const [donations, setDonations] = useState<DonationRecord[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -894,7 +1661,7 @@ function DonationSection({
         if (!ignore) {
           setDeliveries(deliveryData);
         }
-      } catch (error) {
+      } catch {
         // Silently fail - deliveries are optional for this check
       }
     }
@@ -1289,7 +2056,7 @@ function DonationSection({
     return true;
   };
 
-  const canShowEditDeleteButtons = (donation: DonationRecord) => {
+  const canShowEditDeleteButtons = () => {
     // Show buttons if user is logged in
     // The buttons will be disabled if canManageDonation returns false
     return Boolean(currentUser);
@@ -1699,7 +2466,7 @@ function DonationSection({
         {currentUser && !currentUser.isAdmin && (
           <div className="mb-4 flex-shrink-0 rounded-xl border border-[#D7DCC7] bg-[#F4F7EF] p-3">
             <p className="text-xs text-gray-700 leading-relaxed">
-              <span className="font-semibold">Note:</span> You can edit or delete your donations only if they haven't been assigned to a pickup task yet. Once the admin assigns your donation to a delivery staff, it can no longer be modified.
+              <span className="font-semibold">Note:</span> You can edit or delete your donations only if they haven&apos;t been assigned to a pickup task yet. Once the admin assigns your donation to a delivery staff, it can no longer be modified.
             </p>
           </div>
         )}
@@ -1737,7 +2504,7 @@ function DonationSection({
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    {canShowEditDeleteButtons(donation) && (
+                    {canShowEditDeleteButtons() && (
                       <div className="flex gap-2">
                         <button
                           type="button"
@@ -1849,15 +2616,12 @@ function DonationSection({
   );
 }
 
-function DonationRequestSection({
-  currentUser,
-  setShowAuthModal,
-  setAuthMode
-}: {
+function DonationRequestSection(props: {
   currentUser: LoggedUser | null;
   setShowAuthModal: (show: boolean) => void;
   setAuthMode: (mode: AuthMode) => void;
 }) {
+  const { currentUser } = props;
   const [form, setForm] = useState<DonationRequestForm>(createDonationRequestForm());
   const [requests, setRequests] = useState<DonationRequestRecord[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1960,7 +2724,7 @@ function DonationRequestSection({
     return () => {
       ignore = true;
     };
-  }, [currentUser?.userId, currentUser?.isAdmin, prioritizeRequests]);
+  }, [currentUser, prioritizeRequests]);
 
   // Check if a request has been accepted (has a distribution delivery to its community)
   const isRequestAccepted = useCallback((request: DonationRequestRecord) => {
@@ -2659,7 +3423,15 @@ function AdminDashboard() {
   );
 }
 
-function StatusSection({ currentUser }: { currentUser: LoggedUser | null }) {
+function StatusSection({ 
+  currentUser,
+  setShowAuthModal,
+  setAuthMode
+}: { 
+  currentUser: LoggedUser | null;
+  setShowAuthModal: (show: boolean) => void;
+  setAuthMode: (mode: AuthMode) => void;
+}) {
   const [donations, setDonations] = useState<DonationRecord[]>([]);
   const [requests, setRequests] = useState<DonationRequestRecord[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
@@ -2801,7 +3573,65 @@ function StatusSection({ currentUser }: { currentUser: LoggedUser | null }) {
   }, [requests, deliveries, communities, currentUser?.userId]);
 
   if (!currentUser) {
-    return <AccessDenied message="Please log in to view your status." />;
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-semibold text-gray-900">Status</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            View your donations and requests that have been assigned or accepted by the admin.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-8 shadow-sm">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#F3C7A0]">
+              <svg
+                className="h-8 w-8 text-[#B25C23]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Sign in to view your status
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Log in or create an account to see your donation history, request status, and delivery updates.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("login");
+                  setShowAuthModal(true);
+                }}
+                className="rounded-lg bg-[#d48a68] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#c47958] shadow-sm"
+              >
+                Log in
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("signup");
+                  setShowAuthModal(true);
+                }}
+                className="rounded-lg border border-[#d48a68] bg-white px-6 py-2.5 text-sm font-semibold text-[#d48a68] transition hover:bg-[#FFF8F0] shadow-sm"
+              >
+                Sign up
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (loading) {
@@ -3443,7 +4273,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
         try {
           const items = await apiFetch<FoodItemApiRecord[]>(`/fooditems/?donation=${donation.donation_id}`);
           allFoodItems.push(...items);
-        } catch (err) {
+        } catch {
           // Ignore errors for individual donation food items
         }
       }
@@ -3458,6 +4288,31 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const pickupTodayString = useMemo(() => new Date().toISOString().split("T")[0], []);
+
+  const isPickupItemExpired = useCallback(
+    (item: FoodItemApiRecord) => {
+      if (item.is_expired) {
+        return true;
+      }
+      if (!item.expire_date) {
+        return false;
+      }
+      const normalized = item.expire_date.split("T")[0];
+      if (!normalized) {
+        return false;
+      }
+      return normalized < pickupTodayString;
+    },
+    [pickupTodayString]
+  );
+
+  const donationHasFreshFood = useCallback(
+    (donationId: string) =>
+      foodItems.some((item) => item.donation === donationId && !isPickupItemExpired(item)),
+    [foodItems, isPickupItemExpired]
+  );
 
   useEffect(() => {
     const next: Record<string, { notes: string }> = {};
@@ -3591,15 +4446,18 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
 
   // Filter donations to exclude those already assigned, but include the one being edited
   const availableDonations = donations.filter((donation) => {
-    // If we're editing a delivery that uses this donation, include it
     if (editingDeliveryId) {
       const editingDelivery = deliveries.find((d) => d.delivery_id === editingDeliveryId);
       if (editingDelivery?.donation_id === donation.donation_id) {
         return true;
       }
     }
-    // Otherwise, exclude if it's already assigned
-    return !assignedDonationIds.has(donation.donation_id);
+
+    if (assignedDonationIds.has(donation.donation_id)) {
+      return false;
+    }
+
+    return donationHasFreshFood(donation.donation_id);
   });
 
   const lookupRestaurantName = (donationId: string) => {
@@ -3612,11 +4470,6 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
   const lookupStaffName = (userId: string) => {
     const member = staff.find((s) => s.user_id === userId);
     return member ? (member.name || member.username) : userId;
-  };
-
-  const lookupWarehouseAddress = (warehouseId: string) => {
-    const warehouse = warehouses.find((w) => w.warehouse_id === warehouseId);
-    return warehouse ? warehouse.address : warehouseId;
   };
 
   const getFoodItemsForDelivery = (donationId: string) => {
@@ -3724,6 +4577,9 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
                     <label className="mb-1 block text-sm font-semibold text-gray-700">
                       Select donation
                     </label>
+                    <p className="text-xs text-gray-500 mb-1">
+                      Donations with only expired food are hidden from this list.
+                    </p>
                     <select
                       className={INPUT_STYLES}
                       value={pickupForm.donationId}
@@ -4090,7 +4946,6 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
   const [communities, setCommunities] = useState<Community[]>([]);
   const [staff, setStaff] = useState<DeliveryStaffInfo[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
-  const [donationRequests, setDonationRequests] = useState<DonationRequestApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -4112,7 +4967,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
     setLoading(true);
     setError(null);
     try {
-      const [warehouseData, communityData, staffData, deliveryData, requestData] =
+      const [warehouseData, communityData, staffData, deliveryData] =
         await Promise.all([
           apiFetch<Warehouse[]>(API_PATHS.warehouses),
           apiFetch<Community[]>(API_PATHS.communities),
@@ -4120,13 +4975,11 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
           apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
             headers: buildAuthHeaders(currentUser),
           }),
-          apiFetch<DonationRequestApiRecord[]>(API_PATHS.donationRequests),
         ]);
       setWarehouses(warehouseData);
       setCommunities(communityData);
       setStaff(staffData);
       setDeliveries(deliveryData);
-      setDonationRequests(requestData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load delivery data.");
     } finally {
@@ -4583,10 +5436,10 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [foodItems, setFoodItems] = useState<FoodItemApiRecord[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
-  const [donations, setDonations] = useState<DonationApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedWarehouse, setSelectedWarehouse] = useState<string>("");
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
   const loadData = useCallback(async () => {
@@ -4600,21 +5453,30 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
         }),
         apiFetch<DonationApiRecord[]>(API_PATHS.donations),
       ]);
-      setWarehouses(warehouseData);
-      setDeliveries(deliveryData);
-      setDonations(donationData);
 
-      // Load food items for all donations
+      const metroWarehouses = warehouseData.filter((warehouse) =>
+        isBangkokMetroArea(`${warehouse.address} ${warehouse.warehouse_id}`)
+      );
+      setWarehouses(metroWarehouses);
+      setDeliveries(deliveryData);
+
       const allFoodItems: FoodItemApiRecord[] = [];
       for (const donation of donationData) {
         try {
           const items = await apiFetch<FoodItemApiRecord[]>(`/fooditems/?donation=${donation.donation_id}`);
           allFoodItems.push(...items);
-        } catch (err) {
+        } catch {
           // Ignore errors for individual donation food items
         }
       }
       setFoodItems(allFoodItems);
+
+      setSelectedWarehouseId((prev) => {
+        if (prev && metroWarehouses.some((w) => w.warehouse_id === prev)) {
+          return prev;
+        }
+        return metroWarehouses[0]?.warehouse_id ?? "";
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load warehouse data.");
     } finally {
@@ -4629,11 +5491,9 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
   const todayString = useMemo(() => new Date().toISOString().split("T")[0], []);
 
   const getWarehouseItems = (warehouseId: string) => {
-    // Get deliveries to this warehouse
     const warehouseDeliveries = deliveries.filter(
       (d) => d.delivery_type === "donation" && d.warehouse_id === warehouseId && d.status === "delivered"
     );
-    // Get food items from those donations
     const donationIds = warehouseDeliveries.map((d) => d.donation_id);
     return foodItems.filter((item) => donationIds.includes(item.donation || ""));
   };
@@ -4650,136 +5510,240 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
   );
 
   const filterItems = (items: FoodItemApiRecord[]) => {
+    if (filterStatus === "available") {
+      return items.filter(
+        (item) => !item.is_claimed && !item.is_distributed && !isItemExpired(item)
+      );
+    }
+
+    if (filterStatus === "claimed") {
+      return items.filter(
+        (item) => item.is_claimed && !item.is_distributed && !isItemExpired(item)
+      );
+    }
+
     if (filterStatus === "distributed") {
       return items.filter((item) => item.is_distributed);
     }
 
-    const activeInventory = items.filter(
-      (item) => !isItemExpired(item) && !item.is_distributed
-    );
-
-    if (filterStatus === "available") {
-      return activeInventory.filter((item) => !item.is_claimed);
+    if (filterStatus === "expired") {
+      return items.filter((item) => isItemExpired(item));
     }
 
-    if (filterStatus === "claimed") {
-      return activeInventory.filter((item) => item.is_claimed);
-    }
-
-    return activeInventory;
+    return items;
   };
 
-  const displayWarehouses = warehouses.map((warehouse) => {
-    const items = getWarehouseItems(warehouse.warehouse_id);
-    return { warehouse, items: filterItems(items) };
-  });
+  const visibleWarehouses = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) {
+      return warehouses;
+    }
+    return warehouses.filter((warehouse) => {
+      const haystack = `${warehouse.warehouse_id} ${warehouse.address}`.toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [warehouses, searchTerm]);
+
+  useEffect(() => {
+    if (!visibleWarehouses.length) {
+      setSelectedWarehouseId("");
+      return;
+    }
+    if (!selectedWarehouseId || !visibleWarehouses.some((w) => w.warehouse_id === selectedWarehouseId)) {
+      setSelectedWarehouseId(visibleWarehouses[0].warehouse_id);
+    }
+  }, [visibleWarehouses, selectedWarehouseId]);
+
+  const selectedWarehouse = warehouses.find((w) => w.warehouse_id === selectedWarehouseId) || null;
+  const warehouseItems = selectedWarehouseId ? getWarehouseItems(selectedWarehouseId) : [];
+  const filteredItems = filterItems(warehouseItems);
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-[28px] border border-[#CFE6D8] bg-[#F6FBF7] p-6 shadow-lg shadow-[#B6DEC8]/30">
-        <div className="flex items-center justify-between mb-6">
+    <div className="grid h-[calc(100vh-4rem)] min-h-0 gap-6 lg:grid-cols-2">
+      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-[#CFE6D8] bg-white p-6 shadow-lg shadow-[#B6DEC8]/30">
+        <div className="mb-4 flex flex-shrink-0 items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#2F855A]">
+              Bangkok metropolitan warehouses
+            </p>
+            <h2 className="text-2xl font-semibold text-gray-900">Browse warehouses</h2>
+            <p className="text-sm text-gray-600">
+              Search by warehouse ID or address to focus on a specific facility.
+            </p>
+          </div>
+          <span className="text-xs text-gray-500">{visibleWarehouses.length} listed</span>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col space-y-3">
+          <input
+            className={INPUT_STYLES + " flex-shrink-0"}
+            placeholder="Search by ID or address..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            {loading ? (
+              <p className="text-sm text-gray-600">Loading warehouse data...</p>
+            ) : visibleWarehouses.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                No warehouses found in the Bangkok metropolitan list.
+              </p>
+            ) : (
+              visibleWarehouses.map((warehouse) => {
+                const isSelected = warehouse.warehouse_id === selectedWarehouseId;
+                const itemCount = getWarehouseItems(warehouse.warehouse_id).length;
+                return (
+                  <button
+                    type="button"
+                    key={warehouse.warehouse_id}
+                    onClick={() => setSelectedWarehouseId(warehouse.warehouse_id)}
+                    className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                      isSelected
+                        ? "border-[#2F855A] bg-[#F6FBF7] shadow-md"
+                        : "border-[#D7E6DD] bg-white hover:border-[#2F855A]"
+                    }`}
+                  >
+                    <p className="text-sm font-semibold text-gray-900">{warehouse.warehouse_id}</p>
+                    <p className="text-xs text-gray-500">{warehouse.address}</p>
+                    <p className="text-xs text-gray-400 mt-1">{itemCount} lot(s) stored</p>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-[#CFE6D8] bg-[#F6FBF7] p-6 shadow-lg shadow-[#B6DEC8]/30">
+        <div className="mb-4 flex flex-shrink-0 flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-[#2F855A]">
               Warehouse management
             </p>
-            <h2 className="text-2xl font-semibold text-gray-900">Manage warehouse inventory</h2>
-            <p className="text-sm text-gray-600">
-              View and manage food items stored in warehouses.
-            </p>
+            <h2 className="text-2xl font-semibold text-gray-900">
+              {selectedWarehouse ? selectedWarehouse.warehouse_id : "Select a warehouse"}
+            </h2>
+            {selectedWarehouse && (
+              <p className="text-sm text-gray-600">{selectedWarehouse.address}</p>
+            )}
+          </div>
+          <div className="md:w-60">
+            <label className="mb-1 block text-xs font-semibold text-gray-600">
+              Filter by status
+            </label>
+            <select
+              className={INPUT_STYLES}
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
+              <option value="all">All items</option>
+              <option value="available">Available</option>
+              <option value="claimed">Claimed</option>
+              <option value="distributed">Distributed</option>
+              <option value="expired">Expired</option>
+            </select>
           </div>
         </div>
 
-        {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+        {error && <p className="mb-4 flex-shrink-0 text-sm text-red-600">{error}</p>}
 
         {loading ? (
-          <p className="text-sm text-gray-600">Loading warehouse data...</p>
+          <p className="text-sm text-gray-600">Loading inventory...</p>
+        ) : !selectedWarehouse ? (
+          <p className="text-sm text-gray-500">
+            Use the search to choose a warehouse to inspect.
+          </p>
+        ) : filteredItems.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            No food items match the selected status for this warehouse.
+          </p>
         ) : (
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-semibold text-gray-700">
-                Filter by warehouse
-              </label>
-              <select
-                className={INPUT_STYLES}
-                value={selectedWarehouse}
-                onChange={(e) => setSelectedWarehouse(e.target.value)}
-              >
-                <option value="">All warehouses</option>
-                {warehouses.map((warehouse) => (
-                  <option key={warehouse.warehouse_id} value={warehouse.warehouse_id}>
-                    {warehouse.warehouse_id} — {warehouse.address}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-semibold text-gray-700">
-                Filter by status
-              </label>
-              <select
-                className={INPUT_STYLES}
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-              >
-                <option value="all">All items</option>
-                <option value="available">Available</option>
-                <option value="claimed">Claimed</option>
-                <option value="distributed">Distributed</option>
-              </select>
-            </div>
-
-            <div className="space-y-4">
-              {displayWarehouses
-                .filter((w) => !selectedWarehouse || w.warehouse.warehouse_id === selectedWarehouse)
-                .map(({ warehouse, items }) => (
-                  <div
-                    key={warehouse.warehouse_id}
-                    className="rounded-2xl border border-[#CFE6D8] bg-white p-5 shadow-sm"
-                  >
-                    <div className="mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">{warehouse.warehouse_id}</h3>
-                      <p className="text-sm text-gray-600">{warehouse.address}</p>
-                      <p className="text-xs text-gray-500 mt-1">{items.length} item(s)</p>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            {filteredItems.map((item) => {
+              const expired = isItemExpired(item);
+              return (
+                <div
+                  key={item.food_id}
+                  className="rounded-2xl border border-[#CFE6D8] bg-white p-4 shadow-sm transition hover:shadow-md"
+                >
+                  <div className="mb-3 flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#E6F7EE]">
+                          <span className="text-base">🥘</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900 leading-tight">
+                            {item.name}
+                          </p>
+                          <span className="text-[11px] font-medium text-[#2F855A] leading-tight">
+                            {item.food_id}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    {items.length === 0 ? (
-                      <p className="text-sm text-gray-500">No items in this warehouse.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {items.map((item) => (
-                          <div
-                            key={item.food_id}
-                            className="flex items-center justify-between rounded-lg border border-[#CFE6D8] bg-[#F6FBF7] p-3"
-                          >
-                            <div>
-                              <p className="text-sm font-semibold text-gray-900">{item.name}</p>
-                              <p className="text-xs text-gray-500">
-                                {item.quantity} {item.unit}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {item.is_distributed && (
-                                <span className="rounded-full bg-[#E6F7EE] px-2 py-1 text-xs font-semibold text-[#1F4D36]">
-                                  Distributed
-                                </span>
-                              )}
-                              {item.is_claimed && !item.is_distributed && (
-                                <span className="rounded-full bg-[#E6F4FF] px-2 py-1 text-xs font-semibold text-[#1D4ED8]">
-                                  Claimed
-                                </span>
-                              )}
-                              {!item.is_claimed && !item.is_distributed && (
-                                <span className="rounded-full bg-[#FFF1E3] px-2 py-1 text-xs font-semibold text-[#C46A24]">
-                                  Available
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                        expired
+                          ? "bg-[#FDECEA] text-[#B42318]"
+                          : item.is_distributed
+                          ? "bg-[#E6F7EE] text-[#1F4D36]"
+                          : item.is_claimed
+                          ? "bg-[#E6F4FF] text-[#1D4ED8]"
+                          : "bg-[#FFF1E3] text-[#C46A24]"
+                      }`}
+                    >
+                      {expired
+                        ? "Expired"
+                        : item.is_distributed
+                        ? "Distributed"
+                        : item.is_claimed
+                        ? "Claimed"
+                        : "Available"}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 border-t border-gray-100 pt-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <span className="text-gray-400">🍽️</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-gray-500">Donation</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {item.donation}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <span className="text-gray-400">📦</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-gray-500">Quantity</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {item.quantity} {item.unit}
+                        </p>
+                      </div>
+                    </div>
+
+                    {item.expire_date && (
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0">
+                          <span className="text-gray-400">📅</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-medium text-gray-500">Expires</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {formatDisplayDate(item.expire_date)}
+                          </p>
+                        </div>
                       </div>
                     )}
                   </div>
-                ))}
-            </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -5232,6 +6196,10 @@ export default function Home() {
     // Home page (0) is always accessible
     if (activeTab === 0) {
       return 0;
+    }
+    // Status tab (7) is accessible even when not logged in
+    if (activeTab === 7) {
+      return 7;
     }
     if (!currentUser && activeTab > 2) {
       return 0; // Redirect to home if not logged in
