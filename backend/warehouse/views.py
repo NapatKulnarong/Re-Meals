@@ -33,19 +33,17 @@ class WarehouseViewSet(viewsets.ModelViewSet):
             status='delivered'
         ).values_list('donation_id', flat=True)
 
-        # Get food items from those donations that are:
-        # - Not expired
-        # - Not distributed to community
+        # Get food items from those donations that are not expired. We include items
+        # regardless of whether they're already claimed or distributed so the UI can
+        # display the accurate status for each lot.
         food_items = FoodItem.objects.filter(
             donation__donation_id__in=delivered_to_warehouse,
-            is_distributed=False,
             expire_date__gte=today
         ).select_related('donation', 'donation__restaurant')
 
         # Also update expired items
         expired_items = FoodItem.objects.filter(
             donation__donation_id__in=delivered_to_warehouse,
-            is_distributed=False,
             expire_date__lt=today,
             is_expired=False
         )
