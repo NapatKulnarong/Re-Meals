@@ -3406,6 +3406,13 @@ function StatusSection({
   const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Filter and sort states
+  const [donationStatusFilter, setDonationStatusFilter] = useState<string>("all");
+  const [requestCommunityFilter, setRequestCommunityFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<string>("all");
+  const [donationSort, setDonationSort] = useState<string>("newest");
+  const [requestSort, setRequestSort] = useState<string>("newest");
 
   useEffect(() => {
     let ignore = false;
@@ -3517,6 +3524,62 @@ function StatusSection({
       }));
   }, [donations, deliveries, currentUser?.userId]);
 
+  // Filter and sort assigned donations
+  const filteredAndSortedDonations = useMemo(() => {
+    let filtered = [...assignedDonations];
+
+    // Status filter
+    if (donationStatusFilter !== "all") {
+      filtered = filtered.filter(({ delivery }) => delivery.status === donationStatusFilter);
+    }
+
+    // Date filter
+    if (dateFilter !== "all") {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const monthAgo = new Date(today);
+      monthAgo.setMonth(monthAgo.getMonth() - 1);
+
+      filtered = filtered.filter(({ donation }) => {
+        const donationDate = new Date(donation.createdAt);
+        switch (dateFilter) {
+          case "today":
+            return donationDate >= today;
+          case "week":
+            return donationDate >= weekAgo;
+          case "month":
+            return donationDate >= monthAgo;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (donationSort) {
+        case "newest":
+          return new Date(b.donation.createdAt).getTime() - new Date(a.donation.createdAt).getTime();
+        case "oldest":
+          return new Date(a.donation.createdAt).getTime() - new Date(b.donation.createdAt).getTime();
+        case "restaurant_az":
+          return a.donation.restaurantName.localeCompare(b.donation.restaurantName);
+        case "restaurant_za":
+          return b.donation.restaurantName.localeCompare(a.donation.restaurantName);
+        case "items_desc":
+          return b.donation.items.length - a.donation.items.length;
+        case "items_asc":
+          return a.donation.items.length - b.donation.items.length;
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [assignedDonations, donationStatusFilter, dateFilter, donationSort]);
+
   // Get accepted requests (requests with distribution deliveries to their community)
   const acceptedRequests = useMemo(() => {
     // Get community IDs that have distribution deliveries
@@ -3539,6 +3602,67 @@ function StatusSection({
       return communityId ? acceptedCommunityIds.has(communityId) : false;
     });
   }, [requests, deliveries, communities, currentUser?.userId]);
+
+  // Filter and sort accepted requests
+  const filteredAndSortedRequests = useMemo(() => {
+    let filtered = [...acceptedRequests];
+
+    // Community filter
+    if (requestCommunityFilter !== "all") {
+      filtered = filtered.filter((request) => request.communityName === requestCommunityFilter);
+    }
+
+    // Date filter
+    if (dateFilter !== "all") {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const monthAgo = new Date(today);
+      monthAgo.setMonth(monthAgo.getMonth() - 1);
+
+      filtered = filtered.filter((request) => {
+        const requestDate = new Date(request.createdAt);
+        switch (dateFilter) {
+          case "today":
+            return requestDate >= today;
+          case "week":
+            return requestDate >= weekAgo;
+          case "month":
+            return requestDate >= monthAgo;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (requestSort) {
+        case "newest":
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case "oldest":
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case "community_az":
+          return a.communityName.localeCompare(b.communityName);
+        case "community_za":
+          return b.communityName.localeCompare(a.communityName);
+        case "people_desc":
+          return parseInt(b.numberOfPeople) - parseInt(a.numberOfPeople);
+        case "people_asc":
+          return parseInt(a.numberOfPeople) - parseInt(b.numberOfPeople);
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [acceptedRequests, requestCommunityFilter, dateFilter, requestSort]);
+
+  // Get unique communities for filter dropdown
+  const uniqueCommunities = useMemo(() => {
+    return Array.from(new Set(acceptedRequests.map(r => r.communityName))).sort();
+  }, [acceptedRequests]);
 
   if (!currentUser) {
     return (
@@ -3618,6 +3742,16 @@ function StatusSection({
     );
   }
 
+  const clearFilters = () => {
+    setDonationStatusFilter("all");
+    setRequestCommunityFilter("all");
+    setDateFilter("all");
+    setDonationSort("newest");
+    setRequestSort("newest");
+  };
+
+  const hasActiveFilters = donationStatusFilter !== "all" || requestCommunityFilter !== "all" || dateFilter !== "all";
+
   return (
     <div className="space-y-6">
       <div>
@@ -3627,9 +3761,72 @@ function StatusSection({
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* Filter Bar */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Donation Status Filter */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-gray-600">Status:</label>
+            <select
+              value={donationStatusFilter}
+              onChange={(e) => setDonationStatusFilter(e.target.value)}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-[#708A58] focus:outline-none focus:ring-2 focus:ring-[#708A58]/20"
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="in_transit">In Transit</option>
+              <option value="delivered">Delivered</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          {/* Community Filter */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-gray-600">Community:</label>
+            <select
+              value={requestCommunityFilter}
+              onChange={(e) => setRequestCommunityFilter(e.target.value)}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-[#708A58] focus:outline-none focus:ring-2 focus:ring-[#708A58]/20"
+            >
+              <option value="all">All Communities</option>
+              {uniqueCommunities.map((community) => (
+                <option key={community} value={community}>
+                  {community}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date Filter */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-gray-600">Date:</label>
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-[#708A58] focus:outline-none focus:ring-2 focus:ring-[#708A58]/20"
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+            </select>
+          </div>
+
+          {/* Clear Filters Button */}
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="ml-auto rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2 lg:h-[calc(100vh-15rem)]">
         {/* Assigned Donations */}
-        <section className="flex min-h-[60vh] flex-col rounded-3xl border border-[#C7D2C0] bg-[#F4F7EF] p-6 shadow-inner shadow-[#C7D2C0]/40">
+        <section className="flex h-full flex-col rounded-3xl border border-[#C7D2C0] bg-[#F4F7EF] p-6 shadow-inner shadow-[#C7D2C0]/40">
           <div className="mb-3 flex items-start justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-[#4E673E]">
@@ -3639,17 +3836,33 @@ function StatusSection({
                 Pickup tasks
               </h3>
             </div>
-            <span className="rounded-full border border-[#A8B99A] bg-white px-3 py-1 text-xs font-semibold text-[#365032] shadow-sm">
-              {assignedDonations.length} active
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-[#A8B99A] bg-white px-3 py-1 text-xs font-semibold text-[#365032] shadow-sm">
+                {filteredAndSortedDonations.length} {filteredAndSortedDonations.length === 1 ? 'item' : 'items'}
+              </span>
+              <select
+                value={donationSort}
+                onChange={(e) => setDonationSort(e.target.value)}
+                className="rounded-lg border border-[#A8B99A] bg-white px-2 py-1 text-xs font-semibold text-[#365032] focus:outline-none focus:ring-2 focus:ring-[#708A58]/20"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="restaurant_az">Restaurant A-Z</option>
+                <option value="restaurant_za">Restaurant Z-A</option>
+                <option value="items_desc">Most Items</option>
+                <option value="items_asc">Fewest Items</option>
+              </select>
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-            {assignedDonations.length === 0 ? (
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+            {filteredAndSortedDonations.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-[#C7D2C0] bg-white p-4 text-sm text-gray-600">
-                No donations have been assigned to pickup tasks yet.
+                {assignedDonations.length === 0
+                  ? "No donations have been assigned to pickup tasks yet."
+                  : "No donations match your filters."}
               </p>
             ) : (
-              assignedDonations.map(({ donation, delivery }) => {
+              filteredAndSortedDonations.map(({ donation, delivery }) => {
                 const statusLabel = (status: DeliveryRecordApi["status"]) => {
                   switch (status) {
                     case "pending":
@@ -3708,7 +3921,7 @@ function StatusSection({
         </section>
 
         {/* Accepted Requests */}
-        <section className="flex min-h-[60vh] flex-col rounded-3xl border border-[#F3C7A0] bg-[#FFF8F0] p-6 shadow-inner shadow-[#F3C7A0]/30">
+        <section className="flex h-full flex-col rounded-3xl border border-[#F3C7A0] bg-[#FFF8F0] p-6 shadow-inner shadow-[#F3C7A0]/30">
           <div className="mb-3 flex items-start justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-[#C46A24]">
@@ -3718,17 +3931,33 @@ function StatusSection({
                 Community deliveries
               </h3>
             </div>
-            <span className="rounded-full border border-[#E6B9A2] bg-white px-3 py-1 text-xs font-semibold text-[#B25C23] shadow-sm">
-              {acceptedRequests.length} active
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-[#E6B9A2] bg-white px-3 py-1 text-xs font-semibold text-[#B25C23] shadow-sm">
+                {filteredAndSortedRequests.length} {filteredAndSortedRequests.length === 1 ? 'item' : 'items'}
+              </span>
+              <select
+                value={requestSort}
+                onChange={(e) => setRequestSort(e.target.value)}
+                className="rounded-lg border border-[#E6B9A2] bg-white px-2 py-1 text-xs font-semibold text-[#B25C23] focus:outline-none focus:ring-2 focus:ring-[#d48a68]/20"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="community_az">Community A-Z</option>
+                <option value="community_za">Community Z-A</option>
+                <option value="people_desc">Most People</option>
+                <option value="people_asc">Fewest People</option>
+              </select>
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-            {acceptedRequests.length === 0 ? (
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+            {filteredAndSortedRequests.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-[#F3C7A0] bg-white p-4 text-sm text-gray-600">
-                No meal requests have been accepted yet.
+                {acceptedRequests.length === 0
+                  ? "No meal requests have been accepted yet."
+                  : "No requests match your filters."}
               </p>
             ) : (
-              acceptedRequests.map((request) => (
+              filteredAndSortedRequests.map((request) => (
                 <article
                   key={request.id}
                   className="rounded-2xl border border-dashed border-[#F3C7A0] bg-white p-4 shadow-sm"
