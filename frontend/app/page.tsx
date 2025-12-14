@@ -5982,7 +5982,7 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
             Use the search to choose a warehouse to inspect.
           </p>
         ) : filteredItems.length === 0 ? (
-          <p className="text-sm text-gray-500">
+          <p className="mt-1.5 text-sm text-gray-500">
             No food items match the selected status for this warehouse.
           </p>
         ) : (
