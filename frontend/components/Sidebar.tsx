@@ -143,7 +143,12 @@ export default function Sidebar({
         {/* Home Button */}
         {homeTab && (
           <button
-            onClick={() => onTabChange(homeTab.id)}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onTabChange(homeTab.id);
+            }}
             className={[
               "flex items-center justify-between rounded-2xl border px-4 py-4 text-left text-base font-semibold shadow-sm transition duration-200",
               activeTab === homeTab.id
@@ -195,7 +200,12 @@ export default function Sidebar({
             return (
               <button
                 key={tab.id}
-                onClick={() => onTabChange(tab.id)}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onTabChange(tab.id);
+                }}
                 className={[
                   "aspect-square w-full rounded-2xl border text-sm font-semibold shadow-sm transition duration-200",
                   isActive
@@ -238,7 +248,12 @@ export default function Sidebar({
               return (
                 <button
                   key={tab.id}
-                  onClick={() => onTabChange(tab.id)}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onTabChange(tab.id);
+                  }}
                   className={[
                     "aspect-square w-full rounded-2xl border text-sm font-semibold shadow-sm transition duration-200",
                     isActive

@@ -213,6 +213,385 @@ type ImpactRecord = {
   food: string;
 };
 
+// Interactive Weekly Meals Chart Component
+function WeeklyMealsChart({ data }: { data: Array<{ weekKey: string; meals: number; co2: number; startDate: Date; endDate: Date }> }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; week: string; meals: number } | null>(null);
+
+  const maxMeals = Math.max(...data.map(d => d.meals), 1);
+  const chartHeight = 280;
+  const chartPadding = { top: 20, right: 20, bottom: 40, left: 50 };
+  const availableWidth = 800;
+  const barSpacing = 8;
+  const barWidth = Math.max(32, Math.min(60, (availableWidth - chartPadding.left - chartPadding.right - (data.length - 1) * barSpacing) / data.length));
+  const chartWidth = data.length * (barWidth + barSpacing) + chartPadding.left + chartPadding.right;
+
+  const formatWeekLabel = (startDate: Date, endDate: Date) => {
+    const start = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const end = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${start} - ${end}`;
+  };
+
+  const handleBarHover = (e: React.MouseEvent<SVGRectElement>, index: number, week: string, meals: number) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredIndex(index);
+    setTooltip({
+      x: rect.left + rect.width / 2,
+      y: rect.top - 10,
+      week,
+      meals,
+    });
+  };
+
+  const handleBarLeave = () => {
+    setHoveredIndex(null);
+    setTooltip(null);
+  };
+
+  return (
+    <div className="relative">
+      {tooltip && (
+        <div
+          className="fixed z-50 rounded-lg bg-white px-3 py-2 text-xs shadow-lg pointer-events-none border border-gray-200"
+          style={{
+            left: `${tooltip.x}px`,
+            top: `${tooltip.y}px`,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          <div className="font-semibold mb-1 text-[#d48a68]">{tooltip.week}</div>
+          <div className="text-[#d48a68]">{tooltip.meals.toLocaleString()} meals saved</div>
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          className="w-full h-[280px]"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <linearGradient id="barGradient" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#7BA061" stopOpacity="1" />
+              <stop offset="100%" stopColor="#4E673E" stopOpacity="1" />
+            </linearGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const y = chartHeight - chartPadding.bottom - (chartHeight - chartPadding.top - chartPadding.bottom) * ratio;
+            const value = Math.round(maxMeals * ratio);
+            return (
+              <g key={ratio}>
+                <line
+                  x1={chartPadding.left}
+                  y1={y}
+                  x2={chartWidth - chartPadding.right}
+                  y2={y}
+                  stroke="#E5E7EB"
+                  strokeWidth="0.5"
+                  strokeDasharray="2,2"
+                />
+                <text
+                  x={chartPadding.left - 10}
+                  y={y + 4}
+                  fontSize="10"
+                  fill="#6B7280"
+                  textAnchor="end"
+                >
+                  {value.toLocaleString()}
+                </text>
+              </g>
+            );
+          })}
+
+          {data.map((week, index) => {
+            const barHeight = ((week.meals / maxMeals) * (chartHeight - chartPadding.top - chartPadding.bottom));
+            const x = chartPadding.left + index * (barWidth + barSpacing);
+            const y = chartHeight - chartPadding.bottom - barHeight;
+            const isHovered = hoveredIndex === index;
+
+            return (
+              <g key={week.weekKey}>
+                <rect
+                  x={x}
+                  y={y}
+                  width={barWidth}
+                  height={barHeight}
+                  fill={isHovered ? "#d48a68" : "#A8B99A"}
+                  rx="4"
+                  ry="4"
+                  className="transition-all duration-200 cursor-pointer"
+                  style={{
+                    filter: isHovered ? "url(#glow)" : "none",
+                    transform: isHovered ? "scale(1.05)" : "scale(1)",
+                    transformOrigin: `${x + barWidth / 2}px ${chartHeight - chartPadding.bottom}px`,
+                  }}
+                  onMouseEnter={(e) => handleBarHover(e, index, formatWeekLabel(week.startDate, week.endDate), week.meals)}
+                  onMouseLeave={handleBarLeave}
+                />
+                
+                {barHeight > 20 && (
+                  <text
+                    x={x + barWidth / 2}
+                    y={y - 5}
+                    fontSize="11"
+                    fill={isHovered ? "#d48a68" : "#365032"}
+                    textAnchor="middle"
+                    fontWeight="600"
+                    className="pointer-events-none"
+                  >
+                    {week.meals.toLocaleString()}
+                  </text>
+                )}
+
+                {index % Math.ceil(data.length / 8) === 0 && (
+                  <text
+                    x={x + barWidth / 2}
+                    y={chartHeight - chartPadding.bottom + 20}
+                    fontSize="9"
+                    fill="#6B7280"
+                    textAnchor="middle"
+                    className="pointer-events-none"
+                  >
+                    {week.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          <line
+            x1={chartPadding.left}
+            y1={chartHeight - chartPadding.bottom}
+            x2={chartWidth - chartPadding.right}
+            y2={chartHeight - chartPadding.bottom}
+            stroke="#D1D5DB"
+            strokeWidth="1"
+          />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// Interactive CO₂ Reduction Trend Chart Component
+function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; startDate: Date; endDate: Date }> }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; week: string; co2: number } | null>(null);
+
+  const maxCO2 = Math.max(...data.map(d => d.co2), 1);
+  const chartHeight = 280;
+  const chartPadding = { top: 20, right: 20, bottom: 40, left: 50 };
+  const availableWidth = 800;
+  const chartWidth = Math.max(600, data.length * 60 + chartPadding.left + chartPadding.right);
+
+  const formatWeekLabel = (startDate: Date, endDate: Date) => {
+    const start = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const end = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${start} - ${end}`;
+  };
+
+  const calculatePoints = () => {
+    const step = (chartWidth - chartPadding.left - chartPadding.right) / Math.max(data.length - 1, 1);
+    return data.map((week, index) => {
+      const x = chartPadding.left + index * step;
+      const y = chartHeight - chartPadding.bottom - ((week.co2 / maxCO2) * (chartHeight - chartPadding.top - chartPadding.bottom));
+      return { x, y, ...week, index };
+    });
+  };
+
+  const points = calculatePoints();
+
+  const handlePointHover = (e: React.MouseEvent<SVGElement>, point: typeof points[0]) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredIndex(point.index);
+    setTooltip({
+      x: rect.left + rect.width / 2,
+      y: rect.top - 10,
+      week: formatWeekLabel(point.startDate, point.endDate),
+      co2: point.co2,
+    });
+  };
+
+  const handlePointLeave = () => {
+    setHoveredIndex(null);
+    setTooltip(null);
+  };
+
+  const pathData = points.length > 1 
+    ? `M ${points.map(p => `${p.x},${p.y}`).join(' L ')}`
+    : '';
+
+  const areaPath = points.length > 1
+    ? `M ${points[0].x} ${chartHeight - chartPadding.bottom} L ${pathData.replace('M ', '')} L ${points[points.length - 1].x} ${chartHeight - chartPadding.bottom} Z`
+    : '';
+
+  return (
+    <div className="relative">
+      {tooltip && (
+        <div
+          className="fixed z-50 rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-lg pointer-events-none"
+          style={{
+            left: `${tooltip.x}px`,
+            top: `${tooltip.y}px`,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          <div className="font-semibold mb-1">{tooltip.week}</div>
+          <div className="text-[#F59E0B]">{tooltip.co2.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg CO₂ reduced</div>
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          className="w-full h-[280px]"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <linearGradient id="co2AreaGradient" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#F59E0B" stopOpacity="0.05" />
+            </linearGradient>
+            <linearGradient id="co2LineGradient" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0%" stopColor="#F59E0B" />
+              <stop offset="100%" stopColor="#D97706" />
+            </linearGradient>
+            <filter id="co2Glow">
+              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const y = chartHeight - chartPadding.bottom - (chartHeight - chartPadding.top - chartPadding.bottom) * ratio;
+            const value = maxCO2 * ratio;
+            return (
+              <g key={ratio}>
+                <line
+                  x1={chartPadding.left}
+                  y1={y}
+                  x2={chartWidth - chartPadding.right}
+                  y2={y}
+                  stroke="#E5E7EB"
+                  strokeWidth="0.5"
+                  strokeDasharray="2,2"
+                />
+                <text
+                  x={chartPadding.left - 10}
+                  y={y + 4}
+                  fontSize="10"
+                  fill="#6B7280"
+                  textAnchor="end"
+                >
+                  {value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                </text>
+              </g>
+            );
+          })}
+
+          {areaPath && (
+            <path
+              d={areaPath}
+              fill="url(#co2AreaGradient)"
+              className="transition-opacity duration-200"
+              opacity={hoveredIndex !== null ? 0.5 : 0.3}
+            />
+          )}
+
+          {pathData && (
+            <path
+              d={pathData}
+              fill="none"
+              stroke="url(#co2LineGradient)"
+              strokeWidth="2.5"
+              className="transition-all duration-200"
+              style={{
+                filter: hoveredIndex !== null ? "url(#co2Glow)" : "none",
+              }}
+            />
+          )}
+
+          {points.map((point) => {
+            const isHovered = hoveredIndex === point.index;
+            return (
+              <g key={point.weekKey}>
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r="8"
+                  fill="transparent"
+                  className="cursor-pointer"
+                  onMouseEnter={(e) => handlePointHover(e, point)}
+                  onMouseLeave={handlePointLeave}
+                />
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r={isHovered ? "5" : "4"}
+                  fill={isHovered ? "#F59E0B" : "#D97706"}
+                  stroke="white"
+                  strokeWidth="2"
+                  className="transition-all duration-200"
+                  style={{
+                    filter: isHovered ? "url(#co2Glow)" : "none",
+                  }}
+                />
+                
+                {isHovered && (
+                  <text
+                    x={point.x}
+                    y={point.y - 12}
+                    fontSize="11"
+                    fill="#D97706"
+                    textAnchor="middle"
+                    fontWeight="600"
+                    className="pointer-events-none"
+                  >
+                    {point.co2.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
+                  </text>
+                )}
+
+                {point.index % Math.ceil(data.length / 8) === 0 && (
+                  <text
+                    x={point.x}
+                    y={chartHeight - chartPadding.bottom + 20}
+                    fontSize="9"
+                    fill="#6B7280"
+                    textAnchor="middle"
+                    className="pointer-events-none"
+                  >
+                    {point.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          <line
+            x1={chartPadding.left}
+            y1={chartHeight - chartPadding.bottom}
+            x2={chartWidth - chartPadding.right}
+            y2={chartHeight - chartPadding.bottom}
+            stroke="#D1D5DB"
+            strokeWidth="1"
+          />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 const normalizeImpactData = (raw: unknown): ImpactRecord[] => {
   // Handle paginated response
   let data: ImpactRecord[] = [];
@@ -445,6 +824,9 @@ function HomePage({
   const [impactRecords, setImpactRecords] = useState<ImpactRecord[]>([]);
   const [impactLoading, setImpactLoading] = useState(false);
   const [impactError, setImpactError] = useState<string | null>(null);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [donations, setDonations] = useState<any[]>([]);
+  const [foodItems, setFoodItems] = useState<any[]>([]);
 
   const journey = [
     {
@@ -518,6 +900,32 @@ function HomePage({
     };
   }, []);
 
+  // Load restaurants, donations, and food items for leaderboard
+  useEffect(() => {
+    let ignore = false;
+    async function loadLeaderboardData() {
+      try {
+        const [restaurantsData, donationsData, foodItemsData] = await Promise.all([
+          apiFetch<Restaurant[]>("/restaurants/").catch(() => []),
+          apiFetch<any[]>("/donations/").catch(() => []),
+          apiFetch<any[]>("/fooditems/").catch(() => []),
+        ]);
+        
+        if (!ignore) {
+          setRestaurants(restaurantsData);
+          setDonations(donationsData);
+          setFoodItems(foodItemsData);
+        }
+      } catch (err) {
+        // Silently fail - leaderboard is optional
+      }
+    }
+    loadLeaderboardData();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   const impactTotals = useMemo(() => {
     return impactRecords.reduce(
       (acc, record) => ({
@@ -529,38 +937,115 @@ function HomePage({
     );
   }, [impactRecords]);
 
-  const dailyImpact = useMemo(() => {
-    const byDate = new Map<
-      string,
-      { meals: number; weight: number; co2: number }
-    >();
-    impactRecords.forEach((record) => {
-      const key = record.impact_date;
-      const current = byDate.get(key) ?? { meals: 0, weight: 0, co2: 0 };
+  // Calculate weekly meals saved
+  const weeklyMealsData = useMemo(() => {
+    const weeks = new Map<string, { meals: number; co2: number; startDate: Date; endDate: Date }>();
+    
+    impactRecords.forEach(record => {
+      const date = new Date(record.impact_date);
+      const weekStart = new Date(date);
+      weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+      weekStart.setHours(0, 0, 0, 0);
+      
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      
+      const weekKey = weekStart.toISOString().split('T')[0];
+      
+      const current = weeks.get(weekKey) || { 
+        meals: 0,
+        co2: 0,
+        startDate: weekStart, 
+        endDate: weekEnd 
+      };
       current.meals += record.meals_saved || 0;
-      current.weight += record.weight_saved_kg || 0;
       current.co2 += record.co2_reduced_kg || 0;
-      byDate.set(key, current);
+      weeks.set(weekKey, current);
     });
-    const sorted = Array.from(byDate.entries()).sort(
-      ([a], [b]) => new Date(a).getTime() - new Date(b).getTime()
-    );
-    return sorted.slice(-10);
+
+    return Array.from(weeks.entries())
+      .map(([key, data]) => ({
+        weekKey: key,
+        ...data,
+      }))
+      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+      .slice(-12); // Last 12 weeks
   }, [impactRecords]);
 
-  const chartPoints = useMemo(() => {
-    if (!dailyImpact.length) return [];
-    const maxMeals = Math.max(...dailyImpact.map(([, v]) => v.meals || 0), 1);
-    const width = 100;
-    const height = 60;
-    const step = width / Math.max(dailyImpact.length - 1, 1);
-    return dailyImpact.map(([date, values], index) => ({
-      x: index * step,
-      y: height - (values.meals / maxMeals) * height,
-      label: formatDisplayDate(date),
-      value: values.meals,
-    }));
-  }, [dailyImpact]);
+  // Helper to normalize food IDs
+  const normalizeFoodId = (foodId: string): string => {
+    if (!foodId) return foodId;
+    const digits = foodId.replace(/\D/g, '');
+    if (!digits) return foodId;
+    return `FOO${digits.padStart(7, '0')}`;
+  };
+
+  // Calculate restaurant leaderboard
+  const restaurantLeaderboard = useMemo(() => {
+    if (!impactRecords.length) {
+      return [];
+    }
+
+    if (!restaurants.length || !donations.length || !foodItems.length) {
+      return [];
+    }
+
+    const restaurantMap = new Map(restaurants.map(r => [r.restaurant_id, r]));
+    const donationMap = new Map(donations.map(d => [d.donation_id || d.id, d]));
+    
+    const foodItemMap = new Map<string, any>();
+    foodItems.forEach(f => {
+      const foodId = f.food_id || f.id;
+      if (foodId) {
+        const normalized = normalizeFoodId(foodId);
+        foodItemMap.set(normalized, f);
+        foodItemMap.set(foodId, f);
+      }
+    });
+
+    const restaurantImpact = new Map<string, { meals: number; weight: number; co2: number; name: string }>();
+
+    impactRecords.forEach(impact => {
+      const normalizedFoodId = normalizeFoodId(impact.food);
+      const foodItem = foodItemMap.get(normalizedFoodId) || foodItemMap.get(impact.food);
+      
+      if (!foodItem) return;
+
+      const donationId = foodItem.donation || foodItem.donation_id;
+      if (!donationId) return;
+      
+      const donation = donationMap.get(donationId);
+      if (!donation) return;
+
+      const restaurantId = donation.restaurant || donation.restaurant_id;
+      if (!restaurantId) return;
+      
+      const restaurant = restaurantMap.get(restaurantId);
+      if (!restaurant) return;
+
+      const restaurantName = donation.restaurant_name || restaurant.name || 
+        (restaurant.branch_name ? `${restaurant.name || ''} - ${restaurant.branch_name}`.trim() : '') ||
+        restaurant.restaurant_id;
+
+      const current = restaurantImpact.get(restaurantId) || {
+        meals: 0,
+        weight: 0,
+        co2: 0,
+        name: restaurantName,
+      };
+
+      current.meals += impact.meals_saved || 0;
+      current.weight += impact.weight_saved_kg || 0;
+      current.co2 += impact.co2_reduced_kg || 0;
+
+      restaurantImpact.set(restaurantId, current);
+    });
+
+    return Array.from(restaurantImpact.entries())
+      .map(([id, data]) => ({ restaurantId: id, ...data }))
+      .sort((a, b) => b.meals - a.meals)
+      .slice(0, 5); // Top 5 only
+  }, [impactRecords, restaurants, donations, foodItems]);
 
   return (
     <div className="mx-auto w-full max-w-8xl space-y-8">
@@ -630,13 +1115,13 @@ function HomePage({
           {[
             { label: "Meals saved", value: impactTotals.meals, suffix: "", classes: "text-[#365032]" },
             { label: "Weight saved (kg)", value: impactTotals.weight, suffix: " kg", classes: "text-[#365032]" },
-            { label: "CO₂ reduced (kg)", value: impactTotals.co2, suffix: " kg", classes: "text-[#9A5328]" },
+            { label: "CO₂ reduced (kg)", value: impactTotals.co2, suffix: " kg", classes: "text-[#d48a68]" },
           ].map((card) => (
             <div
               key={card.label}
               className="rounded-2xl border border-dashed border-[#A8B99A] bg-white p-4 shadow-sm"
             >
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#708A58]">
+              <p className={`text-xs font-semibold uppercase tracking-wide ${card.label === "CO₂ reduced (kg)" ? "text-[#d48a68]" : "text-[#708A58]"}`}>
                 {card.label}
               </p>
               <p className={`text-3xl font-bold ${card.classes}`}>
@@ -646,115 +1131,93 @@ function HomePage({
           ))}
         </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
-          <div className="rounded-2xl border border-[#A8B99A] bg-white p-5 shadow-sm">
+        {/* Top Restaurants and CO₂ Chart Row */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          {/* Top Restaurants Leaderboard - First visualization */}
+          <div className="rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Last 10 days</h3>
-              <span className="rounded-full bg-[#E9F1E3] px-3 py-1 text-[11px] font-semibold text-[#365032]">
-                Meals per day
+              <h3 className="text-lg font-semibold text-gray-900">Top Restaurants by Impact</h3>
+              <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#B25C23] border border-[#F3C7A0]">
+                Top 5
               </span>
             </div>
             {impactLoading ? (
-              <p className="text-sm text-gray-600">Loading impact trend...</p>
-            ) : dailyImpact.length === 0 ? (
-              <p className="text-sm text-gray-600">No impact records yet.</p>
+              <p className="text-sm text-gray-600">Loading leaderboard...</p>
+            ) : restaurantLeaderboard.length === 0 ? (
+              <p className="text-sm text-gray-600">No restaurant data available yet.</p>
             ) : (
-              <div className="relative w-full overflow-hidden rounded-2xl border border-dashed border-[#A8B99A] bg-[#F7FBF6] p-4">
-                <svg viewBox="0 0 100 70" className="h-52 w-full">
-                  <defs>
-                    <linearGradient id="mealsGradient" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#7BA061" stopOpacity="0.8" />
-                      <stop offset="100%" stopColor="#7BA061" stopOpacity="0.05" />
-                    </linearGradient>
-                  </defs>
-                  {chartPoints.length > 1 && (
-                    <>
-                      <path
-                        d={`M 0 70 L ${chartPoints
-                          .map((p) => `${p.x} ${p.y}`)
-                          .join(" L ")} L 100 70 Z`}
-                        fill="url(#mealsGradient)"
-                        opacity="0.7"
-                      />
-                      <polyline
-                        fill="none"
-                        stroke="#4E673E"
-                        strokeWidth="1.5"
-                        points={chartPoints.map((p) => `${p.x},${p.y}`).join(" ")}
-                      />
-                    </>
-                  )}
-                  {chartPoints.map((p, idx) => (
-                    <g key={idx}>
-                      <circle cx={p.x} cy={p.y} r="1.6" fill="#4E673E" />
-                      <text
-                        x={p.x}
-                        y={p.y - 2.5}
-                        fontSize="3"
-                        textAnchor="middle"
-                        fill="#365032"
-                      >
-                        {p.value.toFixed(0)}
-                      </text>
-                      <text
-                        x={p.x}
-                        y="68"
-                        fontSize="3"
-                        textAnchor="middle"
-                        fill="#708A58"
-                      >
-                        {p.label.slice(0, 6)}
-                      </text>
-                    </g>
-                  ))}
-                </svg>
+              <div className="space-y-2">
+                {restaurantLeaderboard.map((restaurant, index) => (
+                  <div
+                    key={restaurant.restaurantId}
+                    className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F3C7A0] text-sm font-bold text-[#B25C23]">
+                        {index + 1}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-gray-900">
+                          {restaurant.name}
+                        </p>
+                        <div className="mt-1 flex gap-4 text-xs text-gray-600">
+                          <span className="font-semibold text-[#365032]">
+                            {restaurant.meals.toLocaleString(undefined, { maximumFractionDigits: 0 })} meals
+                          </span>
+                          <span className="text-[#708A58]">
+                            {restaurant.weight.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
+                          </span>
+                          <span className="text-[#B25C23]">
+                            {restaurant.co2.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg CO₂
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          <div className="rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-5 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Latest impact records</h3>
-              <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#B25C23] border border-[#F3C7A0]">
-                {impactRecords.slice(-5).length} shown
+          {/* CO₂ Reduction Trend Chart */}
+          <div className="rounded-2xl border border-[#F3C7A0] bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">CO₂ Reduction Trend</h3>
+                <p className="text-xs text-gray-500 mt-1">Hover over points to see details</p>
+              </div>
+              <span className="rounded-full bg-[#FFF4E6] px-3 py-1 text-[11px] font-semibold text-[#D97706]">
+                Last {weeklyMealsData.length} weeks
               </span>
             </div>
             {impactLoading ? (
-              <p className="text-sm text-gray-600">Loading details...</p>
-            ) : impactRecords.length === 0 ? (
-              <p className="text-sm text-gray-600">No impact records yet.</p>
+              <p className="text-sm text-gray-600 py-8 text-center">Loading CO₂ data...</p>
+            ) : weeklyMealsData.length === 0 ? (
+              <p className="text-sm text-gray-600 py-8 text-center">No CO₂ data available yet.</p>
             ) : (
-              <div className="space-y-3">
-                {impactRecords
-                  .slice(-5)
-                  .reverse()
-                  .map((record) => (
-                    <div
-                      key={record.impact_id}
-                      className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3"
-                    >
-                      <div className="flex items-center justify-between text-sm">
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-gray-400">
-                            {record.impact_id}
-                          </p>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {formatDisplayDate(record.impact_date)}
-                          </p>
-                        </div>
-                        <div className="text-right text-xs text-gray-600">
-                          <p className="font-semibold text-[#365032]">
-                            {record.meals_saved.toLocaleString(undefined, { maximumFractionDigits: 1 })} meals
-                          </p>
-                          <p>{record.weight_saved_kg.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg</p>
-                          <p className="text-[#B25C23]">
-                            {record.co2_reduced_kg.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg CO₂
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              <CO2TrendChart data={weeklyMealsData.map(({ meals, ...rest }) => rest)} />
+            )}
+          </div>
+        </div>
+
+        {/* Weekly Meals Saved Chart - Full Width */}
+        <div className="mt-6">
+          <div className="rounded-2xl border border-[#A8B99A] bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Weekly Meals Saved</h3>
+                <p className="text-xs text-gray-500 mt-1">Hover over bars to see details</p>
               </div>
+              <span className="rounded-full bg-[#E9F1E3] px-3 py-1 text-[11px] font-semibold text-[#365032]">
+                Last {weeklyMealsData.length} weeks
+              </span>
+            </div>
+            {impactLoading ? (
+              <p className="text-sm text-gray-600 py-8 text-center">Loading weekly data...</p>
+            ) : weeklyMealsData.length === 0 ? (
+              <p className="text-sm text-gray-600 py-8 text-center">No weekly data available yet.</p>
+            ) : (
+              <WeeklyMealsChart data={weeklyMealsData} />
             )}
           </div>
         </div>
@@ -1005,7 +1468,7 @@ function TabContent({
     return <AccessDenied message="Admin access required." />;
   }
   if (tab === 7) {
-    return <StatusSection currentUser={currentUser} />;
+    return <StatusSection currentUser={currentUser} setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} />;
   }
 
   return (
@@ -2934,7 +3397,15 @@ function AdminDashboard() {
   );
 }
 
-function StatusSection({ currentUser }: { currentUser: LoggedUser | null }) {
+function StatusSection({ 
+  currentUser,
+  setShowAuthModal,
+  setAuthMode
+}: { 
+  currentUser: LoggedUser | null;
+  setShowAuthModal: (show: boolean) => void;
+  setAuthMode: (mode: AuthMode) => void;
+}) {
   const [donations, setDonations] = useState<DonationRecord[]>([]);
   const [requests, setRequests] = useState<DonationRequestRecord[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
@@ -3076,7 +3547,65 @@ function StatusSection({ currentUser }: { currentUser: LoggedUser | null }) {
   }, [requests, deliveries, communities, currentUser?.userId]);
 
   if (!currentUser) {
-    return <AccessDenied message="Please log in to view your status." />;
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-semibold text-gray-900">Status</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            View your donations and requests that have been assigned or accepted by the admin.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-8 shadow-sm">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#F3C7A0]">
+              <svg
+                className="h-8 w-8 text-[#B25C23]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Sign in to view your status
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Log in or create an account to see your donation history, request status, and delivery updates.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("login");
+                  setShowAuthModal(true);
+                }}
+                className="rounded-lg bg-[#d48a68] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#c47958] shadow-sm"
+              >
+                Log in
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("signup");
+                  setShowAuthModal(true);
+                }}
+                className="rounded-lg border border-[#d48a68] bg-white px-6 py-2.5 text-sm font-semibold text-[#d48a68] transition hover:bg-[#FFF8F0] shadow-sm"
+              >
+                Sign up
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (loading) {
@@ -5507,6 +6036,10 @@ export default function Home() {
     // Home page (0) is always accessible
     if (activeTab === 0) {
       return 0;
+    }
+    // Status tab (7) is accessible even when not logged in
+    if (activeTab === 7) {
+      return 7;
     }
     if (!currentUser && activeTab > 2) {
       return 0; // Redirect to home if not logged in
