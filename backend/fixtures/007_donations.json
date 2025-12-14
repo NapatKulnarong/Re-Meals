@@ -5,8 +5,7 @@
     "fields": {
       "donated_at": "2025-01-05T10:00:00Z",
       "status": "pending",
-      "restaurant": "RES0000001",
-      "created_by": "DON0000001"
+      "restaurant": "RES0000001"
     }
   },
   {
@@ -15,8 +14,7 @@
     "fields": {
       "donated_at": "2025-01-04T11:30:00Z",
       "status": "accepted",
-      "restaurant": "RES0000002",
-      "created_by": "DON0000002"
+      "restaurant": "RES0000002"
     }
   },
   {
@@ -25,8 +23,7 @@
     "fields": {
       "donated_at": "2025-01-03T09:15:00Z",
       "status": "declined",
-      "restaurant": "RES0000003",
-      "created_by": "DON0000003"
+      "restaurant": "RES0000003"
     }
   },
   {
@@ -35,8 +32,7 @@
     "fields": {
       "donated_at": "2025-01-06T15:45:00Z",
       "status": "pending",
-      "restaurant": "RES0000004",
-      "created_by": "DON0000004"
+      "restaurant": "RES0000004"
     }
   },
   {
@@ -45,8 +41,7 @@
     "fields": {
       "donated_at": "2025-01-07T08:30:00Z",
       "status": "accepted",
-      "restaurant": "RES0000005",
-      "created_by": "DON0000005"
+      "restaurant": "RES0000005"
     }
   },
   {
@@ -55,8 +50,7 @@
     "fields": {
       "donated_at": "2025-01-07T11:45:00Z",
       "status": "pending",
-      "restaurant": "RES0000006",
-      "created_by": "DON0000006"
+      "restaurant": "RES0000006"
     }
   },
   {
@@ -65,8 +59,7 @@
     "fields": {
       "donated_at": "2025-01-08T09:10:00Z",
       "status": "accepted",
-      "restaurant": "RES0000007",
-      "created_by": "DON0000007"
+      "restaurant": "RES0000007"
     }
   },
   {
@@ -75,8 +68,7 @@
     "fields": {
       "donated_at": "2025-01-08T13:20:00Z",
       "status": "pending",
-      "restaurant": "RES0000008",
-      "created_by": "DON0000008"
+      "restaurant": "RES0000008"
     }
   },
   {
@@ -85,8 +77,7 @@
     "fields": {
       "donated_at": "2025-01-09T10:05:00Z",
       "status": "accepted",
-      "restaurant": "RES0000009",
-      "created_by": "DON0000009"
+      "restaurant": "RES0000009"
     }
   },
   {
@@ -95,8 +86,7 @@
     "fields": {
       "donated_at": "2025-01-09T16:30:00Z",
       "status": "pending",
-      "restaurant": "RES0000010",
-      "created_by": "DON0000010"
+      "restaurant": "RES0000010"
     }
   },
   {
@@ -105,8 +95,7 @@
     "fields": {
       "donated_at": "2025-01-10T07:45:00Z",
       "status": "accepted",
-      "restaurant": "RES0000011",
-      "created_by": "DON0000011"
+      "restaurant": "RES0000011"
     }
   },
   {
@@ -115,8 +104,7 @@
     "fields": {
       "donated_at": "2025-01-10T18:15:00Z",
       "status": "pending",
-      "restaurant": "RES0000012",
-      "created_by": "DON0000012"
+      "restaurant": "RES0000012"
     }
   },
   {
@@ -125,8 +113,7 @@
     "fields": {
       "donated_at": "2025-01-11T08:20:00Z",
       "status": "accepted",
-      "restaurant": "RES0000013",
-      "created_by": "DON0000013"
+      "restaurant": "RES0000013"
     }
   },
   {
@@ -135,8 +122,7 @@
     "fields": {
       "donated_at": "2025-01-11T10:35:00Z",
       "status": "pending",
-      "restaurant": "RES0000014",
-      "created_by": "DON0000014"
+      "restaurant": "RES0000014"
     }
   },
   {
@@ -145,8 +131,7 @@
     "fields": {
       "donated_at": "2025-01-11T13:05:00Z",
       "status": "accepted",
-      "restaurant": "RES0000015",
-      "created_by": "DON0000015"
+      "restaurant": "RES0000015"
     }
   },
   {
@@ -155,8 +140,7 @@
     "fields": {
       "donated_at": "2025-01-11T15:40:00Z",
       "status": "pending",
-      "restaurant": "RES0000016",
-      "created_by": "DON0000016"
+      "restaurant": "RES0000016"
     }
   },
   {
@@ -165,8 +149,7 @@
     "fields": {
       "donated_at": "2025-01-12T09:10:00Z",
       "status": "accepted",
-      "restaurant": "RES0000017",
-      "created_by": "DON0000017"
+      "restaurant": "RES0000017"
     }
   },
   {
@@ -175,8 +158,7 @@
     "fields": {
       "donated_at": "2025-01-12T11:25:00Z",
       "status": "pending",
-      "restaurant": "RES0000018",
-      "created_by": "DON0000018"
+      "restaurant": "RES0000018"
     }
   },
   {
@@ -185,8 +167,7 @@
     "fields": {
       "donated_at": "2025-01-12T14:00:00Z",
       "status": "accepted",
-      "restaurant": "RES0000019",
-      "created_by": "DON0000019"
+      "restaurant": "RES0000019"
     }
   },
   {
@@ -195,8 +176,7 @@
     "fields": {
       "donated_at": "2025-01-12T16:30:00Z",
       "status": "declined",
-      "restaurant": "RES0000020",
-      "created_by": "DON0000020"
+      "restaurant": "RES0000020"
     }
   },
   {
@@ -205,8 +185,7 @@
     "fields": {
       "donated_at": "2025-01-13T08:45:00Z",
       "status": "pending",
-      "restaurant": "RES0000021",
-      "created_by": "DON0000021"
+      "restaurant": "RES0000021"
     }
   },
   {
@@ -215,8 +194,7 @@
     "fields": {
       "donated_at": "2025-01-13T11:10:00Z",
       "status": "accepted",
-      "restaurant": "RES0000022",
-      "created_by": "DON0000022"
+      "restaurant": "RES0000022"
     }
   },
   {
@@ -225,8 +203,7 @@
     "fields": {
       "donated_at": "2025-01-13T13:30:00Z",
       "status": "pending",
-      "restaurant": "RES0000023",
-      "created_by": "DON0000023"
+      "restaurant": "RES0000023"
     }
   },
   {
@@ -235,8 +212,7 @@
     "fields": {
       "donated_at": "2025-01-13T15:50:00Z",
       "status": "accepted",
-      "restaurant": "RES0000024",
-      "created_by": "DON0000024"
+      "restaurant": "RES0000024"
     }
   },
   {
@@ -245,8 +221,7 @@
     "fields": {
       "donated_at": "2025-01-14T09:00:00Z",
       "status": "pending",
-      "restaurant": "RES0000025",
-      "created_by": "DON0000025"
+      "restaurant": "RES0000025"
     }
   },
   {
@@ -255,8 +230,7 @@
     "fields": {
       "donated_at": "2025-01-14T11:20:00Z",
       "status": "accepted",
-      "restaurant": "RES0000026",
-      "created_by": "DON0000026"
+      "restaurant": "RES0000026"
     }
   },
   {
@@ -265,8 +239,7 @@
     "fields": {
       "donated_at": "2025-01-14T13:35:00Z",
       "status": "declined",
-      "restaurant": "RES0000027",
-      "created_by": "DON0000027"
+      "restaurant": "RES0000027"
     }
   },
   {
@@ -275,8 +248,7 @@
     "fields": {
       "donated_at": "2025-01-14T15:55:00Z",
       "status": "accepted",
-      "restaurant": "RES0000028",
-      "created_by": "DON0000028"
+      "restaurant": "RES0000028"
     }
   },
   {
@@ -285,8 +257,7 @@
     "fields": {
       "donated_at": "2025-01-15T08:15:00Z",
       "status": "pending",
-      "restaurant": "RES0000029",
-      "created_by": "DON0000029"
+      "restaurant": "RES0000029"
     }
   },
   {
@@ -295,8 +266,7 @@
     "fields": {
       "donated_at": "2025-01-15T10:40:00Z",
       "status": "accepted",
-      "restaurant": "RES0000030",
-      "created_by": "DON0000030"
+      "restaurant": "RES0000030"
     }
   }
 ]
