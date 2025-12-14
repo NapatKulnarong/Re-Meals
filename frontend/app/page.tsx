@@ -706,12 +706,18 @@ function TabContent({
     return <AccessDenied message="Admin access required." />;
   }
   if (tab === 4) {
+    if (currentUser?.isDeliveryStaff && !currentUser?.isAdmin) {
+      return <DeliveryStaffDashboard currentUser={currentUser} />;
+    }
     if (currentUser?.isAdmin || currentUser?.isDeliveryStaff) {
       return <PickupToWarehouse currentUser={currentUser} />;
     }
     return <AccessDenied message="Delivery team access required." />;
   }
   if (tab === 6) {
+    if (currentUser?.isDeliveryStaff && !currentUser?.isAdmin) {
+      return <DeliveryStaffDashboard currentUser={currentUser} />;
+    }
     if (currentUser?.isAdmin || currentUser?.isDeliveryStaff) {
       return <DeliverToCommunity currentUser={currentUser} />;
     }
@@ -2960,6 +2966,430 @@ function StatusSection({ currentUser }: { currentUser: LoggedUser | null }) {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | null }) {
+  const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
+  const [donations, setDonations] = useState<Record<string, DonationApiRecord>>({});
+  const [foodItems, setFoodItems] = useState<Record<string, FoodItemApiRecord[]>>({});
+  const [warehouses, setWarehouses] = useState<Record<string, Warehouse>>({});
+  const [communities, setCommunities] = useState<Record<string, Community>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [staffInputs, setStaffInputs] = useState<Record<string, { notes: string }>>({});
+
+  const statusLabel = (status: DeliveryRecordApi["status"]) => {
+    switch (status) {
+      case "pending":
+        return { text: "Pending", className: "bg-[#FFF1E3] text-[#C46A24]" };
+      case "in_transit":
+        return { text: "In transit", className: "bg-[#E6F4FF] text-[#1D4ED8]" };
+      case "delivered":
+        return { text: "Delivered", className: "bg-[#E6F7EE] text-[#1F4D36]" };
+      case "cancelled":
+      default:
+        return { text: "Cancelled", className: "bg-[#FDECEA] text-[#B42318]" };
+    }
+  };
+
+  const loadData = useCallback(async () => {
+    if (!currentUser) return;
+    setLoading(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const deliveryData = await apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
+        headers: buildAuthHeaders(currentUser),
+      });
+      const warehouseData = await apiFetch<Warehouse[]>(API_PATHS.warehouses);
+      const communityData = await apiFetch<Community[]>(API_PATHS.communities);
+
+      const donationIds = Array.from(
+        new Set(
+          deliveryData
+            .map((d) => d.donation_id)
+            .filter((id): id is string => Boolean(id))
+        )
+      );
+
+      const donationDetails = await Promise.all(
+        donationIds.map((id) =>
+          apiFetch<DonationApiRecord>(`/donations/${id}/`).catch(() => null)
+        )
+      );
+
+      const itemsByDonation: Record<string, FoodItemApiRecord[]> = {};
+      for (const donationId of donationIds) {
+        try {
+          const items = await apiFetch<FoodItemApiRecord[]>(
+            `/fooditems/?donation=${donationId}`
+          );
+          itemsByDonation[donationId] = items;
+        } catch {
+          itemsByDonation[donationId] = [];
+        }
+      }
+
+      const donationMap: Record<string, DonationApiRecord> = {};
+      donationDetails.forEach((detail) => {
+        if (detail?.donation_id) {
+          donationMap[detail.donation_id] = detail;
+        }
+      });
+
+      const warehouseMap: Record<string, Warehouse> = {};
+      warehouseData.forEach((w) => {
+        warehouseMap[w.warehouse_id] = w;
+      });
+      const communityMap: Record<string, Community> = {};
+      communityData.forEach((c) => {
+        communityMap[c.community_id] = c;
+      });
+
+      setDeliveries(deliveryData);
+      setDonations(donationMap);
+      setFoodItems(itemsByDonation);
+      setWarehouses(warehouseMap);
+      setCommunities(communityMap);
+
+      const nextInputs: Record<string, { notes: string }> = {};
+      deliveryData.forEach((d) => {
+        nextInputs[d.delivery_id] = { notes: d.notes ?? "" };
+      });
+      setStaffInputs(nextInputs);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load deliveries.");
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (currentUser) {
+      loadData();
+    }
+  }, [currentUser, loadData]);
+
+  const pickupTasks = useMemo(
+    () =>
+      deliveries
+        .filter((d) => d.delivery_type === "donation")
+        .sort((a, b) => new Date(a.pickup_time).getTime() - new Date(b.pickup_time).getTime()),
+    [deliveries]
+  );
+  const distributionTasks = useMemo(
+    () =>
+      deliveries
+        .filter((d) => d.delivery_type === "distribution")
+        .sort((a, b) => new Date(a.pickup_time).getTime() - new Date(b.pickup_time).getTime()),
+    [deliveries]
+  );
+
+  const formatFoodAmount = (donationId?: string | null) => {
+    if (!donationId) return "No items";
+    const items = foodItems[donationId] ?? [];
+    if (!items.length) return "No items";
+    const total = items.reduce(
+      (sum, item) =>
+        sum +
+        (typeof item.quantity === "number" ? item.quantity : parseFloat(String(item.quantity)) || 0),
+      0
+    );
+    const units = items.map((item) => item.unit).filter(Boolean);
+    const uniqueUnits = [...new Set(units)];
+    if (uniqueUnits.length === 1) {
+      return `${total} ${uniqueUnits[0]}`;
+    }
+    return `${items.length} item(s)`;
+  };
+
+  const locationLabel = (delivery: DeliveryRecordApi) => {
+    if (delivery.delivery_type === "donation") {
+      const donation = delivery.donation_id ? donations[delivery.donation_id] : null;
+      const restaurant = donation?.restaurant_name ?? "Restaurant";
+      const branch = donation?.restaurant_branch ? ` (${donation.restaurant_branch})` : "";
+      const warehouse = warehouses[delivery.warehouse_id]?.warehouse_id ?? delivery.warehouse_id;
+      return {
+        from: `${restaurant}${branch}`,
+        to: `Warehouse ${warehouse}`,
+      };
+    }
+    const warehouseName = warehouses[delivery.warehouse_id]?.warehouse_id ?? delivery.warehouse_id;
+    const communityName = communities[delivery.community_id]?.name ?? delivery.community_id;
+    return {
+      from: `Warehouse ${warehouseName}`,
+      to: communityName,
+    };
+  };
+
+  const updateStatus = async (
+    deliveryId: string,
+    nextStatus: DeliveryRecordApi["status"]
+  ) => {
+    setUpdatingStatusId(deliveryId);
+    setError(null);
+    setNotice(null);
+    try {
+      const payload: Record<string, unknown> = { status: nextStatus };
+      const note = staffInputs[deliveryId]?.notes;
+      if (note) {
+        payload.notes = note;
+      }
+      await apiFetch(`${API_PATHS.deliveries}${deliveryId}/`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+        headers: buildAuthHeaders(currentUser),
+      });
+      setDeliveries((prev) =>
+        prev.map((d) => (d.delivery_id === deliveryId ? { ...d, status: nextStatus } : d))
+      );
+      setNotice(`Updated ${deliveryId} to ${nextStatus.replace("_", " ")}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update status.");
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
+  const renderTaskCard = (delivery: DeliveryRecordApi) => {
+    const isPickup = delivery.delivery_type === "donation";
+    const status = statusLabel(delivery.status);
+    const loc = locationLabel(delivery);
+    const donation = delivery.donation_id ? donations[delivery.donation_id] : null;
+    const items = delivery.donation_id ? foodItems[delivery.donation_id] ?? [] : [];
+
+    return (
+      <article
+        key={delivery.delivery_id}
+        className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F1CBB5] text-[#8B4C1F]">
+              {isPickup ? "📥" : "🚚"}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">
+                {isPickup ? "Pickup to warehouse" : "Deliver to community"}
+              </p>
+              <p className="text-xs text-gray-500">{delivery.delivery_id}</p>
+            </div>
+          </div>
+          <span
+            className={`rounded-full px-3 py-1 text-[11px] font-semibold ${status.className}`}
+          >
+            {status.text}
+          </span>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-gray-700">
+          <div className="col-span-2">
+            <p className="text-[11px] uppercase tracking-wide text-gray-500">Route</p>
+            <p className="font-semibold text-gray-900">
+              {loc.from} <span className="text-gray-400">→</span> {loc.to}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-gray-500">Pickup time</p>
+            <p className="font-semibold text-gray-900">{formatDisplayDate(delivery.pickup_time)}</p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-gray-500">Food amount</p>
+            <p className="font-semibold text-gray-900">
+              {formatFoodAmount(delivery.donation_id ?? undefined)}
+            </p>
+          </div>
+          {donation?.restaurant_address && (
+            <div className="col-span-2">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">Pickup address</p>
+              <p className="font-medium text-gray-800">{donation.restaurant_address}</p>
+            </div>
+          )}
+          {isPickup && items.length > 0 && (
+            <div className="col-span-2">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">Items</p>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {items.map((item) => (
+                  <span
+                    key={item.food_id}
+                    className="rounded-full border border-dashed border-gray-200 bg-[#F6FBF7] px-3 py-1 text-[11px] font-semibold text-[#2F855A]"
+                  >
+                    {item.name} · {item.quantity} {item.unit}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {!isPickup && delivery.community_id && (
+            <div className="col-span-2">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">Community</p>
+              <p className="font-medium text-gray-800">
+                {communities[delivery.community_id]?.name ?? delivery.community_id}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 space-y-2">
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-gray-700">
+              Notes (optional)
+            </label>
+            <input
+              type="text"
+              className={INPUT_STYLES}
+              value={staffInputs[delivery.delivery_id]?.notes ?? ""}
+              onChange={(e) =>
+                setStaffInputs((prev) => ({
+                  ...prev,
+                  [delivery.delivery_id]: { notes: e.target.value },
+                }))
+              }
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {delivery.status === "pending" && (
+              <>
+                <button
+                  type="button"
+                  disabled={updatingStatusId === delivery.delivery_id}
+                  onClick={() => updateStatus(delivery.delivery_id, "in_transit")}
+                  className="rounded-lg bg-[#1D4ED8] px-3 py-2 text-xs font-semibold text-white hover:bg-[#153EAE] disabled:opacity-60"
+                >
+                  Start
+                </button>
+                <button
+                  type="button"
+                  disabled={updatingStatusId === delivery.delivery_id}
+                  onClick={() => updateStatus(delivery.delivery_id, "cancelled")}
+                  className="rounded-lg bg-[#FDECEA] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FCD7D2] disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+            {delivery.status === "in_transit" && (
+              <>
+                <button
+                  type="button"
+                  disabled={updatingStatusId === delivery.delivery_id}
+                  onClick={() => updateStatus(delivery.delivery_id, "delivered")}
+                  className="rounded-lg bg-[#2F8A61] px-3 py-2 text-xs font-semibold text-white hover:bg-[#25724F] disabled:opacity-60"
+                >
+                  Delivered
+                </button>
+                <button
+                  type="button"
+                  disabled={updatingStatusId === delivery.delivery_id}
+                  onClick={() => updateStatus(delivery.delivery_id, "cancelled")}
+                  className="rounded-lg bg-[#FDECEA] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FCD7D2] disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+            {delivery.status === "delivered" && (
+              <span className="text-xs font-semibold text-[#2F8A61]">Completed</span>
+            )}
+            {delivery.status === "cancelled" && (
+              <span className="text-xs font-semibold text-[#B42318]">Cancelled</span>
+            )}
+          </div>
+        </div>
+      </article>
+    );
+  };
+
+  return (
+    <div className="flex h-[calc(100vh-4rem)] min-h-0 flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-[#E6B9A2] bg-[#FFF7EF] px-6 py-5 shadow-sm">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-[#C46A24]">
+            Delivery board
+          </p>
+          <h2 className="text-2xl font-semibold text-gray-900">My assigned pickups & deliveries</h2>
+          <p className="text-sm text-gray-600">
+            Update status for everything assigned to you — from restaurant pickups to community drops.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => loadData()}
+            className="rounded-xl border border-[#E6B9A2] bg-white px-4 py-2 text-sm font-semibold text-[#8B4C1F] hover:bg-[#F1CBB5]"
+          >
+            Refresh
+          </button>
+          <span className="text-xs text-gray-500">{new Date().toLocaleDateString()}</span>
+        </div>
+      </div>
+
+      {error && <p className="rounded-xl bg-[#FDECEA] px-4 py-3 text-sm font-semibold text-[#B42318]">{error}</p>}
+      {notice && <p className="rounded-xl bg-[#E6F7EE] px-4 py-3 text-sm font-semibold text-[#1F4D36]">{notice}</p>}
+
+      <div className="grid h-full min-h-0 grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="flex min-h-0 flex-col rounded-3xl border border-[#CFE6D8] bg-[#F6FBF7] p-6 shadow-inner">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#2F855A]">
+                Pickups
+              </p>
+              <h3 className="text-xl font-semibold text-gray-900">
+                Restaurant → Warehouse
+              </h3>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#2F855A] shadow-sm">
+              {pickupTasks.length} tasks
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+            {loading ? (
+              <p className="rounded-2xl border border-dashed border-gray-200 bg-white p-4 text-sm text-gray-600">
+                Loading your pickups...
+              </p>
+            ) : pickupTasks.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-gray-200 bg-white p-4 text-sm text-gray-600">
+                No pickups assigned to you yet.
+              </p>
+            ) : (
+              pickupTasks.map(renderTaskCard)
+            )}
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-col rounded-3xl border border-[#E6B9A2] bg-[#FFF7EF] p-6 shadow-inner">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#C46A24]">
+                Deliveries
+              </p>
+              <h3 className="text-xl font-semibold text-gray-900">
+                Warehouse → Community
+              </h3>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#C46A24] shadow-sm">
+              {distributionTasks.length} tasks
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+            {loading ? (
+              <p className="rounded-2xl border border-dashed border-gray-200 bg-white p-4 text-sm text-gray-600">
+                Loading your deliveries...
+              </p>
+            ) : distributionTasks.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-gray-200 bg-white p-4 text-sm text-gray-600">
+                No community deliveries assigned to you yet.
+              </p>
+            ) : (
+              distributionTasks.map(renderTaskCard)
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
