@@ -3114,7 +3114,9 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
       };
     }
     const warehouseName = warehouses[delivery.warehouse_id]?.warehouse_id ?? delivery.warehouse_id;
-    const communityName = communities[delivery.community_id]?.name ?? delivery.community_id;
+    const communityName = delivery.community_id 
+      ? (communities[delivery.community_id]?.name ?? delivery.community_id)
+      : "Unknown community";
     return {
       from: `Warehouse ${warehouseName}`,
       to: communityName,
