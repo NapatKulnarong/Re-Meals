@@ -797,6 +797,68 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   return response.json() as Promise<T>;
 }
 
+// Animated Number Component
+function AnimatedNumber({ 
+  value, 
+  duration = 2000, 
+  suffix = "",
+  className = "",
+  decimals = 1 
+}: { 
+  value: number; 
+  duration?: number; 
+  suffix?: string;
+  className?: string;
+  decimals?: number;
+}) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    if (value === 0) {
+      setDisplayValue(0);
+      return;
+    }
+
+    let startTime: number | null = null;
+    let animationFrameId: number;
+
+    const animate = (timestamp: number) => {
+      if (startTime === null) {
+        startTime = timestamp;
+      }
+
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function for smooth animation
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+      const currentValue = value * easeOutQuart;
+
+      setDisplayValue(currentValue);
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(animate);
+      } else {
+        setDisplayValue(value);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [value, duration]);
+
+  return (
+    <span className={className}>
+      {displayValue.toLocaleString(undefined, { maximumFractionDigits: decimals })}{suffix}
+    </span>
+  );
+}
+
 // Home Page Component
 function HomePage({
   setShowAuthModal,
@@ -1129,7 +1191,14 @@ function HomePage({
                 {card.label}
               </p>
               <p className={`text-3xl font-bold ${card.classes}`}>
-                {impactLoading ? "…" : card.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}{card.suffix}
+                {impactLoading ? "…" : (
+                  <AnimatedNumber 
+                    value={card.value} 
+                    suffix={card.suffix}
+                    className={card.classes}
+                    decimals={card.label === "Meals saved" ? 0 : 1}
+                  />
+                )}
               </p>
             </div>
           ))}
@@ -1728,14 +1797,14 @@ function DonationSection(props: {
 
     if (!trimmedRestaurantName) {
       setNotification({
-        error: "Restaurant name is required. Please update your profile in Settings.",
+        error: "Restaurant name is required to create a donation. Please fill in the restaurant information above.",
       });
       return;
     }
 
     if (!restaurantAddress) {
       setNotification({
-        error: "Restaurant address is required. Please update your profile in Settings.",
+        error: "Restaurant address is required to create a donation. Please fill in the restaurant information above.",
       });
       return;
     }
@@ -1828,6 +1897,35 @@ function DonationSection(props: {
       const existingRecord = previousId
         ? donations.find((donation) => donation.id === previousId)
         : null;
+
+      // If user doesn't have restaurant info but filled it in the form, save it to their profile
+      const shouldUpdateProfile = !currentUser.restaurantName && !currentUser.restaurantId && 
+        (form.restaurantName.trim() || form.restaurantAddress.trim());
+      
+      if (shouldUpdateProfile && currentUser) {
+        try {
+          await apiFetch<{
+            restaurant_id?: string;
+            restaurant_name?: string;
+            branch?: string;
+            restaurant_address?: string;
+          }>("/users/profile/", {
+            method: "PATCH",
+            headers: buildAuthHeaders(currentUser),
+            body: JSON.stringify({
+              restaurant_id: resolvedRestaurantId || undefined,
+              restaurant_name: resolvedRestaurantName || undefined,
+              branch: resolvedBranch || undefined,
+              restaurant_address: resolvedAddress || undefined,
+            }),
+          });
+          // Update currentUser state if onAuthSuccess callback exists
+          // This will be handled by the parent component refreshing user data
+        } catch (error) {
+          console.error("Failed to update user profile with restaurant info:", error);
+          // Don't block donation creation if profile update fails
+        }
+      }
 
       const nextDonation: DonationRecord = {
         id: donationId,
@@ -2060,7 +2158,7 @@ function DonationSection(props: {
             className="space-y-6 h-full overflow-y-auto pr-1 pb-4 sm:pr-3"
             onSubmit={handleSubmit}
           >
-            {/* Restaurant Information - Auto-populated from user profile */}
+            {/* Restaurant Information - Allow filling if not set */}
             {currentUser && (currentUser.restaurantName || currentUser.restaurantId) ? (
               <div className="space-y-3 rounded-2xl border border-[#D7DCC7] bg-[#F4F7EF] p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#5E7A4A]">
@@ -2099,13 +2197,53 @@ function DonationSection(props: {
                 </p>
               </div>
             ) : (
-              <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4">
-                <p className="text-sm font-semibold text-yellow-800">
-                  ⚠️ Restaurant information required
+              <div className="space-y-3 rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#B25C23]">
+                  Restaurant Information
                 </p>
-                <p className="mt-1 text-xs text-yellow-700">
-                  Please set your restaurant information in Settings before creating donations.
+                <p className="text-xs text-gray-600 mb-3">
+                  To donate food, please provide your restaurant information. This will be saved to your profile for future donations.
                 </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">
+                      Restaurant Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={form.restaurantName}
+                      onChange={(e) => setForm((prev) => ({ ...prev, restaurantName: e.target.value }))}
+                      required
+                      placeholder="e.g. KFC, McDonald's"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-[#d48a68] focus:ring-2 focus:ring-[#d48a68]/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">
+                      Branch (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={form.branch}
+                      onChange={(e) => setForm((prev) => ({ ...prev, branch: e.target.value }))}
+                      placeholder="e.g. Central World, Siam Paragon"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-[#d48a68] focus:ring-2 focus:ring-[#d48a68]/20"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-gray-700">
+                    Restaurant Address *
+                  </label>
+                  <input
+                    type="text"
+                    value={form.restaurantAddress}
+                    onChange={(e) => setForm((prev) => ({ ...prev, restaurantAddress: e.target.value }))}
+                    required
+                    placeholder="e.g. 123 Main Street, Bangkok"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-[#d48a68] focus:ring-2 focus:ring-[#d48a68]/20"
+                  />
+                </div>
               </div>
             )}
 
@@ -6372,18 +6510,18 @@ function AuthModal({
   return (
     // overlay over the entire viewport
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-lg border-4 border-[#d48a68]/20">
+      <div className="w-full max-w-3xl rounded-2xl bg-white p-5 shadow-lg border-4 border-[#d48a68]/20 max-h-[90vh] overflow-y-auto">
         {/* Header row: title + close button */}
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between">
           <h2 className={[
-            "text-xl font-bold",
+            "text-lg font-bold",
             isSignup ? "text-[#d48a68]" : "text-[#708A58]"
           ].join(" ")}>
             {isSignup ? "Create your account" : "Welcome back"}
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-800"
+            className="text-gray-500 hover:text-gray-800 text-xl leading-none"
             aria-label="Close authentication dialog"
           >
             ✕
@@ -6391,7 +6529,7 @@ function AuthModal({
         </div>
 
         {/* Tabs: Sign up | Login */}
-        <div className="mb-6 flex gap-2 rounded-full bg-gray-100 p-1 text-sm font-bold">
+        <div className="mb-4 flex gap-2 rounded-full bg-gray-100 p-1 text-sm font-bold">
           <button
             onClick={() => onModeChange("signup")}
             className={[
@@ -6420,16 +6558,11 @@ function AuthModal({
         {isSignup ? (
           // SIGN UP FORM
           <form className="space-y-4" onSubmit={handleSignupSubmit}>
-            <div className="space-y-3 rounded-2xl border-2 border-[#d48a68] bg-[#fdf8f4] p-4 text-gray-700">
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-semibold text-gray-900">Username settings</p>
-                <span className="text-xs text-gray-500">
-                  Choose a unique handle people can use to mention you.
-                </span>
-              </div>
+            {/* Row 1: Username, Name, Last Name */}
+            <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Preferred username
+                <label className="mb-1 block text-xs font-medium text-gray-700">
+                  Username
                 </label>
                 <input
                   type="text"
@@ -6438,16 +6571,12 @@ function AuthModal({
                     setSignupData((prev) => ({ ...prev, username: e.target.value }))
                   }
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                  placeholder="Choose a username"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
                 />
               </div>
-              <p className="text-xs text-gray-500">
-                You can edit this later from your profile settings.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1 block text-xs font-medium text-gray-700">
                   Name
                 </label>
                 <input
@@ -6457,13 +6586,12 @@ function AuthModal({
                     setSignupData((prev) => ({ ...prev, fname: e.target.value }))
                   }
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
                 />
               </div>
-
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Surname
+                <label className="mb-1 block text-xs font-medium text-gray-700">
+                  Last Name
                 </label>
                 <input
                   type="text"
@@ -6472,30 +6600,30 @@ function AuthModal({
                     setSignupData((prev) => ({ ...prev, lname: e.target.value }))
                   }
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                BOD
-              </label>
-              <input
-                type="date"
-                value={signupData.bod}
-                onChange={(e) =>
-                  setSignupData((prev) => ({ ...prev, bod: e.target.value }))
-                }
-                required
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* Row 2: DOB, Phone */}
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Phone number
+                <label className="mb-1 block text-xs font-medium text-gray-700">
+                  Date of Birth
+                </label>
+                <input
+                  type="date"
+                  value={signupData.bod}
+                  onChange={(e) =>
+                    setSignupData((prev) => ({ ...prev, bod: e.target.value }))
+                  }
+                  required
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700">
+                  Phone
                 </label>
                 <input
                   type="tel"
@@ -6504,12 +6632,15 @@ function AuthModal({
                     setSignupData((prev) => ({ ...prev, phone: e.target.value }))
                   }
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
                 />
               </div>
+            </div>
 
+            {/* Row 3: Email, Password */}
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1 block text-xs font-medium text-gray-700">
                   Email
                 </label>
                 <input
@@ -6519,44 +6650,48 @@ function AuthModal({
                     setSignupData((prev) => ({ ...prev, email: e.target.value }))
                   }
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={signupData.password}
+                  onChange={(e) =>
+                    setSignupData((prev) => ({ ...prev, password: e.target.value }))
+                  }
+                  required
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                type="password"
-                value={signupData.password}
-                onChange={(e) =>
-                  setSignupData((prev) => ({ ...prev, password: e.target.value }))
-                }
-                required
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
-              />
-            </div>
-
-            {/* Restaurant Selection Section */}
-            <div className="space-y-3 rounded-2xl border-2 border-[#d48a68] bg-[#fdf8f4] p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-gray-900">Restaurant Information</p>
-                <div className="flex gap-2">
+            {/* Restaurant Selection Section - Optional */}
+            <div className="rounded-xl border-2 border-[#d48a68] bg-[#fdf8f4] p-3">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-gray-900 mb-0.5">Restaurant Info (Optional)</p>
+                  <p className="text-[10px] text-gray-600">
+                    Only for restaurants donating food. Skip if receiving only.
+                  </p>
+                </div>
+                <div className="flex gap-1.5">
                   <button
                     type="button"
                     onClick={() => {
                       setRestaurantSelectionMode("existing");
                       setSignupData((prev) => ({ ...prev, restaurant_id: "", restaurant_name: "", branch: "", restaurant_address: "" }));
                     }}
-                    className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                    className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition ${
                       restaurantSelectionMode === "existing"
                         ? "bg-[#d48a68] text-white"
                         : "bg-white text-[#d48a68] border border-[#d48a68]"
                     }`}
                   >
-                    Select Existing
+                    Existing
                   </button>
                   <button
                     type="button"
@@ -6564,20 +6699,20 @@ function AuthModal({
                       setRestaurantSelectionMode("manual");
                       setSignupData((prev) => ({ ...prev, restaurant_id: "" }));
                     }}
-                    className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                    className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition ${
                       restaurantSelectionMode === "manual"
                         ? "bg-[#d48a68] text-white"
                         : "bg-white text-[#d48a68] border border-[#d48a68]"
                     }`}
                   >
-                    Add New
+                    New
                   </button>
                 </div>
               </div>
 
               {restaurantSelectionMode === "existing" ? (
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                  <label className="mb-1 block text-xs font-medium text-gray-700">
                     Select Restaurant
                   </label>
                   <select
@@ -6593,10 +6728,9 @@ function AuthModal({
                         restaurant_address: selected?.address || "",
                       }));
                     }}
-                    required
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
                   >
-                    <option value="">Choose a restaurant...</option>
+                    <option value="">Choose restaurant (optional)...</option>
                     {restaurants.map((restaurant) => (
                       <option key={restaurant.restaurant_id} value={restaurant.restaurant_id}>
                         {restaurant.name} {restaurant.branch_name ? `(${restaurant.branch_name})` : ""}
@@ -6604,80 +6738,84 @@ function AuthModal({
                     ))}
                   </select>
                   {signupData.restaurant_id && (
-                    <div className="mt-2 space-y-1 text-xs text-gray-600">
+                    <div className="mt-1.5 space-y-0.5 text-[10px] text-gray-600">
                       {signupData.branch && <p>Branch: {signupData.branch}</p>}
                       {signupData.restaurant_address && <p>Address: {signupData.restaurant_address}</p>}
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">
-                      Restaurant Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={signupData.restaurant_name || ""}
-                      onChange={(e) =>
-                        setSignupData((prev) => ({ ...prev, restaurant_name: e.target.value }))
-                      }
-                      required
-                      placeholder="e.g. KFC, McDonald's"
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
-                    />
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-700">
+                        Restaurant Name
+                      </label>
+                      <input
+                        type="text"
+                        value={signupData.restaurant_name || ""}
+                        onChange={(e) =>
+                          setSignupData((prev) => ({ ...prev, restaurant_name: e.target.value }))
+                        }
+                        placeholder="e.g. KFC"
+                        className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm text-gray-700 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-700">
+                        Branch
+                      </label>
+                      <input
+                        type="text"
+                        value={signupData.branch || ""}
+                        onChange={(e) =>
+                          setSignupData((prev) => ({ ...prev, branch: e.target.value }))
+                        }
+                        placeholder="e.g. Central World"
+                        className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm text-gray-700 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                      />
+                    </div>
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">
-                      Branch (optional)
+                    <label className="mb-1 block text-xs font-medium text-gray-700">
+                      Address *
                     </label>
-                    <input
-                      type="text"
-                      value={signupData.branch || ""}
-                      onChange={(e) =>
-                        setSignupData((prev) => ({ ...prev, branch: e.target.value }))
-                      }
-                      placeholder="e.g. Central World, Siam Paragon"
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">
-                      Restaurant Address *
-                    </label>
-                    <input
-                      type="text"
+                    <textarea
                       value={signupData.restaurant_address || ""}
                       onChange={(e) =>
                         setSignupData((prev) => ({ ...prev, restaurant_address: e.target.value }))
                       }
                       required
-                      placeholder="Full address of the restaurant"
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-500 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1]"
+                      placeholder="Full address"
+                      rows={3}
+                      className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm text-gray-700 outline-none focus:border-[#d48a68] focus:ring-1 focus:ring-[#d48a68] focus:bg-[#fef5f1] resize-y"
                     />
                   </div>
                 </div>
               )}
             </div>
 
-            {signupStatus.error && (
-              <p className="text-xs text-red-500">{signupStatus.error}</p>
-            )}
-            {signupStatus.message && (
-              <p className="text-xs text-emerald-600">{signupStatus.message}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={signupStatus.loading}
-              className="mt-2 w-full rounded-lg bg-[#d48a68] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#c47958] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {signupStatus.loading ? "Creating account..." : "Create account"}
-            </button>
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="flex-1">
+                {signupStatus.error && (
+                  <p className="text-xs text-red-500">{signupStatus.error}</p>
+                )}
+                {signupStatus.message && (
+                  <p className="text-xs text-emerald-600">{signupStatus.message}</p>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={signupStatus.loading}
+                className="rounded-lg bg-[#d48a68] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[#c47958] disabled:cursor-not-allowed disabled:opacity-60 whitespace-nowrap"
+              >
+                {signupStatus.loading ? "Creating..." : "Create account"}
+              </button>
+            </div>
           </form>
         ) : (
           // LOGIN FORM
-          <form className="space-y-4" onSubmit={handleLoginSubmit}>
+          <form className="space-y-3" onSubmit={handleLoginSubmit}>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 Username / Email
@@ -6708,20 +6846,23 @@ function AuthModal({
               />
             </div>
 
-            {loginStatus.error && (
-              <p className="text-xs text-red-500">{loginStatus.error}</p>
-            )}
-            {loginStatus.message && (
-              <p className="text-xs text-emerald-600">{loginStatus.message}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loginStatus.loading}
-              className="mt-2 w-full rounded-lg bg-[#708A58] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5a6e47] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loginStatus.loading ? "Logging in..." : "Login"}
-            </button>
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="flex-1">
+                {loginStatus.error && (
+                  <p className="text-xs text-red-500">{loginStatus.error}</p>
+                )}
+                {loginStatus.message && (
+                  <p className="text-xs text-emerald-600">{loginStatus.message}</p>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={loginStatus.loading}
+                className="rounded-lg bg-[#708A58] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[#5a6e47] disabled:cursor-not-allowed disabled:opacity-60 whitespace-nowrap"
+              >
+                {loginStatus.loading ? "Logging in..." : "Login"}
+              </button>
+            </div>
           </form>
         )}
       </div>

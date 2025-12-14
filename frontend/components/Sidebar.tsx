@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { ReactNode } from "react";
-import { Squares2X2Icon, TruckIcon, CubeIcon, Cog6ToothIcon } from "@heroicons/react/24/solid";
+import { Squares2X2Icon, TruckIcon, CubeIcon, Cog6ToothIcon, ArrowRightStartOnRectangleIcon } from "@heroicons/react/24/solid";
 import { InboxStackIcon } from "@heroicons/react/24/solid";
 
 // This marks the component as a Client Component (required because we use state + event handlers)
@@ -86,6 +86,7 @@ export default function Sidebar({
   onTabChange,
   onAuthClick,
   onSettingsClick,
+  onLogout,
   currentUser,
   tabs,
   isAdmin = false,
@@ -302,17 +303,33 @@ export default function Sidebar({
       {/* Bottom section: Sign up / Login button */}
       <div className="mt-6 border-t border-gray-300 pt-4">
         {currentUser ? (
-          <div className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#B86A49] bg-[#F2D6C3] pl-4 pr-3 py-3 text-sm font-semibold text-[#4B2415] transition hover:border-[#9F583C] hover:text-[#3A1A0F]">
-            <span className="flex-1 text-left">
-              {currentUser.username}
-            </span>
+          <div className="flex w-full items-center gap-3">
+            {/* Orange box with username and logout button */}
+            <div className="flex flex-1 items-center justify-between gap-2 rounded-full border border-[#B86A49] bg-white pl-5 pr-3 py-2 text-base font-semibold text-[#4B2415] transition hover:border-[#9F583C] hover:text-[#3A1A0F]">
+              <span className="flex-1 text-left">
+                {currentUser.username}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onLogout?.();
+                }}
+                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#B86A49] transition hover:bg-gray-100"
+                type="button"
+                aria-label="Logout"
+              >
+                <ArrowRightStartOnRectangleIcon className="h-6 w-6" />
+              </button>
+            </div>
+            {/* Settings button - outside the orange box, on the right */}
             <button
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 onSettingsClick?.();
               }}
-              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#B86A49] transition hover:bg-gray-100"
+              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#B86A49] transition hover:bg-gray-100 shadow-sm"
               type="button"
               aria-label="Settings"
             >
