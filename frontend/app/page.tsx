@@ -1011,7 +1011,7 @@ function HomePage({
       }
     });
 
-    const restaurantImpact = new Map<string, { meals: number; weight: number; co2: number; name: string }>();
+    const restaurantImpact = new Map<string, { restaurantId: string; meals: number; weight: number; co2: number; name: string }>();
 
     impactRecords.forEach(impact => {
       const normalizedFoodId = normalizeFoodId(impact.food);
@@ -1035,7 +1035,12 @@ function HomePage({
         (restaurant.branch_name ? `${restaurant.name || ''} - ${restaurant.branch_name}`.trim() : '') ||
         restaurant.restaurant_id;
 
-      const current = restaurantImpact.get(restaurantId) || {
+      // Use a unique key that includes both restaurant ID and name to handle branches separately
+      // This ensures branches of the same chain are shown separately if they have different names
+      const uniqueKey = `${restaurantId}-${restaurantName}`;
+
+      const current = restaurantImpact.get(uniqueKey) || {
+        restaurantId: restaurantId,
         meals: 0,
         weight: 0,
         co2: 0,
@@ -1046,26 +1051,39 @@ function HomePage({
       current.weight += impact.weight_saved_kg || 0;
       current.co2 += impact.co2_reduced_kg || 0;
 
-      restaurantImpact.set(restaurantId, current);
+      restaurantImpact.set(uniqueKey, current);
     });
 
-    return Array.from(restaurantImpact.entries())
-      .map(([id, data]) => ({ restaurantId: id, ...data }))
+    return Array.from(restaurantImpact.values())
       .sort((a, b) => b.meals - a.meals)
       .slice(0, 5); // Top 5 only
   }, [impactRecords, restaurants, donations, foodItems]);
 
   return (
-    <div className="mx-auto w-full max-w-8xl space-y-8">
+    <div className="mx-auto w-full max-w-8xl space-y-8 mb-1">
       <div className="relative overflow-hidden rounded-[40px] bg-[#e8ede3] p-8 shadow-[0_40px_120px_-45px rgba(59,31,16,0.6)] sm:p-10">
         <div aria-hidden className="pointer-events-none absolute -right-8 top-6 hidden h-64 w-64 rounded-[40px] bg-[#DEF7EA]/60 blur-3xl lg:block" />
         <div aria-hidden className="pointer-events-none absolute bottom-8 left-4 h-24 w-24 rounded-full bg-[#F1FBF5]/70 blur-2xl" />
+        
         <div className="relative space-y-6 text-[#2C1A10]">
-          <h1 className="text-[2.65rem] leading-tight text-[#3a3a3a] sm:text-[3.25rem] sm:leading-[1.1]">
-            Redirect surplus meals.
-            <br />
-            <span className="text-[#d48a68]">Rebuild communities.</span>
-          </h1>
+          <div className="relative flex items-center gap-5">
+            {/* Spinning Logo in front of the text */}
+            <div className="flex-shrink-0">
+              <img
+                src="/elements/logo_re-meals_2.png"
+                alt="Re-Meals Logo"
+                className="h-20 w-20 sm:h-24 sm:w-24 object-contain opacity-90"
+                style={{
+                  animation: 'spin 5s linear infinite',
+                }}
+              />
+            </div>
+            <h1 className="text-[2.65rem] leading-tight text-[#3a3a3a] sm:text-[3.25rem] sm:leading-[1.1]">
+              Redirect surplus meals.
+              <br />
+              <span className="text-[#708A58]">Rebuild communities.</span>
+            </h1>
+          </div>
           <p className="max-w-3xl text-lg text-[#5a4f45]">
           Re-Meals brings together restaurants, drivers, and community hearts to ensure no good meal goes to waste—and no neighbor goes without. Share what you have, ask for what you need, and help nourish the people around you."
           </p>
@@ -3918,15 +3936,15 @@ function StatusSection({
       </div>
 
       {/* Filter Bar */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="rounded-3xl border border-[#C7D2C0] bg-white p-5 shadow-inner shadow-[#C7D2C0]/40">
+        <div className="flex flex-wrap items-center gap-4">
           {/* Donation Status Filter */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-gray-600">Status:</label>
+          <div className="flex items-center gap-2.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-[#4E673E]">Status:</label>
             <select
               value={donationStatusFilter}
               onChange={(e) => setDonationStatusFilter(e.target.value)}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-[#708A58] focus:outline-none focus:ring-2 focus:ring-[#708A58]/20"
+              className="rounded-lg border border-[#A8B99A] bg-white px-3 py-1.5 text-xs font-semibold text-[#365032] focus:outline-none focus:ring-2 focus:ring-[#708A58]/20"
             >
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
@@ -3937,12 +3955,12 @@ function StatusSection({
           </div>
 
           {/* Community Filter */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-gray-600">Community:</label>
+          <div className="flex items-center gap-2.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-[#4E673E]">Community:</label>
             <select
               value={requestCommunityFilter}
               onChange={(e) => setRequestCommunityFilter(e.target.value)}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-[#708A58] focus:outline-none focus:ring-2 focus:ring-[#708A58]/20"
+              className="rounded-lg border border-[#A8B99A] bg-white px-3 py-1.5 text-xs font-semibold text-[#365032] focus:outline-none focus:ring-2 focus:ring-[#708A58]/20"
             >
               <option value="all">All Communities</option>
               {uniqueCommunities.map((community) => (
@@ -3954,12 +3972,12 @@ function StatusSection({
           </div>
 
           {/* Date Filter */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-gray-600">Date:</label>
+          <div className="flex items-center gap-2.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-[#4E673E]">Date:</label>
             <select
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-[#708A58] focus:outline-none focus:ring-2 focus:ring-[#708A58]/20"
+              className="rounded-lg border border-[#A8B99A] bg-white px-3 py-1.5 text-xs font-semibold text-[#365032] focus:outline-none focus:ring-2 focus:ring-[#708A58]/20"
             >
               <option value="all">All Time</option>
               <option value="today">Today</option>
@@ -3972,7 +3990,7 @@ function StatusSection({
           {hasActiveFilters && (
             <button
               onClick={clearFilters}
-              className="ml-auto rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50"
+              className="ml-auto rounded-lg border border-[#A8B99A] bg-white px-3 py-1.5 text-xs font-semibold text-[#365032] transition hover:bg-[#E9F1E3] hover:border-[#708A58]"
             >
               Clear filters
             </button>
