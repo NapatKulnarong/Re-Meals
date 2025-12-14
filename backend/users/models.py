@@ -12,6 +12,8 @@ class User(models.Model):
     phone = models.CharField(max_length=10)
     email = models.CharField(max_length=100, unique=True)
     password = models.CharField(max_length=128)
+    is_donor = models.BooleanField(default=False)
+    is_recipient = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.fname} {self.lname}"
@@ -40,6 +42,15 @@ class Donor(models.Model):
 
     def __str__(self):
         return f"Donor {self.user.user_id}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        updated_fields = []
+        if not self.user.is_donor:
+            self.user.is_donor = True
+            updated_fields.append("is_donor")
+        if updated_fields:
+            self.user.save(update_fields=updated_fields)
 
 
 class DeliveryStaff(models.Model):
@@ -70,3 +81,12 @@ class Recipient(models.Model):
 
     def __str__(self):
         return f"Recipient {self.user.user_id}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        updated_fields = []
+        if not self.user.is_recipient:
+            self.user.is_recipient = True
+            updated_fields.append("is_recipient")
+        if updated_fields:
+            self.user.save(update_fields=updated_fields)
