@@ -65,6 +65,14 @@ const renderSidebarIcon = (id: number, className?: string) => {
     // Deliver icon - CubeIcon from Heroicons
     return <CubeIcon className={className} />;
   }
+  if (id === 7) {
+    // Status icon - ChartBarIcon from Heroicons
+    return (
+      <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
+      </svg>
+    );
+  }
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
       <circle cx="12" cy="12" r="4" />
@@ -137,7 +145,7 @@ export default function Sidebar({
           <button
             onClick={() => onTabChange(homeTab.id)}
             className={[
-              "flex items-center justify-between rounded-2xl border px-4 py-5 text-left text-base font-semibold shadow-sm transition duration-200",
+              "flex items-center justify-between rounded-2xl border px-4 py-4 text-left text-base font-semibold shadow-sm transition duration-200",
               activeTab === homeTab.id
                 ? "border-[#B86A49] bg-[#F1CBB5] text-[#4B2415] shadow-md"
                 : "border-[#E6B9A2] bg-white text-[#70402B] hover:border-[#B86A49] hover:shadow",

@@ -198,8 +198,8 @@ type DeliveryRecordApi = {
   dropoff_location_type: "warehouse" | "community";
   warehouse_id: string;
   user_id: string;
-  donation_id: string;
-  community_id: string;
+  donation_id?: string | null;
+  community_id?: string | null;
   status: "pending" | "in_transit" | "delivered" | "cancelled";
   notes?: string;
 };
@@ -723,6 +723,9 @@ function TabContent({
     }
     return <AccessDenied message="Admin access required." />;
   }
+  if (tab === 7) {
+    return <StatusSection currentUser={currentUser} />;
+  }
 
   return (
     <div className="rounded-xl bg-[#FBFBFE] p-10 shadow text-center">
@@ -751,6 +754,8 @@ function DonationSection({
   const [donationsError, setDonationsError] = useState<string | null>(null);
   const [isSuggestionOpen, setIsSuggestionOpen] = useState(false);
   const suggestionBoxRef = useRef<HTMLDivElement | null>(null);
+  const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
+  const [deletingDonationId, setDeletingDonationId] = useState<string | null>(null);
 
   const prioritizeDonations = useCallback(
     (list: DonationRecord[]) => {
@@ -814,50 +819,52 @@ function DonationSection({
     };
   }, []);
 
+  const loadDonationsData = useCallback(async () => {
+    try {
+      const donationData = await apiFetch<DonationApiRecord[]>("/donations/");
+      const donationsWithItems = await Promise.all(
+        donationData.map(async (donation) => {
+          const items = await apiFetch<FoodItemApiRecord[]>(
+            `/fooditems/?donation=${donation.donation_id}`
+          );
+          return { donation, items };
+        })
+      );
+      setDonations(
+        prioritizeDonations(
+          donationsWithItems.map(({ donation, items }) => ({
+            id: donation.donation_id,
+            restaurantId: donation.restaurant,
+            restaurantName: donation.restaurant_name ?? "",
+            restaurantAddress: donation.restaurant_address ?? "",
+            branch: donation.restaurant_branch ?? "",
+            note: "",
+            items: items.map((item) => ({
+              id: item.food_id,
+              name: item.name,
+              quantity: item.quantity.toString(),
+              unit: item.unit,
+              expiredDate: item.expire_date,
+            })),
+            createdAt: donation.donated_at,
+            ownerUserId: donation.created_by_user_id ?? null,
+          }))
+        )
+      );
+    } catch (error) {
+      setDonationsError(
+        error instanceof Error ? error.message : "Unable to load donations"
+      );
+    }
+  }, [prioritizeDonations]);
+
   useEffect(() => {
     let ignore = false;
     async function loadDonations() {
       setDonationsLoading(true);
       setDonationsError(null);
       try {
-        const donationData = await apiFetch<DonationApiRecord[]>("/donations/");
-        const donationsWithItems = await Promise.all(
-          donationData.map(async (donation) => {
-            const items = await apiFetch<FoodItemApiRecord[]>(
-              `/fooditems/?donation=${donation.donation_id}`
-            );
-            return { donation, items };
-          })
-        );
-        if (!ignore) {
-          setDonations(
-            prioritizeDonations(
-              donationsWithItems.map(({ donation, items }) => ({
-                id: donation.donation_id,
-                restaurantId: donation.restaurant,
-                restaurantName: donation.restaurant_name ?? "",
-                restaurantAddress: donation.restaurant_address ?? "",
-                branch: donation.restaurant_branch ?? "",
-                note: "",
-                items: items.map((item) => ({
-                  id: item.food_id,
-                  name: item.name,
-                  quantity: item.quantity.toString(),
-                  unit: item.unit,
-                  expiredDate: item.expire_date,
-                })),
-                createdAt: donation.donated_at,
-                ownerUserId: donation.created_by_user_id ?? null,
-              }))
-            )
-          );
-        }
-      } catch (error) {
-        if (!ignore) {
-          setDonationsError(
-            error instanceof Error ? error.message : "Unable to load donations"
-          );
-        }
+        await loadDonationsData();
       } finally {
         if (!ignore) {
           setDonationsLoading(false);
@@ -869,7 +876,30 @@ function DonationSection({
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [loadDonationsData]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadDeliveries() {
+      try {
+        const deliveryData = await apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
+          headers: buildAuthHeaders(currentUser),
+        });
+        if (!ignore) {
+          setDeliveries(deliveryData);
+        }
+      } catch (error) {
+        // Silently fail - deliveries are optional for this check
+      }
+    }
+
+    if (currentUser) {
+      loadDeliveries();
+    }
+    return () => {
+      ignore = true;
+    };
+  }, [currentUser]);
 
   const selectedRestaurant = restaurants.find(
     (restaurant) => restaurant.restaurant_id === form.restaurantId
@@ -1219,21 +1249,77 @@ function DonationSection({
     }
   };
 
+  // Check if a donation has been assigned to a pickup delivery
+  const isDonationAssigned = (donationId: string) => {
+    return deliveries.some(
+      (delivery) =>
+        delivery.delivery_type === "donation" && 
+        delivery.donation_id && 
+        delivery.donation_id === donationId
+    );
+  };
+
   const canManageDonation = (donation: DonationRecord) => {
+    // Admin can always manage
     if (currentUser?.isAdmin) {
       return true;
     }
+    // Must be logged in
     if (!currentUser) {
       return false;
     }
-    return Boolean(donation.ownerUserId && donation.ownerUserId === currentUser.userId);
+    // Cannot manage if already assigned to a pickup task
+    if (isDonationAssigned(donation.id)) {
+      return false;
+    }
+    // If ownerUserId is not set, allow management for logged-in users (for legacy donations)
+    if (!donation.ownerUserId) {
+      return true;
+    }
+    // Must own the donation
+    if (donation.ownerUserId !== currentUser.userId) {
+      return false;
+    }
+    return true;
   };
+
+  const canShowEditDeleteButtons = (donation: DonationRecord) => {
+    // Show buttons if user is logged in
+    // The buttons will be disabled if canManageDonation returns false
+    return Boolean(currentUser);
+  };
+
+  // Filter donations: exclude assigned ones from the log (they'll show in Status section)
+  // Also filter to only show current user's donations (unless admin)
+  const unassignedDonations = donations.filter((donation) => {
+    // Exclude if already assigned
+    if (isDonationAssigned(donation.id)) {
+      return false;
+    }
+    // Admin can see all donations
+    if (currentUser?.isAdmin) {
+      return true;
+    }
+    // For non-admin users, only show their own donations
+    // If ownerUserId is not set (legacy donations), show them for logged-in users
+    if (!donation.ownerUserId) {
+      return Boolean(currentUser);
+    }
+    // Must be the owner
+    return donation.ownerUserId === currentUser?.userId;
+  });
 
   const handleEdit = (donation: DonationRecord) => {
     if (!canManageDonation(donation)) {
-      setNotification({
-        error: "You can only edit donations that you created.",
-      });
+      if (isDonationAssigned(donation.id)) {
+        setNotification({
+          error: "This donation cannot be edited because it has already been assigned to a pickup task by the admin.",
+        });
+      } else {
+        setNotification({
+          error: "You can only edit donations that you created.",
+        });
+      }
       return;
     }
     setForm({
@@ -1252,31 +1338,64 @@ function DonationSection({
   };
 
   const handleDelete = async (donationId: string) => {
+    if (!currentUser) {
+      setNotification({
+        error: "Please log in to delete donations.",
+      });
+      return;
+    }
+    
     const target = donations.find((donation) => donation.id === donationId);
-    if (!target || !canManageDonation(target)) {
+    if (!target) {
+      setNotification({
+        error: "Donation not found.",
+      });
+      return;
+    }
+    
+    // Check if assigned - this is the main blocker
+    if (isDonationAssigned(donationId)) {
+      setNotification({
+        error: "This donation cannot be deleted because it has already been assigned to a pickup task by the admin.",
+      });
+      return;
+    }
+    
+    // Check ownership only if ownerUserId is set
+    if (target.ownerUserId && target.ownerUserId !== currentUser.userId && !currentUser.isAdmin) {
       setNotification({
         error: "You can only delete donations that you created.",
       });
       return;
     }
+    
+    if (!confirm("Are you sure you want to delete this donation? This action cannot be undone.")) {
+      return;
+    }
+    
+    setDeletingDonationId(donationId);
     try {
       await apiFetch(`/donations/${donationId}/`, {
         method: "DELETE",
         headers: buildAuthHeaders(currentUser),
       });
-      updateDonations((prev) => prev.filter((donation) => donation.id !== donationId));
+      
+      // Reload donations from server to ensure UI is in sync
+      await loadDonationsData();
+      
       if (editingId === donationId) {
         resetForm();
-      } else {
-        setNotification({ message: "Donation removed from the list." });
       }
+      
+      setNotification({ message: "Donation removed from the list." });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unable to delete donation. Please try again.";
       setNotification({
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to delete donation. Please try again.",
+        error: errorMessage,
       });
+      console.error("Delete error:", error);
+    } finally {
+      setDeletingDonationId(null);
     }
   };
 
@@ -1518,18 +1637,20 @@ function DonationSection({
               />
             </div>
 
-            {notification.error && (
-              <p className="text-sm font-semibold text-[#C2410C]">
-                {notification.error}
-              </p>
-            )}
-            {notification.message && (
-              <p className="text-sm font-semibold text-[#2F8A61]">
-                {notification.message}
-              </p>
-            )}
-
-            <div className="flex flex-wrap items-center justify-end gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                {notification.error && (
+                  <p className="text-sm font-semibold text-[#C2410C]">
+                    {notification.error}
+                  </p>
+                )}
+                {notification.message && (
+                  <p className="text-sm font-semibold text-[#2F8A61]">
+                    {notification.message}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
             <button
               type="submit"
               disabled={isSubmitting || !currentUser}
@@ -1550,6 +1671,7 @@ function DonationSection({
                   Cancel edit
                 </button>
               )}
+              </div>
             </div>
           </form>
         </div>
@@ -1564,9 +1686,17 @@ function DonationSection({
             <h3 className="text-2xl font-semibold text-gray-800">Donation log</h3>
           </div>
           <span className="text-xs font-semibold text-gray-500">
-            {donations.length} total
+            {unassignedDonations.length} total
           </span>
         </div>
+
+        {currentUser && !currentUser.isAdmin && (
+          <div className="mb-4 flex-shrink-0 rounded-xl border border-[#D7DCC7] bg-[#F4F7EF] p-3">
+            <p className="text-xs text-gray-700 leading-relaxed">
+              <span className="font-semibold">Note:</span> You can edit or delete your donations only if they haven't been assigned to a pickup task yet. Once the admin assigns your donation to a delivery staff, it can no longer be modified.
+            </p>
+          </div>
+        )}
 
         {donationsError && (
           <p className="text-sm font-semibold text-red-500 mb-4 flex-shrink-0">{donationsError}</p>
@@ -1577,19 +1707,19 @@ function DonationSection({
             <p className="rounded-2xl border border-dashed border-gray-300 bg-white/70 p-6 text-sm text-gray-500">
               Loading donations...
             </p>
-          ) : donations.length === 0 ? (
+          ) : unassignedDonations.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-gray-300 bg-white/70 p-6 text-sm text-gray-500">
               Once you save a donation, it shows up here for editing or delivery planning.
             </p>
           ) : (
             <div className="space-y-4">
-            {donations.map((donation) => (
+            {unassignedDonations.map((donation) => (
               <article
                 key={donation.id}
                 className="rounded-2xl border border-dashed border-[#4d673f] bg-white/90 p-5 "
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
+                <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                  <div className="flex-1">
                     <p className="text-xs uppercase tracking-wide text-gray-400">
                       {donation.restaurantId ?? "Manual entry"}
                     </p>
@@ -1600,9 +1730,78 @@ function DonationSection({
                       <p className="text-sm text-gray-500">{donation.branch}</p>
                     )}
                   </div>
-                  <div className="text-right text-xs text-gray-500">
-                    <p>{formatDisplayDate(donation.createdAt)}</p>
-                    <p>{donation.items.length} item(s)</p>
+                  <div className="flex flex-col items-end gap-2">
+                    {canShowEditDeleteButtons(donation) && (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={!canManageDonation(donation)}
+                          className="rounded-lg bg-[#E6F4FF] p-2 text-[#1D4ED8] hover:bg-[#D0E7FF] disabled:opacity-60 disabled:cursor-not-allowed transition"
+                          title="Edit donation"
+                          onClick={() => handleEdit(donation)}
+                        >
+                          <svg
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!canManageDonation(donation) || deletingDonationId === donation.id}
+                          className="rounded-lg bg-[#FDECEA] p-2 text-[#B42318] hover:bg-[#FCD7D2] disabled:opacity-60 disabled:cursor-not-allowed transition"
+                          title="Delete donation"
+                          onClick={() => handleDelete(donation.id)}
+                        >
+                          {deletingDonationId === donation.id ? (
+                            <svg
+                              className="h-4 w-4 animate-spin"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              />
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              />
+                            </svg>
+                          ) : (
+                            <svg
+                              className="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                    <div className="text-right text-xs text-gray-500">
+                      <p>{formatDisplayDate(donation.createdAt)} • {donation.items.length} item(s)</p>
+                    </div>
                   </div>
                 </div>
 
@@ -1634,25 +1833,6 @@ function DonationSection({
                     {donation.note}
                   </p>
                 )}
-
-                {canManageDonation(donation) && (
-                  <div className="mt-5 flex gap-3 justify-end">
-                    <button
-                      type="button"
-                      className="rounded-full border-2 border-[#C7D2C0] bg-white px-5 py-2 text-sm font-semibold text-[#4B5F39] shadow-sm transition-all duration-200 hover:border-[#5E7A4A] hover:bg-[#EEF2EA] hover:shadow-md active:scale-95"
-                      onClick={() => handleEdit(donation)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-full border-2 border-[#F7B0A0] bg-white px-5 py-2 text-sm font-semibold text-[#B42318] shadow-sm transition-all duration-200 hover:border-[#E63946] hover:bg-[#FFF1F0] hover:shadow-md active:scale-95"
-                      onClick={() => handleDelete(donation.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                )}
               </article>
             ))}
           </div>
@@ -1679,6 +1859,8 @@ function DonationRequestSection({
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [requestsError, setRequestsError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
+  const [communities, setCommunities] = useState<Community[]>([]);
 
   const prioritizeRequests = useCallback(
     (list: DonationRequestRecord[]) => {
@@ -1725,13 +1907,21 @@ function DonationRequestSection({
       setLoadingRequests(true);
       setRequestsError(null);
       try {
-        const data = await apiFetch<DonationRequestApiRecord[]>("/donation-requests/", {
-          headers: buildAuthHeaders(currentUser),
-        });
+        const [requestData, deliveryData, communityData] = await Promise.all([
+          apiFetch<DonationRequestApiRecord[]>("/donation-requests/", {
+            headers: buildAuthHeaders(currentUser),
+          }),
+          apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
+            headers: buildAuthHeaders(currentUser),
+          }),
+          apiFetch<Community[]>(API_PATHS.communities),
+        ]);
         if (!ignore) {
+          setDeliveries(deliveryData);
+          setCommunities(communityData);
           setRequests(
             prioritizeRequests(
-              data.map((record) => ({
+              requestData.map((record) => ({
                 id: record.request_id,
                 requestTitle: record.title,
                 communityName: record.community_name,
@@ -1765,6 +1955,23 @@ function DonationRequestSection({
       ignore = true;
     };
   }, [currentUser?.userId, currentUser?.isAdmin, prioritizeRequests]);
+
+  // Check if a request has been accepted (has a distribution delivery to its community)
+  const isRequestAccepted = useCallback((request: DonationRequestRecord) => {
+    const community = communities.find((c) => c.name === request.communityName);
+    if (!community) {
+      return false;
+    }
+    return deliveries.some(
+      (delivery) =>
+        delivery.delivery_type === "distribution" && delivery.community_id === community.community_id
+    );
+  }, [deliveries, communities]);
+
+  // Filter out accepted requests (they'll show in Status section)
+  const unacceptedRequests = useMemo(() => {
+    return requests.filter((request) => !isRequestAccepted(request));
+  }, [requests, isRequestAccepted]);
 
   const resetForm = () => {
     setForm(createDonationRequestForm());
@@ -2122,7 +2329,7 @@ function DonationRequestSection({
             </h3>
           </div>
           <span className="text-xs font-semibold text-gray-500">
-            {requests.length} total
+            {unacceptedRequests.length} total
           </span>
         </div>
 
@@ -2135,13 +2342,13 @@ function DonationRequestSection({
             <p className="rounded-2xl border border-dashed border-gray-300 bg-white/80 p-6 text-sm text-gray-500">
               Loading requests...
             </p>
-          ) : requests.length === 0 ? (
+          ) : unacceptedRequests.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-gray-300 bg-white/80 p-6 text-sm text-gray-500">
               Captured requests will appear here for dispatch review.
             </p>
           ) : (
             <div className="space-y-4">
-            {requests.map((request) => (
+            {unacceptedRequests.map((request) => (
               <article
                 key={request.id}
                 className="rounded-2xl border border-[#E6B9A2] bg-[#F8F3EE] p-5 shadow-sm"
@@ -2475,6 +2682,289 @@ function AdminDashboard() {
   );
 }
 
+function StatusSection({ currentUser }: { currentUser: LoggedUser | null }) {
+  const [donations, setDonations] = useState<DonationRecord[]>([]);
+  const [requests, setRequests] = useState<DonationRequestRecord[]>([]);
+  const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadData() {
+      setLoading(true);
+      setError(null);
+      try {
+        // Load donations
+        const donationData = await apiFetch<DonationApiRecord[]>("/donations/");
+        const donationsWithItems = await Promise.all(
+          donationData.map(async (donation) => {
+            const items = await apiFetch<FoodItemApiRecord[]>(
+              `/fooditems/?donation=${donation.donation_id}`
+            );
+            return { donation, items };
+          })
+        );
+        const mappedDonations: DonationRecord[] = donationsWithItems.map(({ donation, items }) => ({
+          id: donation.donation_id,
+          restaurantId: donation.restaurant,
+          restaurantName: donation.restaurant_name ?? "",
+          restaurantAddress: donation.restaurant_address ?? "",
+          branch: donation.restaurant_branch ?? "",
+          note: "",
+          items: items.map((item) => ({
+            id: item.food_id,
+            name: item.name,
+            quantity: item.quantity.toString(),
+            unit: item.unit,
+            expiredDate: item.expire_date,
+          })),
+          createdAt: donation.donated_at,
+          ownerUserId: donation.created_by_user_id ?? null,
+        }));
+
+        // Load requests
+        const requestData = await apiFetch<DonationRequestApiRecord[]>("/donation-requests/", {
+          headers: buildAuthHeaders(currentUser),
+        });
+        const mappedRequests: DonationRequestRecord[] = requestData.map((record) => ({
+          id: record.request_id,
+          requestTitle: record.title,
+          communityName: record.community_name,
+          numberOfPeople: String(record.people_count),
+          expectedDelivery: record.expected_delivery,
+          recipientAddress: record.recipient_address,
+          contactPhone: record.contact_phone ?? "",
+          notes: record.notes ?? "",
+          createdAt: record.created_at,
+          ownerUserId: record.created_by_user_id ?? null,
+        }));
+
+        // Load deliveries and communities
+        const [deliveryData, communityData] = await Promise.all([
+          apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
+            headers: buildAuthHeaders(currentUser),
+          }),
+          apiFetch<Community[]>(API_PATHS.communities),
+        ]);
+
+        if (!ignore) {
+          setDonations(mappedDonations);
+          setRequests(mappedRequests);
+          setDeliveries(deliveryData);
+          setCommunities(communityData);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(err instanceof Error ? err.message : "Unable to load status data.");
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
+
+    if (currentUser) {
+      loadData();
+    }
+    return () => {
+      ignore = true;
+    };
+  }, [currentUser]);
+
+  // Get assigned donations (donations with pickup deliveries) with their delivery info
+  const assignedDonations = useMemo(() => {
+    // Create a map of donation_id -> delivery for quick lookup
+    const donationToDelivery = new Map<string, DeliveryRecordApi>();
+    deliveries
+      .filter((d) => d.delivery_type === "donation" && d.donation_id)
+      .forEach((d) => {
+        if (d.donation_id) {
+          donationToDelivery.set(d.donation_id, d);
+        }
+      });
+
+    return donations
+      .filter((d) => {
+        // Show if user owns it OR if ownerUserId is not set (legacy donations)
+        if (d.ownerUserId && d.ownerUserId !== currentUser?.userId) {
+          return false;
+        }
+        return donationToDelivery.has(d.id);
+      })
+      .map((d) => ({
+        donation: d,
+        delivery: donationToDelivery.get(d.id)!,
+      }));
+  }, [donations, deliveries, currentUser?.userId]);
+
+  // Get accepted requests (requests with distribution deliveries to their community)
+  const acceptedRequests = useMemo(() => {
+    // Get community IDs that have distribution deliveries
+    const acceptedCommunityIds = new Set(
+      deliveries
+        .filter((d) => d.delivery_type === "distribution" && d.community_id)
+        .map((d) => d.community_id)
+    );
+
+    // Map community names to IDs
+    const communityNameToId = new Map(
+      communities.map((c) => [c.name, c.community_id])
+    );
+
+    return requests.filter((r) => {
+      if (!r.ownerUserId || r.ownerUserId !== currentUser?.userId) {
+        return false;
+      }
+      const communityId = communityNameToId.get(r.communityName);
+      return communityId ? acceptedCommunityIds.has(communityId) : false;
+    });
+  }, [requests, deliveries, communities, currentUser?.userId]);
+
+  if (!currentUser) {
+    return <AccessDenied message="Please log in to view your status." />;
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-xl bg-[#FBFBFE] p-10 shadow text-center">
+        <p className="text-gray-600">Loading status...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-xl bg-[#FBFBFE] p-10 shadow text-center">
+        <p className="text-red-600">{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-semibold text-gray-800">Status</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          View your donations and requests that have been assigned or accepted by the admin.
+        </p>
+      </div>
+
+      {/* Assigned Donations */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">
+          Assigned Donations ({assignedDonations.length})
+        </h3>
+        {assignedDonations.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            No donations have been assigned to pickup tasks yet.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {assignedDonations.map(({ donation, delivery }) => {
+              const statusLabel = (status: DeliveryRecordApi["status"]) => {
+                switch (status) {
+                  case "pending":
+                    return { text: "Pending", className: "bg-[#FFF1E3] text-[#C46A24]" };
+                  case "in_transit":
+                    return { text: "In transit", className: "bg-[#E6F4FF] text-[#1D4ED8]" };
+                  case "delivered":
+                    return { text: "Delivered", className: "bg-[#E6F7EE] text-[#1F4D36]" };
+                  case "cancelled":
+                  default:
+                    return { text: "Cancelled", className: "bg-[#FDECEA] text-[#B42318]" };
+                }
+              };
+              const status = statusLabel(delivery.status);
+              
+              return (
+                <article
+                  key={donation.id}
+                  className="rounded-xl border border-dashed border-[#4d673f] bg-[#F4F7EF] p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-400">
+                        {donation.restaurantId ?? "Manual entry"}
+                      </p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {donation.restaurantName}
+                      </p>
+                      {donation.branch && (
+                        <p className="text-sm text-gray-500">{donation.branch}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right text-xs text-gray-500">
+                        <p>{formatDisplayDate(donation.createdAt)}</p>
+                        <p>{donation.items.length} item(s)</p>
+                      </div>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${status.className}`}
+                      >
+                        {status.text}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-3 rounded-lg border border-[#D7DCC7] bg-white p-2.5">
+                    <p className="text-xs font-medium text-[#4B5F39]">
+                      ✓ This donation has been assigned to a pickup task. Status: <span className="font-semibold">{status.text}</span>
+                    </p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Accepted Requests */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">
+          Accepted Requests ({acceptedRequests.length})
+        </h3>
+        {acceptedRequests.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            No meal requests have been accepted yet.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {acceptedRequests.map((request) => (
+              <article
+                key={request.id}
+                className="rounded-xl border border-dashed border-[#F3C7A0] bg-[#FFF8F0] p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-400">
+                      {request.id}
+                    </p>
+                    <p className="text-lg font-semibold text-gray-900">
+                      {request.requestTitle}
+                    </p>
+                    <p className="text-sm text-gray-500">{request.communityName}</p>
+                  </div>
+                  <div className="text-right text-xs text-gray-500">
+                    <p>{formatDisplayDate(request.createdAt)}</p>
+                    <p>{request.numberOfPeople} people</p>
+                  </div>
+                </div>
+                <div className="mt-3 rounded-lg border border-[#F3C7A0] bg-white p-2.5">
+                  <p className="text-xs font-medium text-[#8B4C1F]">
+                    ✓ This request has been accepted and assigned for delivery.
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) {
   const [donations, setDonations] = useState<DonationApiRecord[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -2669,7 +3159,8 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
   const assignedDonationIds = new Set(
     deliveries
       .filter((delivery) => delivery.delivery_type === "donation" && delivery.donation_id)
-      .map((delivery) => delivery.donation_id)
+      .map((delivery) => delivery.donation_id!)
+      .filter((id): id is string => Boolean(id))
   );
 
   // Filter donations to exclude those already assigned, but include the one being edited
@@ -3037,7 +3528,9 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-gray-500 leading-tight">Donation</p>
                         <p className="text-xs font-semibold text-gray-900 leading-tight truncate">
-                          {lookupRestaurantName(delivery.donation_id)}
+                          {delivery.donation_id && typeof delivery.donation_id === "string" 
+                            ? lookupRestaurantName(delivery.donation_id) 
+                            : "N/A"}
                         </p>
                       </div>
                     </div>
@@ -3049,7 +3542,9 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-gray-500 leading-tight">Food Amount</p>
                         <p className="text-xs font-semibold text-gray-900 leading-tight">
-                          {formatFoodAmount(delivery.donation_id)}
+                          {delivery.donation_id && typeof delivery.donation_id === "string"
+                            ? formatFoodAmount(delivery.donation_id)
+                            : "N/A"}
                         </p>
                       </div>
                     </div>
@@ -4304,6 +4799,7 @@ export default function Home() {
           { id: 0, label: "Home", icon: <span aria-hidden>🏠</span> },
           { id: 1, label: "Donate", icon: <span aria-hidden>💚</span> },
           { id: 2, label: "Get meals", icon: <span aria-hidden>🍽️</span> },
+          { id: 7, label: "Status", icon: <span aria-hidden>📊</span> },
         ];
 
   const normalizedActiveTab = useMemo(() => {
