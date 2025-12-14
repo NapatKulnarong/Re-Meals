@@ -4836,6 +4836,65 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
     [foodItems, isPickupItemExpired]
   );
 
+  // Helper function to extract province from address
+  const extractProvince = useCallback((address: string): string => {
+    const lowerAddress = address.toLowerCase();
+    if (lowerAddress.includes("phra nakhon si ayutthaya") || lowerAddress.includes("ayutthaya")) return "Phra Nakhon Si Ayutthaya";
+    if (lowerAddress.includes("nakhon pathom")) return "Nakhon Pathom";
+    if (lowerAddress.includes("samut sakhon")) return "Samut Sakhon";
+    if (lowerAddress.includes("samut prakan")) return "Samut Prakan";
+    if (lowerAddress.includes("pathum thani")) return "Pathum Thani";
+    if (lowerAddress.includes("nonthaburi")) return "Nonthaburi";
+    if (lowerAddress.includes("bangkok")) return "Bangkok";
+    return "Other";
+  }, []);
+
+  // Helper to parse time string (HH:MM:SS) to milliseconds
+  const parseTimeToMs = useCallback((timeStr: string): number => {
+    const parts = timeStr.split(':').map(Number);
+    return (parts[0] * 60 * 60 + parts[1] * 60 + (parts[2] || 0)) * 1000;
+  }, []);
+
+  // Check if driver is available at the given pickup time
+  const isDriverAvailable = useCallback((driverId: string, pickupTime: string): { available: boolean; reason?: string } => {
+    const selectedStaff = staff.find(s => s.user_id === driverId);
+    if (!selectedStaff) {
+      return { available: false, reason: "Driver not found" };
+    }
+
+    // Check is_available field
+    if (!selectedStaff.is_available) {
+      return { available: false, reason: "Driver is not available" };
+    }
+
+    // Check for overlapping deliveries
+    const pickupDateTime = new Date(pickupTime);
+    const dropoffDuration = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+    const dropoffDateTime = new Date(pickupDateTime.getTime() + dropoffDuration);
+
+    const conflictingDelivery = deliveries.find(d => {
+      if (d.user_id !== driverId || d.delivery_id === editingDeliveryId) return false;
+      
+      const existingPickup = new Date(d.pickup_time);
+      const existingDropoffDuration = d.dropoff_time 
+        ? parseTimeToMs(d.dropoff_time)
+        : 2 * 60 * 60 * 1000; // Default 2 hours
+      const existingDropoff = new Date(existingPickup.getTime() + existingDropoffDuration);
+
+      // Check if times overlap
+      return !(dropoffDateTime <= existingPickup || pickupDateTime >= existingDropoff);
+    });
+
+    if (conflictingDelivery) {
+      return { 
+        available: false, 
+        reason: `Driver has a conflicting delivery at ${new Date(conflictingDelivery.pickup_time).toLocaleString()}` 
+      };
+    }
+
+    return { available: true };
+  }, [staff, deliveries, editingDeliveryId, parseTimeToMs]);
+
   useEffect(() => {
     const next: Record<string, { notes: string }> = {};
     deliveries.forEach((d) => {
@@ -4901,6 +4960,39 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
       }
       if (!pickupForm.pickupTime) {
         throw new Error("Pickup time is required.");
+      }
+
+      // Check driver availability
+      const availability = isDriverAvailable(pickupForm.userId, pickupForm.pickupTime);
+      if (!availability.available) {
+        throw new Error(`Driver is not available: ${availability.reason}`);
+      }
+
+      // Check province match for donation type
+      const selectedDonation = donations.find(d => d.donation_id === pickupForm.donationId);
+      const selectedWarehouse = warehouses.find(w => w.warehouse_id === pickupForm.warehouseId);
+      const selectedStaff = staff.find(s => s.user_id === pickupForm.userId);
+      
+      if (selectedDonation && selectedWarehouse && selectedStaff) {
+        const restaurant = restaurants.find(r => r.restaurant_id === selectedDonation.restaurant);
+        if (restaurant) {
+          const pickupProvince = extractProvince(restaurant.address);
+          const dropoffProvince = extractProvince(selectedWarehouse.address);
+          
+          // Check if provinces match
+          if (pickupProvince !== dropoffProvince) {
+            throw new Error(`Pickup and dropoff must be in the same province. Pickup: ${pickupProvince}, Dropoff: ${dropoffProvince}`);
+          }
+
+          // Check if driver's assigned area matches
+          const driverProvince = selectedStaff.assigned_area;
+          if (driverProvince && driverProvince !== pickupProvince && driverProvince !== "Bangkok" && pickupProvince !== "Bangkok") {
+            // Allow DEL0000005 to handle both Bangkok and Ayutthaya
+            if (!(selectedStaff.user_id === "DEL0000005" && (pickupProvince === "Bangkok" || pickupProvince === "Ayutthaya"))) {
+              throw new Error(`Driver is assigned to ${driverProvince}, but delivery is in ${pickupProvince}`);
+            }
+          }
+        }
       }
       const payload: Record<string, unknown> = {
         delivery_type: "donation",
@@ -5144,7 +5236,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
                       <option value="">Assign delivery staff</option>
                       {staff.map((member) => (
                         <option key={member.user_id} value={member.user_id}>
-                          {member.name || member.username} ({member.assigned_area || "area n/a"})
+                          {member.name || member.username} {member.assigned_area ? `(${member.assigned_area})` : ''}
                         </option>
                       ))}
                     </select>
@@ -5525,6 +5617,65 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
     setStaffInputs(next);
   }, [deliveries]);
 
+  // Helper function to extract province from address
+  const extractProvince = useCallback((address: string): string => {
+    const lowerAddress = address.toLowerCase();
+    if (lowerAddress.includes("phra nakhon si ayutthaya") || lowerAddress.includes("ayutthaya")) return "Phra Nakhon Si Ayutthaya";
+    if (lowerAddress.includes("nakhon pathom")) return "Nakhon Pathom";
+    if (lowerAddress.includes("samut sakhon")) return "Samut Sakhon";
+    if (lowerAddress.includes("samut prakan")) return "Samut Prakan";
+    if (lowerAddress.includes("pathum thani")) return "Pathum Thani";
+    if (lowerAddress.includes("nonthaburi")) return "Nonthaburi";
+    if (lowerAddress.includes("bangkok")) return "Bangkok";
+    return "Other";
+  }, []);
+
+  // Helper to parse time string (HH:MM:SS) to milliseconds
+  const parseTimeToMs = useCallback((timeStr: string): number => {
+    const parts = timeStr.split(':').map(Number);
+    return (parts[0] * 60 * 60 + parts[1] * 60 + (parts[2] || 0)) * 1000;
+  }, []);
+
+  // Check if driver is available at the given pickup time
+  const isDriverAvailable = useCallback((driverId: string, pickupTime: string): { available: boolean; reason?: string } => {
+    const selectedStaff = staff.find(s => s.user_id === driverId);
+    if (!selectedStaff) {
+      return { available: false, reason: "Driver not found" };
+    }
+
+    // Check is_available field
+    if (!selectedStaff.is_available) {
+      return { available: false, reason: "Driver is not available" };
+    }
+
+    // Check for overlapping deliveries
+    const pickupDateTime = new Date(pickupTime);
+    const dropoffDuration = 3 * 60 * 60 * 1000; // 3 hours in milliseconds (distribution default)
+    const dropoffDateTime = new Date(pickupDateTime.getTime() + dropoffDuration);
+
+    const conflictingDelivery = deliveries.find(d => {
+      if (d.user_id !== driverId) return false;
+      
+      const existingPickup = new Date(d.pickup_time);
+      const existingDropoffDuration = d.dropoff_time 
+        ? parseTimeToMs(d.dropoff_time)
+        : 3 * 60 * 60 * 1000; // Default 3 hours
+      const existingDropoff = new Date(existingPickup.getTime() + existingDropoffDuration);
+
+      // Check if times overlap
+      return !(dropoffDateTime <= existingPickup || pickupDateTime >= existingDropoff);
+    });
+
+    if (conflictingDelivery) {
+      return { 
+        available: false, 
+        reason: `Driver has a conflicting delivery at ${new Date(conflictingDelivery.pickup_time).toLocaleString()}` 
+      };
+    }
+
+    return { available: true };
+  }, [staff, deliveries, parseTimeToMs]);
+
   const handleSubmitDistribution = async () => {
     setSubmitting(true);
     setNotice(null);
@@ -5535,6 +5686,36 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
       }
       if (!distributionForm.pickupTime) {
         throw new Error("Pickup time is required.");
+      }
+
+      // Check driver availability
+      const availability = isDriverAvailable(distributionForm.userId, distributionForm.pickupTime);
+      if (!availability.available) {
+        throw new Error(`Driver is not available: ${availability.reason}`);
+      }
+
+      // Check province match for distribution type
+      const selectedWarehouse = warehouses.find(w => w.warehouse_id === distributionForm.warehouseId);
+      const selectedCommunity = communities.find(c => c.community_id === distributionForm.communityId);
+      const selectedStaff = staff.find(s => s.user_id === distributionForm.userId);
+      
+      if (selectedWarehouse && selectedCommunity && selectedStaff) {
+        const pickupProvince = extractProvince(selectedWarehouse.address);
+        const dropoffProvince = extractProvince(selectedCommunity.address);
+        
+        // Check if provinces match
+        if (pickupProvince !== dropoffProvince) {
+          throw new Error(`Pickup and dropoff must be in the same province. Pickup: ${pickupProvince}, Dropoff: ${dropoffProvince}`);
+        }
+
+        // Check if driver's assigned area matches
+        const driverProvince = selectedStaff.assigned_area;
+        if (driverProvince && driverProvince !== pickupProvince && driverProvince !== "Bangkok" && pickupProvince !== "Bangkok") {
+          // Allow DEL0000005 to handle both Bangkok and Ayutthaya
+          if (!(selectedStaff.user_id === "DEL0000005" && (pickupProvince === "Bangkok" || pickupProvince === "Ayutthaya"))) {
+            throw new Error(`Driver is assigned to ${driverProvince}, but delivery is in ${pickupProvince}`);
+          }
+        }
       }
       const payload: Record<string, unknown> = {
         delivery_id: generateDeliveryId(),
@@ -5725,7 +5906,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
                       <option value="">Assign delivery staff</option>
                       {staff.map((member) => (
                         <option key={member.user_id} value={member.user_id}>
-                          {member.name || member.username} ({member.assigned_area || "area n/a"})
+                          {member.name || member.username} {member.assigned_area ? `(${member.assigned_area})` : ''}
                         </option>
                       ))}
                     </select>
