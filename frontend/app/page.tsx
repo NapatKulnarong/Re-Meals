@@ -75,6 +75,7 @@ type DonationRecord = {
   items: FoodItemForm[];
   createdAt: string;
   ownerUserId?: string | null;
+  status: "pending" | "accepted" | "declined";
 };
 
 type DonationFormState = {
@@ -1598,7 +1599,7 @@ function TabContent({
   }
   if (tab === 3) {
     if (currentUser?.isAdmin) {
-      return <AdminDashboard />;
+      return <AdminDashboard currentUser={currentUser} />;
     }
     return <AccessDenied message="Admin access required." />;
   }
@@ -1659,15 +1660,24 @@ function DonationSection(props: {
   const prioritizeDonations = useCallback(
     (list: DonationRecord[]) => {
       const userId = currentUser?.userId;
+      const userRestaurantId = currentUser?.restaurantId;
       if (!list.length) {
         return list;
       }
       return [...list].sort((a, b) => {
+        // First priority: donations from user's restaurant
+        const aMatchesRestaurant = Boolean(userRestaurantId && a.restaurantId === userRestaurantId);
+        const bMatchesRestaurant = Boolean(userRestaurantId && b.restaurantId === userRestaurantId);
+        if (aMatchesRestaurant !== bMatchesRestaurant) {
+          return aMatchesRestaurant ? -1 : 1;
+        }
+        // Second priority: user-owned donations
         const aOwned = Boolean(userId && a.ownerUserId === userId);
         const bOwned = Boolean(userId && b.ownerUserId === userId);
         if (aOwned !== bOwned) {
           return aOwned ? -1 : 1;
         }
+        // Third priority: sort by date (newest first)
         const aTime = new Date(a.createdAt).getTime();
         const bTime = new Date(b.createdAt).getTime();
         const safeATime = Number.isNaN(aTime) ? 0 : aTime;
@@ -1675,7 +1685,7 @@ function DonationSection(props: {
         return safeBTime - safeATime;
       });
     },
-    [currentUser?.userId]
+    [currentUser?.userId, currentUser?.restaurantId]
   );
 
   const updateDonations = useCallback(
@@ -1731,6 +1741,7 @@ function DonationSection(props: {
             })),
             createdAt: donation.donated_at,
             ownerUserId: donation.created_by_user_id ?? null,
+            status: donation.status,
           }))
         )
       );
@@ -2024,6 +2035,7 @@ function DonationSection(props: {
         items: normalizedItems,
         createdAt: existingRecord?.createdAt ?? timestamp,
         ownerUserId: currentUser?.userId ?? existingRecord?.ownerUserId ?? null,
+        status: existingRecord?.status ?? "pending",
       };
 
       if (manualEntry) {
@@ -2096,41 +2108,35 @@ function DonationSection(props: {
     if (isDonationAssigned(donation.id)) {
       return false;
     }
-    // If ownerUserId is not set, allow management for logged-in users (for legacy donations)
-    if (!donation.ownerUserId) {
-      return true;
+    // Check if donation's restaurant matches user's restaurant
+    // User must have restaurant information set
+    if (!currentUser.restaurantId) {
+      return false;
     }
-    // Must own the donation
-    if (donation.ownerUserId !== currentUser.userId) {
+    // Donation's restaurant must match user's restaurant
+    if (donation.restaurantId !== currentUser.restaurantId) {
       return false;
     }
     return true;
   };
 
-  const canShowEditDeleteButtons = () => {
-    // Show buttons if user is logged in
-    // The buttons will be disabled if canManageDonation returns false
-    return Boolean(currentUser);
+  const canShowEditDeleteButtons = (donation: DonationRecord) => {
+    // Only show buttons if user can manage the donation (owns it and it's not assigned)
+    return canManageDonation(donation);
   };
 
   // Filter donations: exclude assigned ones from the log (they'll show in Status section)
-  // Also filter to only show current user's donations (unless admin)
+  // Show only pending donations that are not assigned
   const unassignedDonations = donations.filter((donation) => {
+    // Only show pending donations
+    if (donation.status !== "pending") {
+      return false;
+    }
     // Exclude if already assigned
     if (isDonationAssigned(donation.id)) {
       return false;
     }
-    // Admin can see all donations
-    if (currentUser?.isAdmin) {
-      return true;
-    }
-    // For non-admin users, only show their own donations
-    // If ownerUserId is not set (legacy donations), show them for logged-in users
-    if (!donation.ownerUserId) {
-      return Boolean(currentUser);
-    }
-    // Must be the owner
-    return donation.ownerUserId === currentUser?.userId;
+    return true;
   });
 
   const handleEdit = (donation: DonationRecord) => {
@@ -2538,11 +2544,11 @@ function DonationSection(props: {
                       )}
                     </div>
                     <div className="flex flex-col items-end gap-2">
-                      {canShowEditDeleteButtons() && (
+                      {canShowEditDeleteButtons(donation) && (
                         <div className="flex gap-2">
                           <button
                             type="button"
-                            disabled={!canManageDonation(donation)}
+                            disabled={deletingDonationId === donation.id}
                             className="rounded-lg bg-[#E6F4FF] p-2 text-[#1D4ED8] hover:bg-[#D0E7FF] disabled:opacity-60 disabled:cursor-not-allowed transition"
                             title="Edit donation"
                             onClick={() => handleEdit(donation)}
@@ -2563,7 +2569,7 @@ function DonationSection(props: {
                           </button>
                           <button
                             type="button"
-                            disabled={!canManageDonation(donation) || deletingDonationId === donation.id}
+                            disabled={deletingDonationId === donation.id}
                             className="rounded-lg bg-[#FDECEA] p-2 text-[#B42318] hover:bg-[#FCD7D2] disabled:opacity-60 disabled:cursor-not-allowed transition"
                             title="Delete donation"
                             onClick={() => handleDelete(donation.id)}
@@ -3517,7 +3523,7 @@ function ProfileModal({
   );
 }
 
-function AdminDashboard() {
+function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
   const [donations, setDonations] = useState<DonationApiRecord[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3570,6 +3576,7 @@ function AdminDashboard() {
       await apiFetch(`/donations/${donationId}/`, {
         method: "PATCH",
         body: JSON.stringify({ status: nextStatus }),
+        headers: buildAuthHeaders(currentUser),
       });
       setDonations((prev) =>
         prev.map((donation) =>
@@ -3714,6 +3721,7 @@ function StatusSection({
           })),
           createdAt: donation.donated_at,
           ownerUserId: donation.created_by_user_id ?? null,
+          status: donation.status,
         }));
 
         // Load requests
@@ -7392,6 +7400,9 @@ function AuthModal({
           username: payload.username,
           email: payload.email,
           userId: payload.user_id ?? "",
+          fname: payload.fname ?? undefined,
+          lname: payload.lname ?? undefined,
+          phone: payload.phone ?? undefined,
           isAdmin: Boolean(payload.is_admin),
           isDeliveryStaff: Boolean(payload.is_delivery_staff),
           restaurantId: payload.restaurant_id ?? undefined,
@@ -7444,6 +7455,9 @@ function AuthModal({
           username: payload.username,
           email: payload.email,
           userId: payload.user_id ?? "",
+          fname: payload.fname ?? undefined,
+          lname: payload.lname ?? undefined,
+          phone: payload.phone ?? undefined,
           isAdmin: Boolean(payload.is_admin),
           isDeliveryStaff: Boolean(payload.is_delivery_staff),
           restaurantId: payload.restaurant_id ?? undefined,
