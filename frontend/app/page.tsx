@@ -4962,6 +4962,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
     userId: "",
     pickupTime: "",
   });
+  const [statusFilter, setStatusFilter] = useState<DeliveryRecordApi["status"] | "all">("all");
 
   const canEdit = currentUser?.isAdmin ?? false;
   const currentUserId = currentUser?.userId ?? "";
@@ -5292,6 +5293,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
     : deliveries.filter((delivery) => delivery.user_id === currentUserId)
   )
     .filter((delivery) => delivery.delivery_type === "donation")
+    .filter((delivery) => statusFilter === "all" || delivery.status === statusFilter)
     .sort((a, b) => {
       const timeA = new Date(a.pickup_time).getTime();
       const timeB = new Date(b.pickup_time).getTime();
@@ -5553,18 +5555,35 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
 
       {/* Right side: Queue */}
       <div className="col-span-2 flex h-full min-h-0 flex-col overflow-hidden rounded-[32px] border border-[#CFE6D8]/40 bg-[#F6FBF7] p-7 shadow-2xl shadow-[#B6DEC8]/30">
-        <div className="mb-5 flex flex-shrink-0 items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#2F855A]">
-              Pickup queue
-            </p>
-            <h3 className="text-2xl font-semibold text-gray-800">
-              {canEdit ? "All pickup tasks" : "My assigned pickups"}
-            </h3>
+        <div className="mb-5 flex flex-shrink-0 flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#2F855A]">
+                Pickup queue
+              </p>
+              <h3 className="text-2xl font-semibold text-gray-800">
+                {canEdit ? "All pickup tasks" : "My assigned pickups"}
+              </h3>
+            </div>
+            <span className="text-xs font-semibold text-gray-500">
+              {visibleDeliveries.length} total
+            </span>
           </div>
-          <span className="text-xs font-semibold text-gray-500">
-            {visibleDeliveries.length} total
-          </span>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-gray-700 whitespace-nowrap">
+              Filter by status:
+            </label>
+            <select
+              className="rounded-lg border border-[#CFE6D8] bg-white px-3 py-1.5 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2F855A] focus:border-transparent"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as DeliveryRecordApi["status"] | "all")}
+            >
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="in_transit">In Transit</option>
+              <option value="delivered">Delivered</option>
+            </select>
+          </div>
         </div>
 
         <div className="overflow-y-auto flex-1 min-h-0 pr-2">
