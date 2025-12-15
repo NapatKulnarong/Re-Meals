@@ -960,13 +960,313 @@ function AnimatedNumber({
   );
 }
 
+// Community Impact Heat Map Component
+function CommunityImpactHeatMap({
+  impactRecords,
+  foodItems,
+  deliveries,
+  communities,
+  loading
+}: {
+  impactRecords: ImpactRecord[];
+  foodItems: FoodItemApiRecord[];
+  deliveries: DeliveryRecordApi[];
+  communities: Community[];
+  loading: boolean;
+}) {
+  const [hoveredCell, setHoveredCell] = useState<{ community: string; month: string } | null>(null);
+
+  // Normalize food ID to match format (FOO0000001)
+  const normalizeFoodId = (foodId: string | number | null | undefined): string => {
+    if (!foodId) return "";
+    const foodIdStr = String(foodId);
+    if (foodIdStr.startsWith("FOO")) {
+      const digits = foodIdStr.replace(/\D/g, '');
+      return digits ? `FOO${digits.padStart(7, '0')}` : foodIdStr;
+    }
+    const digits = foodIdStr.replace(/\D/g, '');
+    if (!digits) return foodIdStr;
+    return `FOO${digits.padStart(7, '0')}`;
+  };
+
+  // Build data maps
+  const communityMonthMap = useMemo(() => {
+    const map = new Map<string, number>();
+
+    const foodToDelivery = new Map<string, DeliveryRecordApi[]>();
+    deliveries.forEach(delivery => {
+      if (delivery.delivery_type === "distribution" && delivery.food_item && delivery.status === "delivered") {
+        const normalizedFoodId = normalizeFoodId(delivery.food_item);
+        if (!foodToDelivery.has(normalizedFoodId)) {
+          foodToDelivery.set(normalizedFoodId, []);
+        }
+        foodToDelivery.get(normalizedFoodId)!.push(delivery);
+      }
+    });
+
+    impactRecords.forEach(impact => {
+      const normalizedFoodId = normalizeFoodId(impact.food);
+      const distributionDeliveries = foodToDelivery.get(normalizedFoodId) || [];
+      if (distributionDeliveries.length === 0) return;
+
+      let totalQuantity = 0;
+      const deliveryQuantities = new Map<string, number>();
+      
+      distributionDeliveries.forEach(delivery => {
+        if (delivery.delivery_quantity) {
+          const quantityMatch = delivery.delivery_quantity.match(/^(\d+(?:\.\d+)?)/);
+          if (quantityMatch) {
+            const qty = parseFloat(quantityMatch[1]);
+            deliveryQuantities.set(delivery.delivery_id, qty);
+            totalQuantity += qty;
+          }
+        }
+      });
+
+      const distributeEqually = totalQuantity === 0;
+      const divisor = distributeEqually ? distributionDeliveries.length : totalQuantity;
+
+      distributionDeliveries.forEach(delivery => {
+        if (delivery.community_id && delivery.dropoff_time) {
+          const deliveryDate = new Date(delivery.dropoff_time);
+          const monthKey = `${deliveryDate.getFullYear()}-${String(deliveryDate.getMonth() + 1).padStart(2, '0')}`;
+          
+          const key = `${delivery.community_id}|${monthKey}`;
+          const current = map.get(key) || 0;
+          
+          const deliveryQty = distributeEqually 
+            ? 1 
+            : (deliveryQuantities.get(delivery.delivery_id) || 0);
+          const proportionalImpact = (impact.meals_saved || 0) * (deliveryQty / divisor);
+          
+          map.set(key, current + proportionalImpact);
+        }
+      });
+    });
+
+    return map;
+  }, [impactRecords, deliveries]);
+
+  const { uniqueCommunities, uniqueMonths } = useMemo(() => {
+    const communitiesSet = new Set<string>();
+    const monthsSet = new Set<string>();
+
+    communityMonthMap.forEach((_, key) => {
+      const [communityId, monthKey] = key.split('|');
+      if (communityId) communitiesSet.add(communityId);
+      if (monthKey) monthsSet.add(monthKey);
+    });
+
+    return {
+      uniqueCommunities: Array.from(communitiesSet).sort(),
+      uniqueMonths: Array.from(monthsSet).sort()
+    };
+  }, [communityMonthMap]);
+
+  const { communityTotals, monthTotals, grandTotal } = useMemo(() => {
+    const commTotals = new Map<string, number>();
+    const monthTotalsMap = new Map<string, number>();
+    let total = 0;
+
+    communityMonthMap.forEach((value, key) => {
+      const [communityId, monthKey] = key.split('|');
+      total += value;
+      
+      if (communityId) {
+        commTotals.set(communityId, (commTotals.get(communityId) || 0) + value);
+      }
+      if (monthKey) {
+        monthTotalsMap.set(monthKey, (monthTotalsMap.get(monthKey) || 0) + value);
+      }
+    });
+
+    return {
+      communityTotals: commTotals,
+      monthTotals: monthTotalsMap,
+      grandTotal: total
+    };
+  }, [communityMonthMap]);
+
+  const maxValue = useMemo(() => {
+    if (communityMonthMap.size === 0) return 1;
+    return Math.max(...Array.from(communityMonthMap.values()));
+  }, [communityMonthMap]);
+
+  const getColorIntensity = (value: number): string => {
+    if (maxValue === 0) return 'bg-gray-100';
+    const intensity = value / maxValue;
+    if (intensity >= 0.8) return 'bg-[#2F855A]';
+    if (intensity >= 0.6) return 'bg-[#48BB78]';
+    if (intensity >= 0.4) return 'bg-[#68D391]';
+    if (intensity >= 0.2) return 'bg-[#9AE6B4]';
+    return 'bg-[#C6F6D5]';
+  };
+
+  const formatMonthLabel = (monthKey: string): string => {
+    const [year, month] = monthKey.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1);
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  };
+
+  const getCommunityName = (communityId: string): string => {
+    const community = communities.find(c => c.community_id === communityId);
+    return community?.name || communityId;
+  };
+
+  if (loading) {
+    return (
+      <div className="py-8 text-center">
+        <p className="text-sm text-gray-600">Loading community impact data...</p>
+      </div>
+    );
+  }
+
+  if (uniqueCommunities.length === 0 || uniqueMonths.length === 0) {
+    return (
+      <div className="py-8 text-center">
+        <p className="text-sm text-gray-600">No community impact data available yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-10 bg-white px-4 py-3 text-left text-xs font-semibold text-gray-700 border-b border-gray-200">
+                Community
+              </th>
+              {uniqueMonths.map(month => (
+                <th
+                  key={month}
+                  className="px-3 py-3 text-center text-xs font-semibold text-gray-700 border-b border-gray-200 min-w-[80px]"
+                >
+                  {formatMonthLabel(month)}
+                </th>
+              ))}
+              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-700 border-b border-gray-200 bg-gray-50 min-w-[80px]">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {uniqueCommunities.map(communityId => {
+              const communityName = getCommunityName(communityId);
+              return (
+                <tr key={communityId} className="hover:bg-gray-50">
+                  <td className="sticky left-0 z-10 bg-white px-4 py-3 text-sm font-medium text-gray-900 border-b border-gray-100">
+                    {communityName}
+                  </td>
+                  {uniqueMonths.map(month => {
+                    const key = `${communityId}|${month}`;
+                    const value = communityMonthMap.get(key) || 0;
+                    const isHovered = hoveredCell?.community === communityId && hoveredCell?.month === month;
+                    
+                    return (
+                      <td
+                        key={month}
+                        className={`px-3 py-3 text-center text-xs border-b border-gray-100 transition-all cursor-pointer ${getColorIntensity(value)} ${isHovered ? 'ring-2 ring-[#2F855A] ring-offset-1' : ''}`}
+                        onMouseEnter={() => setHoveredCell({ community: communityId, month })}
+                        onMouseLeave={() => setHoveredCell(null)}
+                        title={`${communityName} - ${formatMonthLabel(month)}: ${value.toLocaleString(undefined, { maximumFractionDigits: 1 })} meals saved`}
+                      >
+                        {value > 0 ? (
+                          <span className="font-semibold text-gray-900">
+                            {value >= 1 
+                              ? value.toLocaleString(undefined, { maximumFractionDigits: 0 })
+                              : value.toFixed(1)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-3 text-center text-xs border-b border-gray-100 bg-gray-50 font-semibold">
+                    {(() => {
+                      const commTotal = communityTotals.get(communityId) || 0;
+                      return commTotal > 0 ? (
+                        <span className="text-gray-900">
+                          {commTotal >= 1 
+                            ? commTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })
+                            : commTotal.toFixed(1)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      );
+                    })()}
+                  </td>
+                </tr>
+              );
+            })}
+            <tr className="bg-gray-50 font-semibold">
+              <td className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-sm font-bold text-gray-900 border-t-2 border-gray-300">
+                Total
+              </td>
+              {uniqueMonths.map(month => {
+                const monthTotal = monthTotals.get(month) || 0;
+                return (
+                  <td
+                    key={month}
+                    className="px-3 py-3 text-center text-xs border-t-2 border-gray-300 bg-gray-50"
+                  >
+                    {monthTotal > 0 ? (
+                      <span className="font-bold text-gray-900">
+                        {monthTotal >= 1 
+                          ? monthTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })
+                          : monthTotal.toFixed(1)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
+                );
+              })}
+              <td className="px-3 py-3 text-center text-xs border-t-2 border-gray-300 bg-gray-50">
+                <span className="font-bold text-gray-900">
+                  {grandTotal >= 1 
+                    ? grandTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })
+                    : grandTotal.toFixed(1)}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div className="mt-4 flex items-center justify-between text-xs text-gray-600">
+        <div className="flex items-center gap-4">
+          <span>Intensity:</span>
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 bg-[#C6F6D5] border border-gray-300"></div>
+            <span>Low</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 bg-[#68D391] border border-gray-300"></div>
+            <span>Medium</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 bg-[#2F855A] border border-gray-300"></div>
+            <span>High</span>
+          </div>
+        </div>
+        <span>Hover over cells for details</span>
+      </div>
+    </div>
+  );
+}
+
 // Home Page Component
 function HomePage({
   setShowAuthModal,
-  setAuthMode
+  setAuthMode,
+  currentUser
 }: {
   setShowAuthModal: (show: boolean) => void;
   setAuthMode: (mode: AuthMode) => void;
+  currentUser: LoggedUser | null;
 }) {
   const [impactRecords, setImpactRecords] = useState<ImpactRecord[]>([]);
   const [impactLoading, setImpactLoading] = useState(false);
@@ -974,6 +1274,9 @@ function HomePage({
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [donations, setDonations] = useState<DonationApiRecord[]>([]);
   const [foodItems, setFoodItems] = useState<FoodItemApiRecord[]>([]);
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
+  const [heatMapLoading, setHeatMapLoading] = useState(false);
 
   const journey = [
     {
@@ -1072,6 +1375,37 @@ function HomePage({
       ignore = true;
     };
   }, []);
+
+  // Load communities and deliveries for heat map
+  useEffect(() => {
+    let ignore = false;
+    async function loadHeatMapData() {
+      setHeatMapLoading(true);
+      try {
+        const [communitiesData, deliveriesData] = await Promise.all([
+          apiFetch<Community[]>(API_PATHS.communities).catch(() => []),
+          apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
+            headers: buildAuthHeaders(currentUser),
+          }).catch(() => []),
+        ]);
+
+        if (!ignore) {
+          setCommunities(communitiesData);
+          setDeliveries(deliveriesData);
+        }
+      } catch {
+        // Silently fail - heat map is optional
+      } finally {
+        if (!ignore) {
+          setHeatMapLoading(false);
+        }
+      }
+    }
+    loadHeatMapData();
+    return () => {
+      ignore = true;
+    };
+  }, [currentUser]);
 
   const impactTotals = useMemo(() => {
     return impactRecords.reduce(
@@ -1407,6 +1741,28 @@ function HomePage({
             )}
           </div>
         </div>
+
+        {/* Community Impact Heat Map */}
+        <div className="mt-6">
+          <div className="rounded-2xl border border-[#F3C7A0] bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Community Impact Heat Map</h3>
+                <p className="text-xs text-gray-500 mt-1">Meals saved by community and month</p>
+              </div>
+              <span className="rounded-full bg-[#E6F7EE] px-3 py-1 text-[11px] font-semibold text-[#2F855A]">
+                {communities.length} communities
+              </span>
+            </div>
+            <CommunityImpactHeatMap
+              impactRecords={impactRecords}
+              foodItems={foodItems}
+              deliveries={deliveries}
+              communities={communities}
+              loading={heatMapLoading || impactLoading}
+            />
+          </div>
+        </div>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2 items-stretch">
@@ -1590,7 +1946,7 @@ function TabContent({
   setAuthMode: (mode: AuthMode) => void;
 }) {
   if (tab === 0) {
-    return <HomePage setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} />;
+    return <HomePage setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} currentUser={currentUser} />;
   }
   if (tab === 1) {
     return <DonationSection currentUser={currentUser} setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} />;
@@ -6254,9 +6610,23 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0">
-                        <FireIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
+                    {delivery.food_item && delivery.delivery_quantity ? (
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0">
+                          <FireIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-medium text-gray-500">Food Item</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {(() => {
+                              const foodItem = foodItems.find(f => f.food_id === delivery.food_item);
+                              if (foodItem) {
+                                return `${foodItem.name} - ${delivery.delivery_quantity}`;
+                              }
+                              return `${delivery.food_item} - ${delivery.delivery_quantity}`;
+                            })()}
+                          </p>
+                        </div>
                       </div>
                     ) : (
                       <div className="flex items-start gap-3">
