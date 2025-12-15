@@ -8071,6 +8071,11 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
   const [deliveryQuantity, setDeliveryQuantity] = useState<string>(""); // e.g., "15 kg", "8 bucket"
   const [foodItems, setFoodItems] = useState<FoodItemApiRecord[]>([]);
   const [statusFilter, setStatusFilter] = useState<DeliveryRecordApi["status"] | "all">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [communityFilter, setCommunityFilter] = useState<string>("all");
+  const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
+  const [staffFilter, setStaffFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("all");
   const [editingDeliveryId, setEditingDeliveryId] = useState<string | null>(null);
   const [deletingDeliveryId, setDeletingDeliveryId] = useState<string | null>(null);
 
@@ -8401,18 +8406,6 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
     }
   };
 
-  const visibleDeliveries = (canEdit
-    ? deliveries
-    : deliveries.filter((delivery) => delivery.user_id === currentUserId)
-  )
-    .filter((delivery) => delivery.delivery_type === "distribution")
-    .filter((delivery) => statusFilter === "all" || delivery.status === statusFilter)
-    .sort((a, b) => {
-      const timeA = new Date(a.pickup_time).getTime();
-      const timeB = new Date(b.pickup_time).getTime();
-      return timeA - timeB; // Sort ascending (earliest first)
-    });
-
   // Helper function to shorten warehouse ID: WAH0000004 -> WH001
   const shortenWarehouseId = (warehouseId: string): string => {
     if (!warehouseId) return warehouseId;
@@ -8486,6 +8479,162 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
     
     return foodItem || null;
   };
+
+  const lookupFoodItemName = (foodId: string | null | undefined): string => {
+    const item = lookupFoodItem(foodId);
+    return item ? item.name : foodId || "N/A";
+  };
+
+  // Get unique communities, warehouses, and staff for filters
+  const uniqueCommunities = useMemo(() => {
+    const communitySet = new Set<string>();
+    deliveries
+      .filter((d) => d.delivery_type === "distribution" && d.community_id)
+      .forEach((d) => {
+        const communityName = lookupCommunityName(d.community_id!);
+        if (communityName && communityName !== d.community_id) {
+          communitySet.add(communityName);
+        }
+      });
+    return Array.from(communitySet).sort();
+  }, [deliveries, communities]);
+
+  const uniqueWarehouses = useMemo(() => {
+    const warehouseSet = new Set<string>();
+    deliveries
+      .filter((d) => d.delivery_type === "distribution" && d.warehouse_id)
+      .forEach((d) => {
+        const warehouseId = shortenWarehouseId(d.warehouse_id);
+        warehouseSet.add(warehouseId);
+      });
+    return Array.from(warehouseSet).sort();
+  }, [deliveries]);
+
+  const uniqueStaff = useMemo(() => {
+    const staffSet = new Set<string>();
+    deliveries
+      .filter((d) => d.delivery_type === "distribution" && d.user_id)
+      .forEach((d) => {
+        const staffName = lookupStaffName(d.user_id);
+        if (staffName && staffName !== d.user_id) {
+          staffSet.add(staffName);
+        }
+      });
+    return Array.from(staffSet).sort();
+  }, [deliveries, staff]);
+
+  const visibleDeliveries = useMemo(() => {
+    let filtered = (canEdit
+      ? deliveries
+      : deliveries.filter((delivery) => delivery.user_id === currentUserId)
+    ).filter((delivery) => delivery.delivery_type === "distribution");
+
+    // Status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((delivery) => delivery.status === statusFilter);
+    }
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter((delivery) => {
+        // Search by delivery ID
+        if (delivery.delivery_id.toLowerCase().includes(query)) {
+          return true;
+        }
+
+        // Search by community name
+        if (delivery.community_id) {
+          const communityName = lookupCommunityName(delivery.community_id);
+          if (communityName.toLowerCase().includes(query)) {
+            return true;
+          }
+        }
+
+        // Search by warehouse ID/address
+        const warehouseId = shortenWarehouseId(delivery.warehouse_id);
+        if (warehouseId.toLowerCase().includes(query)) {
+          return true;
+        }
+        const warehouseAddress = lookupWarehouseAddress(delivery.warehouse_id);
+        if (warehouseAddress.toLowerCase().includes(query)) {
+          return true;
+        }
+
+        // Search by staff name
+        const staffName = lookupStaffName(delivery.user_id);
+        if (staffName.toLowerCase().includes(query)) {
+          return true;
+        }
+
+        // Search by food item name
+        if (delivery.food_item) {
+          const foodItemName = lookupFoodItemName(delivery.food_item);
+          if (foodItemName.toLowerCase().includes(query)) {
+            return true;
+          }
+        }
+
+        return false;
+      });
+    }
+
+    // Community filter
+    if (communityFilter !== "all") {
+      filtered = filtered.filter((delivery) => {
+        if (!delivery.community_id) return false;
+        const communityName = lookupCommunityName(delivery.community_id);
+        return communityName === communityFilter;
+      });
+    }
+
+    // Warehouse filter
+    if (warehouseFilter !== "all") {
+      filtered = filtered.filter((delivery) => {
+        const warehouseId = shortenWarehouseId(delivery.warehouse_id);
+        return warehouseId === warehouseFilter;
+      });
+    }
+
+    // Staff filter
+    if (staffFilter !== "all") {
+      filtered = filtered.filter((delivery) => {
+        const staffName = lookupStaffName(delivery.user_id);
+        return staffName === staffFilter;
+      });
+    }
+
+    // Date filter
+    if (dateFilter !== "all") {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const monthAgo = new Date(today);
+      monthAgo.setMonth(monthAgo.getMonth() - 1);
+
+      filtered = filtered.filter((delivery) => {
+        const pickupDate = new Date(delivery.pickup_time);
+        switch (dateFilter) {
+          case "today":
+            return pickupDate >= today;
+          case "week":
+            return pickupDate >= weekAgo;
+          case "month":
+            return pickupDate >= monthAgo;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Sort by pickup time (earliest first)
+    return filtered.sort((a, b) => {
+      const timeA = new Date(a.pickup_time).getTime();
+      const timeB = new Date(b.pickup_time).getTime();
+      return timeA - timeB;
+    });
+  }, [deliveries, canEdit, currentUserId, statusFilter, searchQuery, communityFilter, warehouseFilter, staffFilter, dateFilter, lookupCommunityName, lookupStaffName, lookupWarehouseAddress, lookupFoodItemName, shortenWarehouseId]);
 
   const statusLabel = (status: DeliveryRecordApi["status"]) => {
     switch (status) {
@@ -8822,21 +8971,158 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
               {visibleDeliveries.length} total
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-gray-700 whitespace-nowrap">
-              Filter by status:
-            </label>
-            <select
-              className="rounded-lg border border-[#CFE6D8] bg-white px-3 py-1.5 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2F855A] focus:border-transparent"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as DeliveryRecordApi["status"] | "all")}
+          {/* Search Bar */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search by ID, community, warehouse, staff, food item..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-lg border border-[#CFE6D8] bg-white px-4 py-2.5 pl-10 text-sm text-gray-700 placeholder-gray-400 outline-none focus:border-[#2F855A] focus:ring-2 focus:ring-[#2F855A]/20"
+            />
+            <svg
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              <option value="all">All</option>
-              <option value="pending">Pending</option>
-              <option value="in_transit">In Transit</option>
-              <option value="delivered">Delivered</option>
-            </select>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                title="Clear search"
+              >
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            )}
           </div>
+
+          {/* Filters Row */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Status Filter */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-600">Status</label>
+              <select
+                className="w-full rounded-lg border border-[#CFE6D8] bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2F855A] focus:border-transparent"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as DeliveryRecordApi["status"] | "all")}
+              >
+                <option value="all">All</option>
+                <option value="pending">Pending</option>
+                <option value="in_transit">In Transit</option>
+                <option value="delivered">Delivered</option>
+              </select>
+            </div>
+
+            {/* Date Filter */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-600">Date</label>
+              <select
+                className="w-full rounded-lg border border-[#CFE6D8] bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2F855A] focus:border-transparent"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
+              >
+                <option value="all">All time</option>
+                <option value="today">Today</option>
+                <option value="week">This week</option>
+                <option value="month">This month</option>
+              </select>
+            </div>
+
+            {/* Community Filter */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-600">Community</label>
+              <select
+                className="w-full rounded-lg border border-[#CFE6D8] bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2F855A] focus:border-transparent"
+                value={communityFilter}
+                onChange={(e) => setCommunityFilter(e.target.value)}
+              >
+                <option value="all">All communities</option>
+                {uniqueCommunities.map((community) => (
+                  <option key={community} value={community}>
+                    {community}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Warehouse Filter */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-600">Warehouse</label>
+              <select
+                className="w-full rounded-lg border border-[#CFE6D8] bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2F855A] focus:border-transparent"
+                value={warehouseFilter}
+                onChange={(e) => setWarehouseFilter(e.target.value)}
+              >
+                <option value="all">All warehouses</option>
+                {uniqueWarehouses.map((warehouse) => (
+                  <option key={warehouse} value={warehouse}>
+                    {warehouse}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Staff Filter */}
+            <div className="col-span-2">
+              <label className="mb-1 block text-xs font-semibold text-gray-600">Assigned Staff</label>
+              <select
+                className="w-full rounded-lg border border-[#CFE6D8] bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2F855A] focus:border-transparent"
+                value={staffFilter}
+                onChange={(e) => setStaffFilter(e.target.value)}
+              >
+                <option value="all">All staff</option>
+                {uniqueStaff.map((staffName) => (
+                  <option key={staffName} value={staffName}>
+                    {staffName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Active Filters Count */}
+          {(statusFilter !== "all" || communityFilter !== "all" || warehouseFilter !== "all" || staffFilter !== "all" || dateFilter !== "all" || searchQuery.trim()) && (
+            <div className="flex items-center justify-between border-t border-[#CFE6D8] pt-3">
+              <p className="text-xs text-gray-600">
+                <span className="font-semibold">{visibleDeliveries.length}</span> task(s) match your filters
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter("all");
+                  setCommunityFilter("all");
+                  setWarehouseFilter("all");
+                  setStaffFilter("all");
+                  setDateFilter("all");
+                  setSearchQuery("");
+                }}
+                className="text-xs font-semibold text-[#2F855A] hover:underline"
+              >
+                Clear all filters
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="overflow-y-auto flex-1 min-h-0 pr-2">
@@ -8847,7 +9133,9 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
           ) : visibleDeliveries.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-gray-300 bg-white/70 p-6 text-sm text-gray-500">
               {canEdit
-                ? "No delivery tasks yet. Create assignments from the form on the left."
+                ? searchQuery || communityFilter !== "all" || warehouseFilter !== "all" || staffFilter !== "all" || dateFilter !== "all"
+                  ? "No tasks match your filters."
+                  : "No delivery tasks yet. Create assignments from the form on the left."
                 : "No tasks assigned to you yet."}
             </p>
           ) : (
