@@ -2035,9 +2035,24 @@ function YourStatsSection({
       (sum, item) => sum + item.quantity,
       0
     );
+    const avgItemsPerDonation = totalDonations > 0 ? (totalItems / totalDonations).toFixed(1) : "0";
 
-    // Group by month for time series
+    // Status distribution
+    const statusCounts = new Map<string, number>();
+    donations.forEach((donation) => {
+      const status = donation.status || "pending";
+      statusCounts.set(status, (statusCounts.get(status) || 0) + 1);
+    });
+    const statusData = Array.from(statusCounts.entries()).map(([status, count]) => ({
+      status,
+      count,
+      label: status.charAt(0).toUpperCase() + status.slice(1),
+    }));
+
+    // Group by month for time series (donations count)
     const donationsByMonth = new Map<string, number>();
+    // Group by month for quantity
+    const quantityByMonth = new Map<string, number>();
 
     donations.forEach((donation) => {
       const date = new Date(donation.createdAt);
@@ -2045,6 +2060,16 @@ function YourStatsSection({
       donationsByMonth.set(
         monthKey,
         (donationsByMonth.get(monthKey) || 0) + 1
+      );
+      
+      // Calculate quantity for this donation
+      const donationItems = foodItems.filter(item => {
+        return item.donation === donation.id;
+      });
+      const donationQuantity = donationItems.reduce((sum, item) => sum + item.quantity, 0);
+      quantityByMonth.set(
+        monthKey,
+        (quantityByMonth.get(monthKey) || 0) + donationQuantity
       );
     });
 
@@ -2057,14 +2082,49 @@ function YourStatsSection({
         monthKey,
         month: new Date(parseInt(year), parseInt(month) - 1),
         donations: donationsByMonth.get(monthKey) || 0,
+        quantity: quantityByMonth.get(monthKey) || 0,
       };
+    });
+
+    // Category distribution
+    const categoryCounts = new Map<string, number>();
+    foodItems.forEach((item) => {
+      const category = item.category || "Uncategorized";
+      categoryCounts.set(category, (categoryCounts.get(category) || 0) + item.quantity);
+    });
+    const categoryData = Array.from(categoryCounts.entries())
+      .map(([category, quantity]) => ({ category, quantity }))
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 8); // Top 8 categories
+
+    // Weekly breakdown (last 8 weeks)
+    const weeklyData = new Map<string, number>();
+    const now = new Date();
+    for (let i = 7; i >= 0; i--) {
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - (i * 7));
+      weekStart.setHours(0, 0, 0, 0);
+      const weekKey = `Week ${Math.ceil((now.getTime() - weekStart.getTime()) / (7 * 24 * 60 * 60 * 1000))}`;
+      weeklyData.set(weekKey, 0);
+    }
+    donations.forEach((donation) => {
+      const date = new Date(donation.createdAt);
+      const weekAgo = Math.floor((now.getTime() - date.getTime()) / (7 * 24 * 60 * 60 * 1000));
+      if (weekAgo >= 0 && weekAgo < 8) {
+        const weekKey = `Week ${8 - weekAgo}`;
+        weeklyData.set(weekKey, (weeklyData.get(weekKey) || 0) + 1);
+      }
     });
 
     return {
       totalDonations,
       totalItems,
       totalQuantity,
+      avgItemsPerDonation,
       timeSeriesData,
+      statusData,
+      categoryData,
+      weeklyData: Array.from(weeklyData.entries()).map(([week, count]) => ({ week, count })),
     };
   }, [donations, foodItems]);
 
@@ -2105,13 +2165,13 @@ function YourStatsSection({
 
   return (
     <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-semibold text-gray-900">Donation Stats</h2>
+      </div>
       <div className="rounded-xl bg-white p-6 shadow">
-        <h2 className="text-2xl font-bold text-[#4B2415] mb-6">
-          Donation Stats
-        </h2>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="rounded-lg bg-gradient-to-br from-[#F1CBB5] to-[#E9B79C] p-5 shadow-sm">
             <div className="text-sm font-medium text-[#70402B] mb-1">
               Total Donations
@@ -2136,17 +2196,38 @@ function YourStatsSection({
               {stats.totalQuantity}
             </div>
           </div>
+          <div className="rounded-lg bg-gradient-to-br from-[#E9B79C] to-[#F1CBB5] p-5 shadow-sm">
+            <div className="text-sm font-medium text-[#70402B] mb-1">
+              Avg Items/Donation
+            </div>
+            <div className="text-3xl font-bold text-[#4B2415]">
+              {stats.avgItemsPerDonation}
+            </div>
+          </div>
         </div>
 
-        {/* Time Series Chart */}
-        {stats.timeSeriesData.length > 0 && (
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-[#4B2415] mb-4">
-              Donations Over Time
-            </h3>
-            <DonationTimeSeriesChart data={stats.timeSeriesData} />
-          </div>
-        )}
+        {/* Visualizations Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Donations Over Time */}
+          {stats.timeSeriesData.length > 0 && (
+            <div className="rounded-lg border border-[#E6B9A2] bg-white p-6">
+              <h3 className="text-lg font-semibold text-[#4B2415] mb-4">
+                Donations Over Time
+              </h3>
+              <DonationTimeSeriesChart data={stats.timeSeriesData} />
+            </div>
+          )}
+
+          {/* Quantity Over Time */}
+          {stats.timeSeriesData.length > 0 && (
+            <div className="rounded-lg border border-[#E6B9A2] bg-white p-6">
+              <h3 className="text-lg font-semibold text-[#4B2415] mb-4">
+                Quantity Over Time
+              </h3>
+              <QuantityLineChart data={stats.timeSeriesData} />
+            </div>
+          )}
+        </div>
 
         {/* Recent Activity */}
         <div className="mt-8">
@@ -2160,15 +2241,28 @@ function YourStatsSection({
                 className="rounded-lg border border-[#E6B9A2] bg-white p-4"
               >
                 <div className="flex justify-between items-start mb-2">
-                  <div className="font-semibold text-[#4B2415]">
-                    {donation.restaurantName}
+                  <div className="flex-1">
+                    <div className="font-semibold text-[#4B2415] mb-1">
+                      Food Items
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {donation.items.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {donation.items.map((item, idx) => (
+                            <span key={item.id || idx} className="inline-block">
+                              {item.name}
+                              {idx < donation.items.length - 1 && <span className="text-gray-400">, </span>}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">No items</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 ml-4">
                     {new Date(donation.createdAt).toLocaleDateString()}
                   </div>
-                </div>
-                <div className="text-sm text-gray-600">
-                  {donation.items.length} item(s)
                 </div>
               </div>
             ))}
@@ -2203,23 +2297,21 @@ function DonationTimeSeriesChart({
   const maxValue = Math.max(...data.map((d) => d.donations), 1);
   const chartHeight = 280;
   const chartPadding = { top: 20, right: 20, bottom: 40, left: 60 };
-  const barSpacing = 8;
-  const availableWidth = 800;
-  const barWidth = Math.max(
-    30,
+  const barSpacing = 12;
+  const minBarWidth = 40;
+  const maxBarWidth = 80;
+  // Calculate optimal bar width based on data length
+  const optimalBarWidth = Math.max(
+    minBarWidth,
     Math.min(
-      60,
-      (availableWidth -
-        chartPadding.left -
-        chartPadding.right -
-        (data.length - 1) * barSpacing) /
-        data.length
+      maxBarWidth,
+      data.length <= 2 ? 120 : data.length <= 4 ? 80 : data.length <= 6 ? 60 : 40
     )
   );
-  const chartWidth =
-    data.length * (barWidth + barSpacing) +
-    chartPadding.left +
-    chartPadding.right;
+  const chartWidth = Math.max(
+    400,
+    data.length * (optimalBarWidth + barSpacing) + chartPadding.left + chartPadding.right
+  );
 
   const formatMonthLabel = (date: Date) => {
     return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
@@ -2317,7 +2409,7 @@ function DonationTimeSeriesChart({
               (item.donations / maxValue) *
               (chartHeight - chartPadding.top - chartPadding.bottom);
             const x =
-              chartPadding.left + index * (barWidth + barSpacing);
+              chartPadding.left + index * (optimalBarWidth + barSpacing);
             const donationY = chartHeight - chartPadding.bottom - donationBarHeight;
             const isHovered = hoveredIndex === index;
 
@@ -2327,7 +2419,7 @@ function DonationTimeSeriesChart({
                 <rect
                   x={x}
                   y={donationY}
-                  width={barWidth}
+                  width={optimalBarWidth}
                   height={donationBarHeight}
                   fill="url(#donationGradient)"
                   rx="4"
@@ -2347,17 +2439,16 @@ function DonationTimeSeriesChart({
                   onMouseLeave={handleBarLeave}
                 />
                 {/* Month label */}
-                {index % Math.ceil(data.length / 6) === 0 && (
-                  <text
-                    x={x + barWidth / 2}
-                    y={chartHeight - chartPadding.bottom + 20}
-                    fontSize="10"
-                    fill="#6B7280"
-                    textAnchor="middle"
-                  >
-                    {formatMonthLabel(item.month)}
-                  </text>
-                )}
+                <text
+                  x={x + optimalBarWidth / 2}
+                  y={chartHeight - chartPadding.bottom + 20}
+                  fontSize="11"
+                  fill="#6B7280"
+                  textAnchor="middle"
+                  className="font-medium"
+                >
+                  {formatMonthLabel(item.month)}
+                </text>
               </g>
             );
           })}
@@ -2374,6 +2465,612 @@ function DonationTimeSeriesChart({
         </svg>
       </div>
 
+    </div>
+  );
+}
+
+// Status Pie Chart Component
+function StatusPieChart({
+  data,
+}: {
+  data: Array<{ status: string; count: number; label: string }>;
+}) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const total = data.reduce((sum, item) => sum + item.count, 0);
+  const size = 200;
+  const center = size / 2;
+  const radius = 80;
+  let currentAngle = -90; // Start from top
+
+  const statusColors: Record<string, string> = {
+    pending: "#FCD34D",
+    accepted: "#86EFAC",
+    declined: "#FCA5A5",
+  };
+
+  const segments = data.map((item, index) => {
+    const percentage = (item.count / total) * 100;
+    const angle = (item.count / total) * 360;
+    const startAngle = currentAngle;
+    const endAngle = currentAngle + angle;
+    currentAngle = endAngle;
+
+    const startAngleRad = (startAngle * Math.PI) / 180;
+    const endAngleRad = (endAngle * Math.PI) / 180;
+
+    const x1 = center + radius * Math.cos(startAngleRad);
+    const y1 = center + radius * Math.sin(startAngleRad);
+    const x2 = center + radius * Math.cos(endAngleRad);
+    const y2 = center + radius * Math.sin(endAngleRad);
+
+    const largeArcFlag = angle > 180 ? 1 : 0;
+
+    const pathData = [
+      `M ${center} ${center}`,
+      `L ${x1} ${y1}`,
+      `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+      "Z",
+    ].join(" ");
+
+    return {
+      ...item,
+      pathData,
+      percentage,
+      startAngle,
+      endAngle,
+      index,
+    };
+  });
+
+  return (
+    <div className="flex flex-col items-center">
+      <svg width={size} height={size} className="mb-4">
+        {segments.map((segment) => {
+          const isHovered = hoveredIndex === segment.index;
+          return (
+            <path
+              key={segment.status}
+              d={segment.pathData}
+              fill={statusColors[segment.status] || "#E5E7EB"}
+              stroke="white"
+              strokeWidth="2"
+              className="transition-opacity cursor-pointer"
+              style={{ opacity: isHovered ? 0.8 : 1 }}
+              onMouseEnter={() => setHoveredIndex(segment.index)}
+              onMouseLeave={() => setHoveredIndex(null)}
+            />
+          );
+        })}
+      </svg>
+      <div className="flex flex-wrap gap-4 justify-center">
+        {data.map((item) => (
+          <div
+            key={item.status}
+            className="flex items-center gap-2"
+            onMouseEnter={() => setHoveredIndex(data.indexOf(item))}
+            onMouseLeave={() => setHoveredIndex(null)}
+          >
+            <div
+              className="w-4 h-4 rounded-full"
+              style={{
+                backgroundColor: statusColors[item.status] || "#E5E7EB",
+              }}
+            />
+            <span className="text-sm text-gray-700">
+              {item.label}: {item.count} ({((item.count / total) * 100).toFixed(1)}%)
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Quantity Line Chart Component
+function QuantityLineChart({
+  data,
+}: {
+  data: Array<{
+    monthKey: string;
+    month: Date;
+    quantity: number;
+  }>;
+}) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    x: number;
+    y: number;
+    month: string;
+    quantity: number;
+  } | null>(null);
+  const [animatedIndex, setAnimatedIndex] = useState<number>(0);
+  const [isAnimating, setIsAnimating] = useState<boolean>(true);
+  const [visiblePoint, setVisiblePoint] = useState<number | null>(null);
+
+  const maxValue = Math.max(...data.map((d) => d.quantity), 1);
+  const chartHeight = 200;
+  const chartPadding = { top: 20, right: 20, bottom: 40, left: 60 };
+  const pointSpacing = 60;
+  const chartWidth = Math.max(400, data.length * pointSpacing + chartPadding.left + chartPadding.right);
+
+  const formatMonthLabel = (date: Date) => {
+    return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  };
+
+  const getPoint = (index: number, value: number) => {
+    const x = chartPadding.left + index * pointSpacing;
+    const y =
+      chartHeight -
+      chartPadding.bottom -
+      (value / maxValue) * (chartHeight - chartPadding.top - chartPadding.bottom);
+    return { x, y };
+  };
+
+  // Calculate all points
+  const points = useMemo(() => {
+    return data.map((item, index) => {
+      const point = getPoint(index, item.quantity);
+      return { x: point.x, y: point.y, ...item, index };
+    });
+  }, [data, maxValue, chartHeight, chartPadding, pointSpacing]);
+
+  // Animation effect
+  useEffect(() => {
+    if (!isAnimating || points.length === 0) {
+      // When animation completes, show all points
+      if (points.length > 0) {
+        setAnimatedIndex(points.length - 1);
+        setVisiblePoint(null);
+      }
+      return;
+    }
+
+    const pointShowDuration = 150; // Show point for 150ms
+    const pointHideDuration = 50; // Hide point for 50ms before next
+
+    let currentIndex = 0;
+    let timeoutId: NodeJS.Timeout;
+
+    const animateNext = () => {
+      if (currentIndex >= points.length) {
+        setIsAnimating(false);
+        setAnimatedIndex(points.length - 1);
+        setVisiblePoint(null);
+        return;
+      }
+
+      // Show the point and update line
+      setVisiblePoint(currentIndex);
+      setAnimatedIndex(currentIndex);
+
+      // Hide the point after showing it
+      timeoutId = setTimeout(() => {
+        setVisiblePoint(null);
+
+        // Move to next point
+        timeoutId = setTimeout(() => {
+          currentIndex++;
+          animateNext();
+        }, pointHideDuration);
+      }, pointShowDuration);
+    };
+
+    // Start animation after a brief delay
+    timeoutId = setTimeout(animateNext, 300);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [isAnimating, points.length]);
+
+  const handlePointHover = (
+    e: React.MouseEvent<SVGCircleElement>,
+    index: number,
+    month: string,
+    quantity: number
+  ) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredIndex(index);
+    setTooltip({
+      x: rect.left + rect.width / 2,
+      y: rect.top - 15,
+      month,
+      quantity,
+    });
+  };
+
+  const handlePointLeave = () => {
+    setHoveredIndex(null);
+    setTooltip(null);
+  };
+
+  // Create animated path that only shows up to animatedIndex
+  const animatedPathData = points.length > 1 && animatedIndex >= 0
+    ? `M ${points.slice(0, animatedIndex + 1).map(p => `${p.x},${p.y}`).join(' L ')}`
+    : '';
+
+  const animatedAreaPath = points.length > 1 && animatedIndex >= 0 && animatedPathData
+    ? `M ${points[0].x} ${chartHeight - chartPadding.bottom} L ${animatedPathData.replace('M ', '')} L ${points[Math.min(animatedIndex, points.length - 1)].x} ${chartHeight - chartPadding.bottom} Z`
+    : '';
+
+  return (
+    <div className="relative">
+      {tooltip && (
+        <div
+          className="fixed z-50 rounded-lg bg-white px-3 py-2 text-xs shadow-lg pointer-events-none border border-gray-200"
+          style={{
+            left: `${tooltip.x}px`,
+            top: `${tooltip.y}px`,
+            transform: "translate(-50%, -100%)",
+            marginTop: "-8px",
+          }}
+        >
+          <div className="font-semibold mb-1 text-[#d48a68] text-sm">
+            {tooltip.month}
+          </div>
+          <div className="text-[#d48a68] opacity-75 text-xs">
+            {tooltip.quantity.toLocaleString()} units
+          </div>
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          className="w-full h-[200px]"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <linearGradient id="quantityGradient" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#86EFAC" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#86EFAC" stopOpacity="0.1" />
+            </linearGradient>
+          </defs>
+
+          {/* Y-axis grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const y =
+              chartHeight -
+              chartPadding.bottom -
+              (chartHeight - chartPadding.top - chartPadding.bottom) * ratio;
+            const value = Math.round(maxValue * ratio);
+            return (
+              <g key={ratio}>
+                <line
+                  x1={chartPadding.left}
+                  y1={y}
+                  x2={chartWidth - chartPadding.right}
+                  y2={y}
+                  stroke="#E5E7EB"
+                  strokeWidth="0.5"
+                  strokeDasharray="2,2"
+                />
+                <text
+                  x={chartPadding.left - 10}
+                  y={y + 4}
+                  fontSize="12"
+                  fill="#6B7280"
+                  textAnchor="end"
+                >
+                  {value}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Area under line - animated */}
+          {animatedAreaPath && (
+            <path
+              d={animatedAreaPath}
+              fill="url(#quantityGradient)"
+            />
+          )}
+
+          {/* Line - animated */}
+          {animatedPathData && (
+            <path
+              d={animatedPathData}
+              fill="none"
+              stroke="#86EFAC"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+
+          {/* Points */}
+          {points.map((point, index) => {
+            // Only show points up to animatedIndex
+            if (index > animatedIndex) return null;
+            
+            const isHovered = hoveredIndex === index;
+            const isVisible = visiblePoint === index;
+            return (
+              <g key={point.monthKey}>
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r={isVisible ? 8 : isHovered ? 6 : 4}
+                  fill="#86EFAC"
+                  stroke="white"
+                  strokeWidth={isVisible ? 3 : 2}
+                  className="transition-all cursor-pointer"
+                  style={{
+                    opacity: isVisible ? 1 : 1,
+                  }}
+                  onMouseEnter={(e) =>
+                    handlePointHover(
+                      e,
+                      index,
+                      formatMonthLabel(point.month),
+                      point.quantity
+                    )
+                  }
+                  onMouseLeave={handlePointLeave}
+                />
+                {/* Month label */}
+                <text
+                  x={point.x}
+                  y={chartHeight - chartPadding.bottom + 20}
+                  fontSize="10"
+                  fill="#6B7280"
+                  textAnchor="middle"
+                >
+                  {formatMonthLabel(point.month)}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* X-axis line */}
+          <line
+            x1={chartPadding.left}
+            y1={chartHeight - chartPadding.bottom}
+            x2={chartWidth - chartPadding.right}
+            y2={chartHeight - chartPadding.bottom}
+            stroke="#D1D5DB"
+            strokeWidth="1"
+          />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// Category Bar Chart Component
+function CategoryBarChart({
+  data,
+}: {
+  data: Array<{ category: string; quantity: number }>;
+}) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const maxValue = Math.max(...data.map((d) => d.quantity), 1);
+  const chartHeight = Math.min(400, data.length * 45);
+  const chartPadding = { top: 20, right: 20, bottom: 60, left: 150 };
+  const barSpacing = 12;
+  const barHeight = 30;
+  const chartWidth = 800;
+  const availableHeight = chartHeight - chartPadding.top - chartPadding.bottom;
+
+  return (
+    <div className="rounded-lg border border-[#E6B9A2] bg-white p-6">
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          className="w-full"
+          preserveAspectRatio="xMidYMid meet"
+        >
+          {/* Y-axis grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const y =
+              chartHeight -
+              chartPadding.bottom -
+              availableHeight * ratio;
+            const value = Math.round(maxValue * ratio);
+            return (
+              <g key={ratio}>
+                <line
+                  x1={chartPadding.left}
+                  y1={y}
+                  x2={chartWidth - chartPadding.right}
+                  y2={y}
+                  stroke="#E5E7EB"
+                  strokeWidth="0.5"
+                  strokeDasharray="2,2"
+                />
+                <text
+                  x={chartPadding.left - 10}
+                  y={y + 4}
+                  fontSize="12"
+                  fill="#6B7280"
+                  textAnchor="end"
+                >
+                  {value}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Bars */}
+          {data.map((item, index) => {
+            const barWidth = (item.quantity / maxValue) * (chartWidth - chartPadding.left - chartPadding.right);
+            const y = chartPadding.top + index * (barHeight + barSpacing);
+            const isHovered = hoveredIndex === index;
+
+            return (
+              <g key={item.category}>
+                {/* Bar */}
+                <rect
+                  x={chartPadding.left}
+                  y={y}
+                  width={barWidth}
+                  height={barHeight}
+                  fill="#d48a68"
+                  rx="4"
+                  ry="4"
+                  className="transition-opacity cursor-pointer"
+                  style={{ opacity: isHovered ? 0.8 : 1 }}
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+                {/* Category label */}
+                <text
+                  x={chartPadding.left - 10}
+                  y={y + barHeight / 2 + 4}
+                  fontSize="12"
+                  fill="#4B2415"
+                  textAnchor="end"
+                  className="font-medium"
+                >
+                  {item.category.length > 20 ? item.category.substring(0, 20) + "..." : item.category}
+                </text>
+                {/* Value label */}
+                <text
+                  x={chartPadding.left + barWidth + 10}
+                  y={y + barHeight / 2 + 4}
+                  fontSize="12"
+                  fill="#4B2415"
+                  className="font-semibold"
+                >
+                  {item.quantity.toLocaleString()}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* X-axis line */}
+          <line
+            x1={chartPadding.left}
+            y1={chartHeight - chartPadding.bottom}
+            x2={chartWidth - chartPadding.right}
+            y2={chartHeight - chartPadding.bottom}
+            stroke="#D1D5DB"
+            strokeWidth="1"
+          />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// Weekly Activity Chart Component
+function WeeklyActivityChart({
+  data,
+}: {
+  data: Array<{ week: string; count: number }>;
+}) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const maxValue = Math.max(...data.map((d) => d.count), 1);
+  const chartHeight = 200;
+  const chartPadding = { top: 20, right: 20, bottom: 40, left: 60 };
+  const barSpacing = 8;
+  const barWidth = 50;
+  const chartWidth = data.length * (barWidth + barSpacing) + chartPadding.left + chartPadding.right;
+
+  return (
+    <div className="overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+        className="w-full h-[200px]"
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <linearGradient id="weeklyGradient" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#d48a68" stopOpacity="1" />
+            <stop offset="100%" stopColor="#B86A49" stopOpacity="1" />
+          </linearGradient>
+        </defs>
+
+        {/* Y-axis grid lines */}
+        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+          const y =
+            chartHeight -
+            chartPadding.bottom -
+            (chartHeight - chartPadding.top - chartPadding.bottom) * ratio;
+          const value = Math.round(maxValue * ratio);
+          return (
+            <g key={ratio}>
+              <line
+                x1={chartPadding.left}
+                y1={y}
+                x2={chartWidth - chartPadding.right}
+                y2={y}
+                stroke="#E5E7EB"
+                strokeWidth="0.5"
+                strokeDasharray="2,2"
+              />
+              <text
+                x={chartPadding.left - 10}
+                y={y + 4}
+                fontSize="12"
+                fill="#6B7280"
+                textAnchor="end"
+              >
+                {value}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Bars */}
+        {data.map((item, index) => {
+          const barHeight =
+            (item.count / maxValue) *
+            (chartHeight - chartPadding.top - chartPadding.bottom);
+          const x = chartPadding.left + index * (barWidth + barSpacing);
+          const y = chartHeight - chartPadding.bottom - barHeight;
+          const isHovered = hoveredIndex === index;
+
+          return (
+            <g key={item.week}>
+              <rect
+                x={x}
+                y={y}
+                width={barWidth}
+                height={barHeight}
+                fill="url(#weeklyGradient)"
+                rx="4"
+                ry="4"
+                className="transition-all duration-200 cursor-pointer"
+                style={{ opacity: isHovered ? 1 : 0.9 }}
+                onMouseEnter={() => setHoveredIndex(index)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              />
+              <text
+                x={x + barWidth / 2}
+                y={chartHeight - chartPadding.bottom + 20}
+                fontSize="10"
+                fill="#6B7280"
+                textAnchor="middle"
+              >
+                {item.week}
+              </text>
+              {item.count > 0 && (
+                <text
+                  x={x + barWidth / 2}
+                  y={y - 5}
+                  fontSize="11"
+                  fill="#4B2415"
+                  textAnchor="middle"
+                  className="font-semibold"
+                >
+                  {item.count}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* X-axis line */}
+        <line
+          x1={chartPadding.left}
+          y1={chartHeight - chartPadding.bottom}
+          x2={chartWidth - chartPadding.right}
+          y2={chartHeight - chartPadding.bottom}
+          stroke="#D1D5DB"
+          strokeWidth="1"
+        />
+      </svg>
     </div>
   );
 }
