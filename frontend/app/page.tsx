@@ -1399,125 +1399,136 @@ function HomePage({
     },
   ];
 
+  // Load all dashboard data in parallel for faster loading
   useEffect(() => {
     let ignore = false;
-    async function loadImpact() {
+    
+    async function loadAllDashboardData() {
+      // Set all loading states
       setImpactLoading(true);
+      setLeaderboardLoading(true);
+      setHeatMapLoading(true);
       setImpactError(null);
+
       try {
-        const candidates = [
+        // Try impact endpoints in parallel instead of sequentially
+        const impactCandidates = [
           API_PATHS.impact,
           "/impact/",
         ];
 
-        let loaded: ImpactRecord[] = [];
-        let lastError: unknown = null;
-
-        for (const path of candidates) {
-          try {
-            const raw = await apiFetch<unknown>(path);
-            loaded = normalizeImpactData(raw);
-            if (loaded.length) break;
-          } catch (err) {
-            lastError = err;
-          }
-        }
-
-        if (!ignore) {
-          if (!loaded.length && lastError) {
-            throw lastError;
-          }
-          setImpactRecords(loaded);
-        }
-      } catch (err) {
-        if (!ignore) {
-          setImpactError(
-            err instanceof Error ? err.message : "Unable to load impact data."
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setImpactLoading(false);
-        }
-      }
-    }
-    loadImpact();
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  // Load restaurants, donations, and food items for leaderboard
-  useEffect(() => {
-    let ignore = false;
-    async function loadLeaderboardData() {
-      setLeaderboardLoading(true);
-      try {
-        const [restaurantsData, donationsData, foodItemsData] = await Promise.all([
-          apiFetch<Restaurant[]>("/restaurants/").catch((err) => {
-            console.error("Failed to load restaurants:", err);
-            return [];
-          }),
-          apiFetch<DonationApiRecord[]>("/donations/").catch((err) => {
-            console.error("Failed to load donations:", err);
-            return [];
-          }),
-          apiFetch<FoodItemApiRecord[]>("/fooditems/").catch((err) => {
-            console.error("Failed to load food items:", err);
-            return [];
-          }),
-        ]);
-
-        if (!ignore) {
-          console.log("Leaderboard data loaded:", {
-            restaurants: restaurantsData.length,
-            donations: donationsData.length,
-            foodItems: foodItemsData.length,
-          });
-          setRestaurants(restaurantsData);
-          setDonations(donationsData);
-          setFoodItems(foodItemsData);
-          setLeaderboardLoading(false);
-        }
-      } catch (err) {
-        console.error("Error loading leaderboard data:", err);
-        if (!ignore) {
-          setLeaderboardLoading(false);
-        }
-      }
-    }
-    loadLeaderboardData();
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  // Load communities and deliveries for heat map
-  useEffect(() => {
-    let ignore = false;
-    async function loadHeatMapData() {
-      setHeatMapLoading(true);
-      try {
-        const [communitiesData, deliveriesData] = await Promise.all([
-          apiFetch<Community[]>(API_PATHS.communities).catch(() => []),
+        // Fetch all data in parallel for maximum speed
+        const [
+          impactResult1,
+          impactResult2,
+          restaurantsData,
+          donationsData,
+          foodItemsData,
+          communitiesData,
+          deliveriesData,
+        ] = await Promise.allSettled([
+          apiFetch<unknown>(impactCandidates[0]),
+          apiFetch<unknown>(impactCandidates[1]),
+          apiFetch<Restaurant[]>("/restaurants/"),
+          apiFetch<DonationApiRecord[]>("/donations/"),
+          apiFetch<FoodItemApiRecord[]>("/fooditems/"),
+          apiFetch<Community[]>(API_PATHS.communities),
           apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
             headers: buildAuthHeaders(currentUser),
-          }).catch(() => []),
+          }),
         ]);
 
-        if (!ignore) {
-          setCommunities(communitiesData);
-          setDeliveries(deliveriesData);
+        if (ignore) return;
+
+        // Process impact data - use first successful result
+        let loaded: ImpactRecord[] = [];
+        let impactError: unknown = null;
+
+        for (const result of [impactResult1, impactResult2]) {
+          if (result.status === "fulfilled") {
+            try {
+              loaded = normalizeImpactData(result.value);
+              if (loaded.length) break;
+            } catch (err) {
+              impactError = err;
+            }
+          } else {
+            impactError = result.reason;
+          }
         }
-      } catch {
-        // Silently fail - heat map is optional
-      } finally {
+
+        if (loaded.length) {
+          setImpactRecords(loaded);
+        } else if (impactError) {
+          setImpactError(
+            impactError instanceof Error ? impactError.message : "Unable to load impact data."
+          );
+        }
+        // Always clear loading state
+        setImpactLoading(false);
+
+        // Process leaderboard data - update state as soon as available
+        if (restaurantsData.status === "fulfilled") {
+          setRestaurants(restaurantsData.value);
+        } else {
+          console.error("Failed to load restaurants:", restaurantsData.reason);
+          setRestaurants([]);
+        }
+
+        if (donationsData.status === "fulfilled") {
+          setDonations(donationsData.value);
+        } else {
+          console.error("Failed to load donations:", donationsData.reason);
+          setDonations([]);
+        }
+
+        if (foodItemsData.status === "fulfilled") {
+          setFoodItems(foodItemsData.value);
+        } else {
+          console.error("Failed to load food items:", foodItemsData.reason);
+          setFoodItems([]);
+        }
+
+        // Leaderboard is ready when all three are loaded
+        setLeaderboardLoading(false);
+
+        // Process heat map data
+        if (communitiesData.status === "fulfilled") {
+          setCommunities(communitiesData.value);
+        } else {
+          setCommunities([]);
+        }
+
+        if (deliveriesData.status === "fulfilled") {
+          setDeliveries(deliveriesData.value);
+        } else {
+          setDeliveries([]);
+        }
+
+        setHeatMapLoading(false);
+
+        console.log("Dashboard data loaded:", {
+          impactRecords: loaded.length,
+          restaurants: restaurantsData.status === "fulfilled" ? restaurantsData.value.length : 0,
+          donations: donationsData.status === "fulfilled" ? donationsData.value.length : 0,
+          foodItems: foodItemsData.status === "fulfilled" ? foodItemsData.value.length : 0,
+          communities: communitiesData.status === "fulfilled" ? communitiesData.value.length : 0,
+          deliveries: deliveriesData.status === "fulfilled" ? deliveriesData.value.length : 0,
+        });
+      } catch (err) {
         if (!ignore) {
+          console.error("Error loading dashboard data:", err);
+          setImpactError(
+            err instanceof Error ? err.message : "Unable to load dashboard data."
+          );
+          setImpactLoading(false);
+          setLeaderboardLoading(false);
           setHeatMapLoading(false);
         }
       }
     }
-    loadHeatMapData();
+
+    loadAllDashboardData();
     return () => {
       ignore = true;
     };
@@ -1910,8 +1921,8 @@ function HomePage({
         </div>
       </div>
 
-      <section className="rounded-[32px] bg-[#e8ede3] p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <section className="rounded-[32px] bg-[#e8ede3] p-6 animate-fade-in">
+        <div className="flex flex-wrap items-center justify-between gap-3 animate-fade-in-up">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#4E673E]">
               Impact dashboard
@@ -1921,7 +1932,7 @@ function HomePage({
               Live from impact records: meals saved, weight diverted, and CO₂ reduced.
             </p>
           </div>
-          <span className="rounded-full border border-[#A8B99A] bg-white px-3 py-1 text-xs font-semibold text-[#365032] shadow-sm">
+          <span className="rounded-full border border-[#A8B99A] bg-white px-3 py-1 text-xs font-semibold text-[#365032] shadow-sm animate-scale-in" style={{ animationDelay: '0.2s', opacity: 0 }}>
             {impactRecords.length} records
           </span>
         </div>
@@ -1937,24 +1948,30 @@ function HomePage({
             { label: "Meals saved", value: impactTotals.meals, suffix: "", classes: "text-[#365032]" },
             { label: "Weight saved (kg)", value: impactTotals.weight, suffix: " kg", classes: "text-[#365032]" },
             { label: "CO₂ reduced (kg)", value: impactTotals.co2, suffix: " kg", classes: "text-[#d48a68]" },
-          ].map((card) => (
+          ].map((card, index) => (
             <div
               key={card.label}
-              className="rounded-2xl border border-dashed border-[#A8B99A] bg-white p-4 shadow-sm"
+              className="rounded-2xl border border-dashed border-[#A8B99A] bg-white p-4 shadow-sm animate-fade-in-up transition-all duration-300 hover:shadow-md hover:scale-[1.02]"
+              style={{
+                animationDelay: `${0.3 + index * 0.1}s`,
+                opacity: 0,
+              }}
             >
               <p className={`text-xs font-semibold uppercase tracking-wide ${card.label === "CO₂ reduced (kg)" ? "text-[#d48a68]" : "text-[#708A58]"}`}>
                 {card.label}
               </p>
-              <p className={`text-3xl font-bold ${card.classes}`}>
-                {impactLoading ? "…" : (
+              {impactLoading ? (
+                <div className="mt-2 h-10 w-24 bg-gray-200 rounded animate-pulse"></div>
+              ) : (
+                <p className={`text-3xl font-bold ${card.classes}`}>
                   <AnimatedNumber 
                     value={card.value} 
                     suffix={card.suffix}
                     className={card.classes}
                     decimals={card.label === "Meals saved" ? 0 : 1}
                   />
-                )}
-              </p>
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -1962,50 +1979,75 @@ function HomePage({
         {/* Top Restaurants and CO₂ Chart Row */}
         <div className="mt-6 grid gap-6 lg:grid-cols-5">
           {/* Top Restaurants Leaderboard - First visualization */}
-          <div className="lg:col-span-2 rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-5 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
+          <div className="lg:col-span-2 rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-5 shadow-sm animate-fade-in h-[450px] flex flex-col">
+            <div className="mb-3 flex items-center justify-between animate-fade-in-up flex-shrink-0">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Impact Leaders</h3>
                 <p className="text-xs text-gray-500 mt-0.5">Top performing restaurants</p>
               </div>
-              <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#d48a68] border border-[#F3C7A0]">
+              <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#d48a68] border border-[#F3C7A0] animate-scale-in animate-delay-200">
                 Top 5
               </span>
             </div>
-            <div className="min-h-[200px]">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               {impactLoading || leaderboardLoading ? (
-                <p className="text-sm text-gray-600 py-8">Loading leaderboard...</p>
-              ) : restaurantLeaderboard.length === 0 ? (
-                <p className="text-sm text-gray-600 py-8 text-center">No restaurant data available yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {restaurantLeaderboard.map((restaurant, index) => (
+                <div className="space-y-2 w-full">
+                  {[1, 2, 3, 4, 5].map((i) => (
                     <div
-                      key={restaurant.restaurantId}
-                      className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3 hover:bg-[#f9fff4]"
+                      key={i}
+                      className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3 animate-pulse"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F3C7A0] text-sm font-bold text-[#B25C23]">
-                          {index + 1}
-                        </div>
+                        <div className="h-8 w-8 shrink-0 rounded-full bg-gray-200"></div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-gray-900">
-                            {restaurant.name}
-                          </p>
-                          <div className="mt-1 flex gap-4 text-xs text-gray-600">
-                            <span className="font-semibold text-[#365032]">
-                              {restaurant.meals.toLocaleString(undefined, { maximumFractionDigits: 0 })} meals
-                            </span>
-                            <span className="text-[#708A58]">
-                              {restaurant.weight.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
-                            </span>
-                            <span className="text-[#B25C23]">
-                              {restaurant.co2.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg CO₂
-                            </span>
+                          <div className="h-4 w-32 bg-gray-200 rounded mb-2"></div>
+                          <div className="flex gap-4">
+                            <div className="h-3 w-20 bg-gray-200 rounded"></div>
+                            <div className="h-3 w-16 bg-gray-200 rounded"></div>
+                            <div className="h-3 w-20 bg-gray-200 rounded"></div>
                           </div>
                         </div>
                       </div>
                     </div>
+                  ))}
+                </div>
+              ) : restaurantLeaderboard.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-sm text-gray-600 text-center animate-fade-in">No restaurant data available yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-2 w-full">
+                  {restaurantLeaderboard.map((restaurant, index) => (
+                    <div
+                      key={restaurant.restaurantId}
+                      className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3 hover:bg-[#f9fff4] transition-all duration-300 hover:shadow-md hover:scale-[1.02] animate-fade-in-up"
+                      style={{
+                        animationDelay: `${index * 0.1}s`,
+                        opacity: 0,
+                      }}
+                    >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F3C7A0] text-sm font-bold text-[#B25C23] transition-transform duration-300 hover:scale-110">
+                            {index + 1}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-gray-900">
+                              {restaurant.name}
+                            </p>
+                            <div className="mt-1 flex gap-4 text-xs text-gray-600">
+                              <span className="font-semibold text-[#365032] transition-colors duration-300">
+                                {restaurant.meals.toLocaleString(undefined, { maximumFractionDigits: 0 })} meals
+                              </span>
+                              <span className="text-[#708A58] transition-colors duration-300">
+                                {restaurant.weight.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
+                              </span>
+                              <span className="text-[#B25C23] transition-colors duration-300">
+                                {restaurant.co2.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg CO₂
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                   ))}
                 </div>
               )}
@@ -2013,13 +2055,13 @@ function HomePage({
           </div>
 
           {/* CO₂ Reduction Trend Chart */}
-          <div className="lg:col-span-3 rounded-2xl border border-[#F3C7A0] bg-white shadow-sm">
+          <div className="lg:col-span-3 rounded-2xl border border-[#F3C7A0] bg-white shadow-sm animate-fade-in-up transition-all duration-300 hover:shadow-md" style={{ animationDelay: '0.6s', opacity: 0 }}>
             <div className="px-6 pt-6 pb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Cumulative CO₂ Reduction</h3>
                 <p className="text-xs text-gray-500 mt-1">Hover over points to see details</p>
               </div>
-              <span className="rounded-full bg-[#FFF4E6] px-3 py-1 text-[11px] font-semibold text-[#D97706]">
+              <span className="rounded-full bg-[#FFF4E6] px-3 py-1 text-[11px] font-semibold text-[#D97706] animate-scale-in" style={{ animationDelay: '0.7s', opacity: 0 }}>
                 Last {weeklyMealsData.length} weeks
               </span>
             </div>
@@ -2065,14 +2107,14 @@ function HomePage({
         </div>
 
         {/* Community Impact Heat Map */}
-        <div className="mt-6">
-          <div className="rounded-2xl border border-[#F3C7A0] bg-white p-6 shadow-sm">
+        <div className="mt-6 animate-fade-in-up" style={{ animationDelay: '0.8s', opacity: 0 }}>
+          <div className="rounded-2xl border border-[#F3C7A0] bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-md">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Community Impact Heat Map</h3>
                 <p className="text-xs text-gray-500 mt-1">Meals saved by community and month</p>
               </div>
-              <span className="rounded-full bg-[#E6F7EE] px-3 py-1 text-[11px] font-semibold text-[#2F855A]">
+              <span className="rounded-full bg-[#E6F7EE] px-3 py-1 text-[11px] font-semibold text-[#2F855A] animate-scale-in" style={{ animationDelay: '0.9s', opacity: 0 }}>
                 {communities.length} communities
               </span>
             </div>
@@ -9112,7 +9154,7 @@ export default function Home() {
               } else if (user.isDeliveryStaff) {
                 setActiveTab(4);
               } else {
-                setActiveTab(1);
+                setActiveTab(0); // Redirect to homepage instead of donate page
               }
               setShowAuthModal(false);
             }}
