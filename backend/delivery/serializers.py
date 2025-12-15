@@ -93,7 +93,7 @@ class DeliverySerializer(serializers.ModelSerializer):
     )
     donation_id = serializers.SlugRelatedField(
         slug_field="donation_id",
-        queryset=Donation.objects.all(),
+        queryset=Donation.objects.defer("created_by").all(),
         allow_null=True,
         required=False,
     )

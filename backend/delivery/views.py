@@ -21,11 +21,14 @@ class DeliveryViewSet(viewsets.ModelViewSet):
         "user_id",
         "community_id",
         "food_item",
+        "donation_id",
     ).all()
     serializer_class = DeliverySerializer
 
     def get_queryset(self):
         qs = super().get_queryset()
+        # Defer created_by field from donations to avoid database errors if column doesn't exist
+        qs = qs.defer("donation_id__created_by")
         is_admin = _str_to_bool(self.request.headers.get("X-USER-IS-ADMIN"))
         is_driver = _str_to_bool(self.request.headers.get("X-USER-IS-DELIVERY"))
         user_id = self.request.headers.get("X-USER-ID")
