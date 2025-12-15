@@ -6187,6 +6187,36 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
     return removePostalCode(warehouse.address);
   };
 
+  // Helper to normalize food ID for matching (handles both F0000014 and FOO0000014 formats)
+  const normalizeFoodId = (foodId: string): string => {
+    if (!foodId) return foodId;
+    // If it starts with FOO, return as is
+    if (foodId.startsWith("FOO")) return foodId;
+    // If it starts with F but not FOO, convert F0000014 -> FOO0000014
+    if (foodId.startsWith("F") && !foodId.startsWith("FOO")) {
+      const digits = foodId.substring(1);
+      return `FOO${digits.padStart(7, "0")}`;
+    }
+    return foodId;
+  };
+
+  // Helper to find food item by ID (handles both formats)
+  const lookupFoodItem = (foodId: string | null | undefined): FoodItemApiRecord | null => {
+    if (!foodId) return null;
+    // Try direct match first
+    let foodItem = foodItems.find(f => f.food_id === foodId);
+    if (foodItem) return foodItem;
+    
+    // Try normalized match
+    const normalizedId = normalizeFoodId(foodId);
+    foodItem = foodItems.find(f => {
+      const normalizedFoodId = normalizeFoodId(f.food_id);
+      return normalizedFoodId === normalizedId;
+    });
+    
+    return foodItem || null;
+  };
+
   const statusLabel = (status: DeliveryRecordApi["status"]) => {
     switch (status) {
       case "pending":
@@ -6608,11 +6638,11 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
                           <p className="text-xs font-medium text-gray-500">Food Item</p>
                           <p className="text-sm font-semibold text-gray-900">
                             {(() => {
-                              const foodItem = foodItems.find(f => f.food_id === delivery.food_item);
+                              const foodItem = lookupFoodItem(delivery.food_item);
                               if (foodItem) {
-                                return `${foodItem.name} - ${delivery.delivery_quantity} ${foodItem.unit}`;
+                                return `${foodItem.name} - ${delivery.delivery_quantity}`;
                               }
-                              return `${delivery.food_item} - ${delivery.delivery_quantity}`;
+                              return `${delivery.delivery_quantity}`;
                             })()}
                           </p>
                         </div>
