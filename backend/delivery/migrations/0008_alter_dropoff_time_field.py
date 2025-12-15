@@ -1,21 +1,27 @@
-from django.db import migrations, models
+from django.db import migrations
+
+
+def fix_dropoff_time_data(apps, schema_editor):
+    # 🔒 ป้องกัน SQLite (ตอนรัน test)
+    if schema_editor.connection.vendor != "postgresql":
+        return
+
+    # ✅ ทำเฉพาะ PostgreSQL เท่านั้น
+    schema_editor.execute(
+        """
+        UPDATE delivery_delivery
+        SET dropoff_time = dropoff_time::time
+        WHERE dropoff_time IS NOT NULL;
+        """
+    )
 
 
 class Migration(migrations.Migration):
-    """
-    This migration ensures Django's state is in sync with the database.
-    The actual column type change was done in 0006_fix_dropoff_time_data.
-    """
 
     dependencies = [
-        ("delivery", "0006_fix_dropoff_time_data"),
+        ("delivery", "0005_remove_delivery_delivered_quantity"),
     ]
 
     operations = [
-        # Just update Django's internal state - the column is already the correct type
-        migrations.AlterField(
-            model_name="delivery",
-            name="dropoff_time",
-            field=models.DateTimeField(),
-        ),
+        migrations.RunPython(fix_dropoff_time_data),
     ]

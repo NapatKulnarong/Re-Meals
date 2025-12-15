@@ -1,4 +1,5 @@
-from datetime import date, timedelta
+from datetime import date, timedelta, time
+
 
 from django.contrib.auth.models import User as DjangoAuthUser
 from django.urls import reverse
@@ -183,7 +184,7 @@ class DeliveryAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.existing_delivery.refresh_from_db()
-        self.assertEqual(self.existing_delivery.dropoff_time, timedelta(hours=5))
+        self.assertEqual(self.existing_delivery.dropoff_time, time(5, 0))
         self.assertEqual(self.existing_delivery.notes, "Updated schedule")
 
     # 5. Requests must be authenticated
@@ -267,7 +268,7 @@ class DeliveryAPITests(APITestCase):
         response = self.client.post(self.list_url, payload, format="json", **self.admin_headers)
         self.assertEqual(response.status_code, 201)
         created = Delivery.objects.get(delivery_id=response.data["delivery_id"])
-        self.assertEqual(created.dropoff_time, timedelta(hours=4, minutes=45))
+        self.assertEqual(created.dropoff_time, time(4, 45))
 
     # 10. Detail endpoint returns 404 for unknown delivery_id
     def test_get_nonexistent_delivery_returns_404(self):

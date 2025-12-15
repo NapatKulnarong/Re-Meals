@@ -1,3 +1,5 @@
+from datetime import datetime, time, timedelta
+
 from django.db import models
 from warehouse.models import Warehouse
 from community.models import Community
@@ -80,4 +82,10 @@ class Delivery(models.Model):
                 self.PREFIX,
                 padding=7,
             )
+        # Convert timedelta to time if needed (for backward compatibility)
+        if isinstance(self.dropoff_time, timedelta):
+            # Convert timedelta to time by adding it to midnight
+            midnight = datetime.combine(datetime.today(), time.min)
+            result_datetime = midnight + self.dropoff_time
+            self.dropoff_time = result_datetime.time()
         super().save(*args, **kwargs)
