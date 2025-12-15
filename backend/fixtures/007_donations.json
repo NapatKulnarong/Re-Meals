@@ -268,5 +268,167 @@
       "status": "accepted",
       "restaurant": "RES0000030"
     }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000031",
+    "fields": {
+      "donated_at": "2025-01-01T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000001"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000032",
+    "fields": {
+      "donated_at": "2025-01-02T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000002"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000033",
+    "fields": {
+      "donated_at": "2025-01-03T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000003"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000034",
+    "fields": {
+      "donated_at": "2025-01-04T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000004"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000035",
+    "fields": {
+      "donated_at": "2025-01-05T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000005"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000036",
+    "fields": {
+      "donated_at": "2025-01-06T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000006"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000037",
+    "fields": {
+      "donated_at": "2025-01-07T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000007"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000038",
+    "fields": {
+      "donated_at": "2025-01-08T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000008"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000039",
+    "fields": {
+      "donated_at": "2025-12-05T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000001"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000040",
+    "fields": {
+      "donated_at": "2025-12-04T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000002"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000041",
+    "fields": {
+      "donated_at": "2025-12-03T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000003"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000042",
+    "fields": {
+      "donated_at": "2025-12-02T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000004"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000043",
+    "fields": {
+      "donated_at": "2025-12-01T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000005"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000044",
+    "fields": {
+      "donated_at": "2025-11-30T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000006"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000045",
+    "fields": {
+      "donated_at": "2025-11-29T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000007"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000046",
+    "fields": {
+      "donated_at": "2025-11-28T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000008"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000047",
+    "fields": {
+      "donated_at": "2025-11-27T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000009"
+    }
+  },
+  {
+    "model": "donation.donation",
+    "pk": "DON0000048",
+    "fields": {
+      "donated_at": "2025-11-26T00:00:00Z",
+      "status": "accepted",
+      "restaurant": "RES0000010"
+    }
   }
 ]

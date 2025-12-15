@@ -5047,9 +5047,19 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
   }, []);
 
   // Helper to parse time string (HH:MM:SS) to milliseconds
-  const parseTimeToMs = useCallback((timeStr: string): number => {
-    const parts = timeStr.split(':').map(Number);
-    return (parts[0] * 60 * 60 + parts[1] * 60 + (parts[2] || 0)) * 1000;
+  // Helper to format date in Asia/Bangkok timezone
+  const formatBangkokDateTime = useCallback((dateStr: string): string => {
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-US', {
+      timeZone: 'Asia/Bangkok',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
   }, []);
 
   // Check if driver is available at the given pickup time
@@ -5065,32 +5075,73 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
     }
 
     // Check for overlapping deliveries
-    const pickupDateTime = new Date(pickupTime);
-    const dropoffDuration = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
-    const dropoffDateTime = new Date(pickupDateTime.getTime() + dropoffDuration);
+    // Convert pickup time to Date object
+    // datetime-local inputs (YYYY-MM-DDTHH:mm) are interpreted as local time by JavaScript
+    // ISO strings with Z are UTC
+    let pickupDateTime: Date;
+    if (pickupTime.includes('T') && !pickupTime.includes('Z') && !pickupTime.includes('+')) {
+      // This is a datetime-local format (YYYY-MM-DDTHH:mm) - treat as Bangkok time
+      // Convert to UTC by creating date in Bangkok timezone
+      const [datePart, timePart] = pickupTime.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const [hour, minute] = timePart.split(':').map(Number);
+      // Create date in UTC but interpret the values as Bangkok time (UTC+7)
+      // So we subtract 7 hours to get UTC
+      pickupDateTime = new Date(Date.UTC(year, month - 1, day, hour, minute) - 7 * 60 * 60 * 1000);
+    } else {
+      pickupDateTime = new Date(pickupTime);
+    }
+    
+    if (isNaN(pickupDateTime.getTime())) {
+      return { available: false, reason: "Invalid pickup time" };
+    }
+
+    // Calculate dropoff time - use default 2 hours for pickup deliveries
+    const dropoffDateTime = new Date(pickupDateTime.getTime() + 2 * 60 * 60 * 1000);
 
     const conflictingDelivery = deliveries.find(d => {
       if (d.user_id !== driverId || d.delivery_id === editingDeliveryId) return false;
       
       const existingPickup = new Date(d.pickup_time);
-      const existingDropoffDuration = d.dropoff_time 
-        ? parseTimeToMs(d.dropoff_time)
-        : 2 * 60 * 60 * 1000; // Default 2 hours
-      const existingDropoff = new Date(existingPickup.getTime() + existingDropoffDuration);
+      if (isNaN(existingPickup.getTime())) return false;
 
-      // Check if times overlap
-      return !(dropoffDateTime <= existingPickup || pickupDateTime >= existingDropoff);
+      // Use actual dropoff_time if it's a datetime string, otherwise calculate
+      let existingDropoff: Date;
+      if (d.dropoff_time && d.dropoff_time.includes('T')) {
+        // dropoff_time is a full datetime string
+        existingDropoff = new Date(d.dropoff_time);
+      } else {
+        // Fallback to default 2 hours
+        existingDropoff = new Date(existingPickup.getTime() + 2 * 60 * 60 * 1000);
+      }
+
+      if (isNaN(existingDropoff.getTime())) return false;
+
+      // Quick check: if dates are clearly on different days (more than 24 hours apart), no conflict
+      const timeDiff = Math.abs(pickupDateTime.getTime() - existingPickup.getTime());
+      if (timeDiff > 24 * 60 * 60 * 1000) {
+        // More than 24 hours apart, definitely no conflict
+        return false;
+      }
+
+      // Check if times overlap (all dates are now in UTC milliseconds)
+      // Times overlap if: new pickup is between existing pickup/dropoff OR
+      //                    new dropoff is between existing pickup/dropoff OR
+      //                    new time range completely contains existing range
+      const timesOverlap = !(dropoffDateTime <= existingPickup || pickupDateTime >= existingDropoff);
+      
+      return timesOverlap;
     });
 
     if (conflictingDelivery) {
       return { 
         available: false, 
-        reason: `Driver has a conflicting delivery at ${new Date(conflictingDelivery.pickup_time).toLocaleString()}` 
+        reason: `Driver has a conflicting delivery at ${formatBangkokDateTime(conflictingDelivery.pickup_time)}` 
       };
     }
 
     return { available: true };
-  }, [staff, deliveries, editingDeliveryId, parseTimeToMs]);
+  }, [staff, deliveries, editingDeliveryId, formatBangkokDateTime]);
 
   useEffect(() => {
     const next: Record<string, { notes: string }> = {};
@@ -5877,9 +5928,19 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
   }, []);
 
   // Helper to parse time string (HH:MM:SS) to milliseconds
-  const parseTimeToMs = useCallback((timeStr: string): number => {
-    const parts = timeStr.split(':').map(Number);
-    return (parts[0] * 60 * 60 + parts[1] * 60 + (parts[2] || 0)) * 1000;
+  // Helper to format date in Asia/Bangkok timezone
+  const formatBangkokDateTime = useCallback((dateStr: string): string => {
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-US', {
+      timeZone: 'Asia/Bangkok',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
   }, []);
 
   // Check if driver is available at the given pickup time
@@ -5895,32 +5956,73 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
     }
 
     // Check for overlapping deliveries
-    const pickupDateTime = new Date(pickupTime);
-    const dropoffDuration = 3 * 60 * 60 * 1000; // 3 hours in milliseconds (distribution default)
-    const dropoffDateTime = new Date(pickupDateTime.getTime() + dropoffDuration);
+    // Convert pickup time to Date object
+    // datetime-local inputs (YYYY-MM-DDTHH:mm) are interpreted as local time by JavaScript
+    // ISO strings with Z are UTC
+    let pickupDateTime: Date;
+    if (pickupTime.includes('T') && !pickupTime.includes('Z') && !pickupTime.includes('+')) {
+      // This is a datetime-local format (YYYY-MM-DDTHH:mm) - treat as Bangkok time
+      // Convert to UTC by creating date in Bangkok timezone
+      const [datePart, timePart] = pickupTime.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const [hour, minute] = timePart.split(':').map(Number);
+      // Create date in UTC but interpret the values as Bangkok time (UTC+7)
+      // So we subtract 7 hours to get UTC
+      pickupDateTime = new Date(Date.UTC(year, month - 1, day, hour, minute) - 7 * 60 * 60 * 1000);
+    } else {
+      pickupDateTime = new Date(pickupTime);
+    }
+    
+    if (isNaN(pickupDateTime.getTime())) {
+      return { available: false, reason: "Invalid pickup time" };
+    }
+
+    // Calculate dropoff time - use default 3 hours for distribution deliveries
+    const dropoffDateTime = new Date(pickupDateTime.getTime() + 3 * 60 * 60 * 1000);
 
     const conflictingDelivery = deliveries.find(d => {
       if (d.user_id !== driverId) return false;
       
       const existingPickup = new Date(d.pickup_time);
-      const existingDropoffDuration = d.dropoff_time 
-        ? parseTimeToMs(d.dropoff_time)
-        : 3 * 60 * 60 * 1000; // Default 3 hours
-      const existingDropoff = new Date(existingPickup.getTime() + existingDropoffDuration);
+      if (isNaN(existingPickup.getTime())) return false;
 
-      // Check if times overlap
-      return !(dropoffDateTime <= existingPickup || pickupDateTime >= existingDropoff);
+      // Use actual dropoff_time if it's a datetime string, otherwise calculate
+      let existingDropoff: Date;
+      if (d.dropoff_time && d.dropoff_time.includes('T')) {
+        // dropoff_time is a full datetime string
+        existingDropoff = new Date(d.dropoff_time);
+      } else {
+        // Fallback to default 3 hours
+        existingDropoff = new Date(existingPickup.getTime() + 3 * 60 * 60 * 1000);
+      }
+
+      if (isNaN(existingDropoff.getTime())) return false;
+
+      // Quick check: if dates are clearly on different days (more than 24 hours apart), no conflict
+      const timeDiff = Math.abs(pickupDateTime.getTime() - existingPickup.getTime());
+      if (timeDiff > 24 * 60 * 60 * 1000) {
+        // More than 24 hours apart, definitely no conflict
+        return false;
+      }
+
+      // Check if times overlap (all dates are now in UTC milliseconds)
+      // Times overlap if: new pickup is between existing pickup/dropoff OR
+      //                    new dropoff is between existing pickup/dropoff OR
+      //                    new time range completely contains existing range
+      const timesOverlap = !(dropoffDateTime <= existingPickup || pickupDateTime >= existingDropoff);
+      
+      return timesOverlap;
     });
 
     if (conflictingDelivery) {
       return { 
         available: false, 
-        reason: `Driver has a conflicting delivery at ${new Date(conflictingDelivery.pickup_time).toLocaleString()}` 
+        reason: `Driver has a conflicting delivery at ${formatBangkokDateTime(conflictingDelivery.pickup_time)}` 
       };
     }
 
     return { available: true };
-  }, [staff, deliveries, parseTimeToMs]);
+  }, [staff, deliveries, formatBangkokDateTime]);
 
   const handleSubmitDistribution = async () => {
     setSubmitting(true);
@@ -6671,20 +6773,22 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
   );
 
   const filterItems = (items: FoodItemApiRecord[]) => {
-    let result = items.slice();
+    // Separate expired items - they should always be shown
+    const expiredItems = items.filter((item) => isItemExpired(item));
+    const nonExpiredItems = items.filter((item) => !isItemExpired(item));
 
-    // status filter
+    let result = nonExpiredItems.slice();
+
+    // status filter (only applies to non-expired items)
     if (filterStatus === "available") {
-      result = result.filter((item) => !item.is_claimed && !item.is_distributed && !isItemExpired(item));
+      result = result.filter((item) => !item.is_claimed && !item.is_distributed);
     } else if (filterStatus === "claimed") {
-      result = result.filter((item) => item.is_claimed && !item.is_distributed && !isItemExpired(item));
+      result = result.filter((item) => item.is_claimed && !item.is_distributed);
     } else if (filterStatus === "distributed") {
       result = result.filter((item) => item.is_distributed);
-    } else if (filterStatus === "expired") {
-      result = result.filter((item) => isItemExpired(item));
     }
 
-    // expiry filter
+    // expiry filter (only applies to non-expired items)
     if (expiryFilter === "within_3_days") {
       result = result.filter((item) => isExpiringWithinDays(item, 3));
     } else if (expiryFilter === "this_week") {
@@ -6698,7 +6802,8 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
       result = result.filter((item) => displayCategoryLabel(getCategory(item)) === categoryFilter);
     }
 
-    return result;
+    // Always include expired items at the end, regardless of filters
+    return [...result, ...expiredItems];
   };
 
   const handleRemoveItem = async (foodId: string) => {
@@ -6916,7 +7021,6 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
                   <option value="available">Available</option>
                   <option value="claimed">Claimed</option>
                   <option value="distributed">Distributed</option>
-                  <option value="expired">Expired</option>
                 </select>
               </div>
               <div className="w-full md:w-40">
