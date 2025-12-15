@@ -726,13 +726,25 @@ const normalizeImpactData = (raw: unknown): ImpactRecord[] => {
     // Handle both 'impact_id' and 'pk' field names
     const impactId = record.impact_id ?? record.pk ?? record.id ?? "";
 
+    // Handle food field - could be string, number, or nested object
+    let foodValue = "";
+    if (typeof record.food === "string") {
+      foodValue = record.food.trim();
+    } else if (typeof record.food === "number") {
+      foodValue = String(record.food);
+    } else if (record.food && typeof record.food === "object") {
+      // If it's an object, try to extract food_id
+      foodValue = (record.food as any).food_id || (record.food as any).id || "";
+      if (foodValue) foodValue = String(foodValue).trim();
+    }
+
     return {
       impact_id: typeof impactId === "string" ? impactId : "",
       meals_saved: Number(record.meals_saved ?? 0),
       weight_saved_kg: Number(record.weight_saved_kg ?? 0),
       co2_reduced_kg: Number(record.co2_reduced_kg ?? 0),
       impact_date: record.impact_date ?? "",
-      food: typeof record.food === "string" ? record.food : "",
+      food: foodValue,
     };
   });
 };
@@ -983,14 +995,19 @@ function CommunityImpactHeatMap({
 }) {
   const [hoveredCell, setHoveredCell] = useState<{ community: string; month: string } | null>(null);
 
-  // Normalize food ID to match format (FOO0000001)
+  // Normalize food ID to match format (FOO0000001) - same as main component
   const normalizeFoodId = (foodId: string | number | null | undefined): string => {
     if (!foodId) return "";
-    const foodIdStr = String(foodId);
-    if (foodIdStr.startsWith("FOO")) {
+    const foodIdStr = String(foodId).trim();
+    if (!foodIdStr) return "";
+    
+    // If it already starts with FOO, normalize the digits
+    if (foodIdStr.startsWith("FOO") || foodIdStr.startsWith("foo")) {
       const digits = foodIdStr.replace(/\D/g, '');
-      return digits ? `FOO${digits.padStart(7, '0')}` : foodIdStr;
+      return digits ? `FOO${digits.padStart(7, '0')}` : foodIdStr.toUpperCase();
     }
+    
+    // Extract digits and format as FOO0000000
     const digits = foodIdStr.replace(/\D/g, '');
     if (!digits) return foodIdStr;
     return `FOO${digits.padStart(7, '0')}`;
@@ -1000,21 +1017,90 @@ function CommunityImpactHeatMap({
   const communityMonthMap = useMemo(() => {
     const map = new Map<string, number>();
 
+    console.log("Building community heat map:", {
+      impactRecords: impactRecords.length,
+      deliveries: deliveries.length,
+      communities: communities.length,
+    });
+
+    // Build delivery map with multiple key formats for flexible lookup
     const foodToDelivery = new Map<string, DeliveryRecordApi[]>();
+    const deliveryKeys = new Set<string>();
+    
     deliveries.forEach(delivery => {
       if (delivery.delivery_type === "distribution" && delivery.food_item && delivery.status === "delivered") {
-        const normalizedFoodId = normalizeFoodId(delivery.food_item);
+        const foodItemValue = String(delivery.food_item).trim();
+        if (!foodItemValue) return;
+        
+        const normalizedFoodId = normalizeFoodId(foodItemValue);
+        
+        // Store with normalized key
         if (!foodToDelivery.has(normalizedFoodId)) {
           foodToDelivery.set(normalizedFoodId, []);
         }
         foodToDelivery.get(normalizedFoodId)!.push(delivery);
+        deliveryKeys.add(normalizedFoodId);
+        
+        // Also store with original format for lookup
+        if (foodItemValue !== normalizedFoodId) {
+          if (!foodToDelivery.has(foodItemValue)) {
+            foodToDelivery.set(foodItemValue, []);
+          }
+          foodToDelivery.get(foodItemValue)!.push(delivery);
+          deliveryKeys.add(foodItemValue);
+        }
       }
     });
 
+    console.log("Delivery map created:", {
+      totalDeliveries: deliveries.filter(d => d.delivery_type === "distribution" && d.status === "delivered").length,
+      uniqueFoodItems: deliveryKeys.size,
+      sampleKeys: Array.from(deliveryKeys).slice(0, 5),
+    });
+
+    let matchedImpacts = 0;
+    let skippedNoFood = 0;
+    let skippedNoDeliveries = 0;
+
     impactRecords.forEach(impact => {
-      const normalizedFoodId = normalizeFoodId(impact.food);
-      const distributionDeliveries = foodToDelivery.get(normalizedFoodId) || [];
-      if (distributionDeliveries.length === 0) return;
+      // Handle food field - could be string, number, or object
+      let foodIdValue: string = "";
+      if (typeof impact.food === "string") {
+        foodIdValue = impact.food.trim();
+      } else if (typeof impact.food === "number") {
+        foodIdValue = String(impact.food);
+      } else if (impact.food && typeof impact.food === "object") {
+        foodIdValue = (impact.food as any).food_id || (impact.food as any).id || "";
+      }
+      
+      if (!foodIdValue) {
+        skippedNoFood++;
+        return;
+      }
+      
+      const normalizedFoodId = normalizeFoodId(foodIdValue);
+      
+      // Try multiple lookup strategies
+      const distributionDeliveries = foodToDelivery.get(normalizedFoodId) || 
+                                    foodToDelivery.get(foodIdValue) ||
+                                    foodToDelivery.get(foodIdValue.toUpperCase()) ||
+                                    foodToDelivery.get(foodIdValue.toLowerCase()) ||
+                                    [];
+      
+      if (distributionDeliveries.length === 0) {
+        skippedNoDeliveries++;
+        if (skippedNoDeliveries <= 3) {
+          console.log("No deliveries found for impact:", {
+            impactId: impact.impact_id,
+            foodValue: foodIdValue,
+            normalized: normalizedFoodId,
+            availableDeliveryKeys: Array.from(deliveryKeys).slice(0, 5),
+          });
+        }
+        return;
+      }
+      
+      matchedImpacts++;
 
       let totalQuantity = 0;
       const deliveryQuantities = new Map<string, number>();
@@ -1049,6 +1135,13 @@ function CommunityImpactHeatMap({
           map.set(key, current + proportionalImpact);
         }
       });
+    });
+
+    console.log("Community heat map calculation:", {
+      matchedImpacts,
+      skippedNoFood,
+      skippedNoDeliveries,
+      uniqueCommunityMonths: map.size,
     });
 
     return map;
@@ -1281,6 +1374,7 @@ function HomePage({
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [donations, setDonations] = useState<DonationApiRecord[]>([]);
   const [foodItems, setFoodItems] = useState<FoodItemApiRecord[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [communities, setCommunities] = useState<Community[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
   const [heatMapLoading, setHeatMapLoading] = useState(false);
@@ -1309,106 +1403,136 @@ function HomePage({
     },
   ];
 
+  // Load all dashboard data in parallel for faster loading
   useEffect(() => {
     let ignore = false;
-    async function loadImpact() {
+    
+    async function loadAllDashboardData() {
+      // Set all loading states
       setImpactLoading(true);
+      setLeaderboardLoading(true);
+      setHeatMapLoading(true);
       setImpactError(null);
+
       try {
-        const candidates = [
+        // Try impact endpoints in parallel instead of sequentially
+        const impactCandidates = [
           API_PATHS.impact,
           "/impact/",
         ];
 
-        let loaded: ImpactRecord[] = [];
-        let lastError: unknown = null;
-
-        for (const path of candidates) {
-          try {
-            const raw = await apiFetch<unknown>(path);
-            loaded = normalizeImpactData(raw);
-            if (loaded.length) break;
-          } catch (err) {
-            lastError = err;
-          }
-        }
-
-        if (!ignore) {
-          if (!loaded.length && lastError) {
-            throw lastError;
-          }
-          setImpactRecords(loaded);
-        }
-      } catch (err) {
-        if (!ignore) {
-          setImpactError(
-            err instanceof Error ? err.message : "Unable to load impact data."
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setImpactLoading(false);
-        }
-      }
-    }
-    loadImpact();
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  // Load restaurants, donations, and food items for leaderboard
-  useEffect(() => {
-    let ignore = false;
-    async function loadLeaderboardData() {
-      try {
-        const [restaurantsData, donationsData, foodItemsData] = await Promise.all([
-          apiFetch<Restaurant[]>("/restaurants/").catch(() => []),
-          apiFetch<DonationApiRecord[]>("/donations/").catch(() => []),
-          apiFetch<FoodItemApiRecord[]>("/fooditems/").catch(() => []),
-        ]);
-
-        if (!ignore) {
-          setRestaurants(restaurantsData);
-          setDonations(donationsData);
-          setFoodItems(foodItemsData);
-        }
-      } catch {
-        // Silently fail - leaderboard is optional
-      }
-    }
-    loadLeaderboardData();
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  // Load communities and deliveries for heat map
-  useEffect(() => {
-    let ignore = false;
-    async function loadHeatMapData() {
-      setHeatMapLoading(true);
-      try {
-        const [communitiesData, deliveriesData] = await Promise.all([
-          apiFetch<Community[]>(API_PATHS.communities).catch(() => []),
+        // Fetch all data in parallel for maximum speed
+        const [
+          impactResult1,
+          impactResult2,
+          restaurantsData,
+          donationsData,
+          foodItemsData,
+          communitiesData,
+          deliveriesData,
+        ] = await Promise.allSettled([
+          apiFetch<unknown>(impactCandidates[0]),
+          apiFetch<unknown>(impactCandidates[1]),
+          apiFetch<Restaurant[]>("/restaurants/"),
+          apiFetch<DonationApiRecord[]>("/donations/"),
+          apiFetch<FoodItemApiRecord[]>("/fooditems/"),
+          apiFetch<Community[]>(API_PATHS.communities),
           apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
             headers: buildAuthHeaders(currentUser),
-          }).catch(() => []),
+          }),
         ]);
 
-        if (!ignore) {
-          setCommunities(communitiesData);
-          setDeliveries(deliveriesData);
+        if (ignore) return;
+
+        // Process impact data - use first successful result
+        let loaded: ImpactRecord[] = [];
+        let impactError: unknown = null;
+
+        for (const result of [impactResult1, impactResult2]) {
+          if (result.status === "fulfilled") {
+            try {
+              loaded = normalizeImpactData(result.value);
+              if (loaded.length) break;
+            } catch (err) {
+              impactError = err;
+            }
+          } else {
+            impactError = result.reason;
+          }
         }
-      } catch {
-        // Silently fail - heat map is optional
-      } finally {
+
+        if (loaded.length) {
+          setImpactRecords(loaded);
+        } else if (impactError) {
+          setImpactError(
+            impactError instanceof Error ? impactError.message : "Unable to load impact data."
+          );
+        }
+        // Always clear loading state
+        setImpactLoading(false);
+
+        // Process leaderboard data - update state as soon as available
+        if (restaurantsData.status === "fulfilled") {
+          setRestaurants(restaurantsData.value);
+        } else {
+          console.error("Failed to load restaurants:", restaurantsData.reason);
+          setRestaurants([]);
+        }
+
+        if (donationsData.status === "fulfilled") {
+          setDonations(donationsData.value);
+        } else {
+          console.error("Failed to load donations:", donationsData.reason);
+          setDonations([]);
+        }
+
+        if (foodItemsData.status === "fulfilled") {
+          setFoodItems(foodItemsData.value);
+        } else {
+          console.error("Failed to load food items:", foodItemsData.reason);
+          setFoodItems([]);
+        }
+
+        // Leaderboard is ready when all three are loaded
+        setLeaderboardLoading(false);
+
+        // Process heat map data
+        if (communitiesData.status === "fulfilled") {
+          setCommunities(communitiesData.value);
+        } else {
+          setCommunities([]);
+        }
+
+        if (deliveriesData.status === "fulfilled") {
+          setDeliveries(deliveriesData.value);
+        } else {
+          setDeliveries([]);
+        }
+
+        setHeatMapLoading(false);
+
+        console.log("Dashboard data loaded:", {
+          impactRecords: loaded.length,
+          restaurants: restaurantsData.status === "fulfilled" ? restaurantsData.value.length : 0,
+          donations: donationsData.status === "fulfilled" ? donationsData.value.length : 0,
+          foodItems: foodItemsData.status === "fulfilled" ? foodItemsData.value.length : 0,
+          communities: communitiesData.status === "fulfilled" ? communitiesData.value.length : 0,
+          deliveries: deliveriesData.status === "fulfilled" ? deliveriesData.value.length : 0,
+        });
+      } catch (err) {
         if (!ignore) {
+          console.error("Error loading dashboard data:", err);
+          setImpactError(
+            err instanceof Error ? err.message : "Unable to load dashboard data."
+          );
+          setImpactLoading(false);
+          setLeaderboardLoading(false);
           setHeatMapLoading(false);
         }
       }
     }
-    loadHeatMapData();
+
+    loadAllDashboardData();
     return () => {
       ignore = true;
     };
@@ -1460,21 +1584,63 @@ function HomePage({
       .slice(-12); // Last 12 weeks
   }, [impactRecords]);
 
-  // Helper to normalize food IDs
-  const normalizeFoodId = (foodId: string): string => {
-    if (!foodId) return foodId;
-    const digits = foodId.replace(/\D/g, '');
-    if (!digits) return foodId;
+  // Helper to normalize food IDs - handles various formats
+  // FoodItemSerializer formats as F{4digits} (e.g., F0001)
+  // Impact records use FOO{7digits} (e.g., FOO0000001)
+  // We normalize both to FOO{7digits} for matching
+  const normalizeFoodId = (foodId: string | number | null | undefined): string => {
+    if (!foodId) return "";
+    const foodIdStr = String(foodId).trim();
+    if (!foodIdStr) return "";
+    
+    // If it already starts with FOO, normalize the digits
+    if (foodIdStr.startsWith("FOO") || foodIdStr.startsWith("foo")) {
+      const digits = foodIdStr.replace(/\D/g, '');
+      return digits ? `FOO${digits.padStart(7, '0')}` : foodIdStr.toUpperCase();
+    }
+    
+    // Handle F{4digits} format from FoodItemSerializer (e.g., F0001)
+    if (foodIdStr.startsWith("F") && foodIdStr.length <= 5) {
+      const digits = foodIdStr.replace(/\D/g, '');
+      if (digits) {
+        return `FOO${digits.padStart(7, '0')}`;
+      }
+    }
+    
+    // Extract digits and format as FOO0000000
+    const digits = foodIdStr.replace(/\D/g, '');
+    if (!digits) return foodIdStr;
     return `FOO${digits.padStart(7, '0')}`;
   };
 
   // Calculate restaurant leaderboard
   const restaurantLeaderboard = useMemo(() => {
+    console.log("Calculating restaurant leaderboard:", {
+      impactRecords: impactRecords.length,
+      restaurants: restaurants.length,
+      donations: donations.length,
+      foodItems: foodItems.length,
+      impactLoading,
+      leaderboardLoading,
+    });
+
+    // Don't calculate if still loading
+    if (impactLoading || leaderboardLoading) {
+      console.log("Still loading data, skipping calculation");
+      return [];
+    }
+
     if (!impactRecords.length) {
+      console.log("No impact records available");
       return [];
     }
 
     if (!restaurants.length || !donations.length || !foodItems.length) {
+      console.log("Missing required data:", {
+        hasRestaurants: restaurants.length > 0,
+        hasDonations: donations.length > 0,
+        hasFoodItems: foodItems.length > 0,
+      });
       return [];
     }
 
@@ -1485,31 +1651,177 @@ function HomePage({
     foodItems.forEach(f => {
       const foodId = f.food_id;
       if (foodId) {
+        const originalStr = String(foodId).trim();
         const normalized = normalizeFoodId(foodId);
+        
+        // Store with normalized key (primary lookup) - this handles F0001 -> FOO0000001
         foodItemMap.set(normalized, f);
-        foodItemMap.set(foodId, f);
+        
+        // Also store with original format for flexible lookup
+        foodItemMap.set(originalStr, f);
+        
+        // Store with uppercase version if different
+        if (originalStr !== originalStr.toUpperCase()) {
+          foodItemMap.set(originalStr.toUpperCase(), f);
+        }
+        
+        // Store with lowercase version if different
+        if (originalStr !== originalStr.toLowerCase()) {
+          foodItemMap.set(originalStr.toLowerCase(), f);
+        }
+        
+        // Also store the normalized version of the original (in case original is already normalized)
+        if (originalStr !== normalized) {
+          // If original is F0001 format, normalized will be FOO0000001
+          // Store both so we can match either way
+          const reverseNormalized = normalizeFoodId(originalStr);
+          if (reverseNormalized !== originalStr && reverseNormalized !== normalized) {
+            foodItemMap.set(reverseNormalized, f);
+          }
+        }
       }
     });
+    
+    console.log("Food item map created:", {
+      totalFoodItems: foodItems.length,
+      mapSize: foodItemMap.size,
+      sampleKeys: Array.from(foodItemMap.keys()).slice(0, 5),
+      sampleFoodItems: foodItems.slice(0, 3).map(f => ({
+        food_id: f.food_id,
+        donation: f.donation,
+        donationType: typeof f.donation,
+      })),
+    });
+    
+    console.log("Donation map created:", {
+      totalDonations: donations.length,
+      sampleDonationIds: Array.from(donationMap.keys()).slice(0, 5),
+      sampleDonations: donations.slice(0, 3).map(d => ({
+        donation_id: d.donation_id,
+        restaurant: d.restaurant,
+        restaurant_name: d.restaurant_name,
+      })),
+    });
+    
+    console.log("Restaurant map created:", {
+      totalRestaurants: restaurants.length,
+      sampleRestaurantIds: Array.from(restaurantMap.keys()).slice(0, 5),
+      sampleRestaurants: restaurants.slice(0, 3).map(r => ({
+        restaurant_id: r.restaurant_id,
+        name: r.name,
+      })),
+    });
+    
+    console.log("Sample impact records:", impactRecords.slice(0, 3).map(i => ({
+      impact_id: i.impact_id,
+      food: i.food,
+      meals_saved: i.meals_saved,
+    })));
 
     const restaurantImpact = new Map<string, { restaurantId: string; meals: number; weight: number; co2: number; name: string }>();
 
+    let matchedCount = 0;
+    let skippedNoFood = 0;
+    let skippedNoFoodItem = 0;
+    let skippedNoDonation = 0;
+    let skippedNoRestaurant = 0;
+
     impactRecords.forEach(impact => {
-      const normalizedFoodId = normalizeFoodId(impact.food);
-      const foodItem = foodItemMap.get(normalizedFoodId) || foodItemMap.get(impact.food);
+      // Handle food field - could be string, number, or object
+      let foodIdValue: string = "";
+      if (typeof impact.food === "string") {
+        foodIdValue = impact.food.trim();
+      } else if (typeof impact.food === "number") {
+        foodIdValue = String(impact.food);
+      } else if (impact.food && typeof impact.food === "object") {
+        // If it's an object, try to extract food_id
+        foodIdValue = (impact.food as any).food_id || (impact.food as any).id || "";
+      }
+      
+      if (!foodIdValue) {
+        skippedNoFood++;
+        return;
+      }
+      
+      const normalizedFoodId = normalizeFoodId(foodIdValue);
+      
+      // Try multiple lookup strategies
+      let foodItem = foodItemMap.get(normalizedFoodId) || 
+                    foodItemMap.get(foodIdValue) ||
+                    foodItemMap.get(foodIdValue.toUpperCase()) ||
+                    foodItemMap.get(foodIdValue.toLowerCase()) ||
+                    foodItems.find(f => {
+                      const fId = String(f.food_id || "").trim();
+                      if (!fId) return false;
+                      const fNormalized = normalizeFoodId(fId);
+                      return fId === foodIdValue || 
+                             fId === normalizedFoodId ||
+                             fNormalized === normalizedFoodId ||
+                             normalizeFoodId(fId) === normalizedFoodId;
+                    });
 
-      if (!foodItem) return;
+      if (!foodItem) {
+        skippedNoFoodItem++;
+        if (skippedNoFoodItem <= 3) {
+          console.log("Failed to find food item for impact:", {
+            impactId: impact.impact_id,
+            foodValue: foodIdValue,
+            normalized: normalizedFoodId,
+            availableFoodIds: foodItems.slice(0, 3).map(f => f.food_id),
+          });
+        }
+        return;
+      }
 
-      const donationId = foodItem.donation;
-      if (!donationId) return;
+      // Handle donation field - could be string (ID) or object
+      let donationId: string = "";
+      if (typeof foodItem.donation === "string") {
+        donationId = foodItem.donation.trim();
+      } else if (typeof foodItem.donation === "number") {
+        donationId = String(foodItem.donation);
+      } else if (foodItem.donation && typeof foodItem.donation === "object") {
+        donationId = (foodItem.donation as any).donation_id || (foodItem.donation as any).id || "";
+        if (donationId) donationId = String(donationId).trim();
+      }
+      
+      if (!donationId) {
+        skippedNoDonation++;
+        if (skippedNoDonation <= 3) {
+          console.log("Food item missing donation:", {
+            foodId: foodItem.food_id,
+            donationValue: foodItem.donation,
+            donationType: typeof foodItem.donation,
+          });
+        }
+        return;
+      }
 
       const donation = donationMap.get(donationId);
-      if (!donation) return;
+      if (!donation) {
+        skippedNoDonation++;
+        if (skippedNoDonation <= 3) {
+          console.log("Donation not found in map:", {
+            donationId,
+            availableDonationIds: Array.from(donationMap.keys()).slice(0, 5),
+            foodItemId: foodItem.food_id,
+          });
+        }
+        return;
+      }
 
       const restaurantId = donation.restaurant;
-      if (!restaurantId) return;
+      if (!restaurantId) {
+        skippedNoRestaurant++;
+        return;
+      }
 
       const restaurant = restaurantMap.get(restaurantId);
-      if (!restaurant) return;
+      if (!restaurant) {
+        skippedNoRestaurant++;
+        return;
+      }
+
+      matchedCount++;
 
       const restaurantName = donation.restaurant_name || restaurant.name ||
         (restaurant.branch_name ? `${restaurant.name || ''} - ${restaurant.branch_name}`.trim() : '') ||
@@ -1534,10 +1846,22 @@ function HomePage({
       restaurantImpact.set(uniqueKey, current);
     });
 
-    return Array.from(restaurantImpact.values())
+    console.log("Leaderboard calculation stats:", {
+      matchedCount,
+      skippedNoFood,
+      skippedNoFoodItem,
+      skippedNoDonation,
+      skippedNoRestaurant,
+      uniqueRestaurants: restaurantImpact.size,
+    });
+
+    const result = Array.from(restaurantImpact.values())
       .sort((a, b) => b.meals - a.meals)
       .slice(0, 5); // Top 5 only
-  }, [impactRecords, restaurants, donations, foodItems]);
+
+    console.log("Final leaderboard result:", result);
+    return result;
+  }, [impactRecords, restaurants, donations, foodItems, impactLoading, leaderboardLoading]);
 
   return (
     <div className="mx-auto w-full max-w-8xl space-y-8 mb-1">
@@ -1569,38 +1893,40 @@ function HomePage({
           <p className="max-w-3xl text-lg text-[#5a4f45]">
             Re-Meals brings together restaurants, drivers, and community hearts to ensure no good meal goes to waste—and no neighbor goes without. Share what you have, ask for what you need, and help nourish the people around you.
           </p>
-          <div className="flex flex-wrap gap-3">
-            <button
-              className="flex items-center gap-3 rounded-full bg-[#708A58] px-5 py-3 pr-3 text-sm font-semibold text-white shadow hover:bg-[#576c45] transition"
-              onClick={() => {
-                setAuthMode("signup");
-                setShowAuthModal(true);
-              }}
-              type="button"
-            >
-              Login / Sign up to donate or request
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white">
-                <svg
-                  className="h-6 w-6 text-[#d48a68]"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13 7l5 5m0 0l-5 5m5-5H6"
-                  />
-                </svg>
-              </span>
-            </button>
-          </div>
+          {!currentUser && (
+            <div className="flex flex-wrap gap-3">
+              <button
+                className="flex items-center gap-3 rounded-full bg-[#708A58] px-5 py-3 pr-3 text-sm font-semibold text-white shadow hover:bg-[#576c45] transition"
+                onClick={() => {
+                  setAuthMode("signup");
+                  setShowAuthModal(true);
+                }}
+                type="button"
+              >
+                Login / Sign up to donate or request
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white">
+                  <svg
+                    className="h-6 w-6 text-[#d48a68]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M13 7l5 5m0 0l-5 5m5-5H6"
+                    />
+                  </svg>
+                </span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      <section className="rounded-[32px] bg-[#e8ede3] p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <section className="rounded-[32px] bg-[#e8ede3] p-6 animate-fade-in">
+        <div className="flex flex-wrap items-center justify-between gap-3 animate-fade-in-up">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#4E673E]">
               Impact dashboard
@@ -1610,7 +1936,7 @@ function HomePage({
               Live from impact records: meals saved, weight diverted, and CO₂ reduced.
             </p>
           </div>
-          <span className="rounded-full border border-[#A8B99A] bg-white px-3 py-1 text-xs font-semibold text-[#365032] shadow-sm">
+          <span className="rounded-full border border-[#A8B99A] bg-white px-3 py-1 text-xs font-semibold text-[#365032] shadow-sm animate-scale-in" style={{ animationDelay: '0.2s', opacity: 0 }}>
             {impactRecords.length} records
           </span>
         </div>
@@ -1626,24 +1952,30 @@ function HomePage({
             { label: "Meals saved", value: impactTotals.meals, suffix: "", classes: "text-[#365032]" },
             { label: "Weight saved (kg)", value: impactTotals.weight, suffix: " kg", classes: "text-[#365032]" },
             { label: "CO₂ reduced (kg)", value: impactTotals.co2, suffix: " kg", classes: "text-[#d48a68]" },
-          ].map((card) => (
+          ].map((card, index) => (
             <div
               key={card.label}
-              className="rounded-2xl border border-dashed border-[#A8B99A] bg-white p-4 shadow-sm"
+              className="rounded-2xl border border-dashed border-[#A8B99A] bg-white p-4 shadow-sm animate-fade-in-up transition-all duration-300 hover:shadow-md hover:scale-[1.02]"
+              style={{
+                animationDelay: `${0.3 + index * 0.1}s`,
+                opacity: 0,
+              }}
             >
               <p className={`text-xs font-semibold uppercase tracking-wide ${card.label === "CO₂ reduced (kg)" ? "text-[#d48a68]" : "text-[#708A58]"}`}>
                 {card.label}
               </p>
-              <p className={`text-3xl font-bold ${card.classes}`}>
-                {impactLoading ? "…" : (
+              {impactLoading ? (
+                <div className="mt-2 h-10 w-24 bg-gray-200 rounded animate-pulse"></div>
+              ) : (
+                <p className={`text-3xl font-bold ${card.classes}`}>
                   <AnimatedNumber 
                     value={card.value} 
                     suffix={card.suffix}
                     className={card.classes}
                     decimals={card.label === "Meals saved" ? 0 : 1}
                   />
-                )}
-              </p>
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -1651,62 +1983,89 @@ function HomePage({
         {/* Top Restaurants and CO₂ Chart Row */}
         <div className="mt-6 grid gap-6 lg:grid-cols-5">
           {/* Top Restaurants Leaderboard - First visualization */}
-          <div className="lg:col-span-2 rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-5 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
+          <div className="lg:col-span-2 rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-5 shadow-sm animate-fade-in h-[450px] flex flex-col">
+            <div className="mb-3 flex items-center justify-between animate-fade-in-up flex-shrink-0">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Impact Leaders</h3>
                 <p className="text-xs text-gray-500 mt-0.5">Top performing restaurants</p>
               </div>
-              <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#d48a68] border border-[#F3C7A0]">
+              <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#d48a68] border border-[#F3C7A0] animate-scale-in animate-delay-200">
                 Top 5
               </span>
             </div>
-            {impactLoading ? (
-              <p className="text-sm text-gray-600">Loading leaderboard...</p>
-            ) : restaurantLeaderboard.length === 0 ? (
-              <p className="text-sm text-gray-600">No restaurant data available yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {restaurantLeaderboard.map((restaurant, index) => (
-                  <div
-                    key={restaurant.restaurantId}
-                    className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3 hover:bg-[#f9fff4]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F3C7A0] text-sm font-bold text-[#B25C23]">
-                        {index + 1}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-gray-900">
-                          {restaurant.name}
-                        </p>
-                        <div className="mt-1 flex gap-4 text-xs text-gray-600">
-                          <span className="font-semibold text-[#365032]">
-                            {restaurant.meals.toLocaleString(undefined, { maximumFractionDigits: 0 })} meals
-                          </span>
-                          <span className="text-[#708A58]">
-                            {restaurant.weight.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
-                          </span>
-                          <span className="text-[#B25C23]">
-                            {restaurant.co2.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg CO₂
-                          </span>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {impactLoading || leaderboardLoading ? (
+                <div className="space-y-2 w-full">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div
+                      key={i}
+                      className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3 animate-pulse"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 shrink-0 rounded-full bg-gray-200"></div>
+                        <div className="min-w-0 flex-1">
+                          <div className="h-4 w-32 bg-gray-200 rounded mb-2"></div>
+                          <div className="flex gap-4">
+                            <div className="h-3 w-20 bg-gray-200 rounded"></div>
+                            <div className="h-3 w-16 bg-gray-200 rounded"></div>
+                            <div className="h-3 w-20 bg-gray-200 rounded"></div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              ) : restaurantLeaderboard.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-sm text-gray-600 text-center animate-fade-in">No restaurant data available yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-2 w-full">
+                  {restaurantLeaderboard.map((restaurant, index) => (
+                    <div
+                      key={restaurant.restaurantId}
+                      className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3 hover:bg-[#f9fff4] transition-all duration-300 hover:shadow-md hover:scale-[1.02] animate-fade-in-up"
+                      style={{
+                        animationDelay: `${index * 0.1}s`,
+                        opacity: 0,
+                      }}
+                    >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F3C7A0] text-sm font-bold text-[#B25C23] transition-transform duration-300 hover:scale-110">
+                            {index + 1}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-gray-900">
+                              {restaurant.name}
+                            </p>
+                            <div className="mt-1 flex gap-4 text-xs text-gray-600">
+                              <span className="font-semibold text-[#365032] transition-colors duration-300">
+                                {restaurant.meals.toLocaleString(undefined, { maximumFractionDigits: 0 })} meals
+                              </span>
+                              <span className="text-[#708A58] transition-colors duration-300">
+                                {restaurant.weight.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
+                              </span>
+                              <span className="text-[#B25C23] transition-colors duration-300">
+                                {restaurant.co2.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg CO₂
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* CO₂ Reduction Trend Chart */}
-          <div className="lg:col-span-3 rounded-2xl border border-[#F3C7A0] bg-white shadow-sm">
+          <div className="lg:col-span-3 rounded-2xl border border-[#F3C7A0] bg-white shadow-sm animate-fade-in-up transition-all duration-300 hover:shadow-md" style={{ animationDelay: '0.6s', opacity: 0 }}>
             <div className="px-6 pt-6 pb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Cumulative CO₂ Reduction</h3>
                 <p className="text-xs text-gray-500 mt-1">Hover over points to see details</p>
               </div>
-              <span className="rounded-full bg-[#FFF4E6] px-3 py-1 text-[11px] font-semibold text-[#D97706]">
+              <span className="rounded-full bg-[#FFF4E6] px-3 py-1 text-[11px] font-semibold text-[#D97706] animate-scale-in" style={{ animationDelay: '0.7s', opacity: 0 }}>
                 Last {weeklyMealsData.length} weeks
               </span>
             </div>
@@ -1752,14 +2111,14 @@ function HomePage({
         </div>
 
         {/* Community Impact Heat Map */}
-        <div className="mt-6">
-          <div className="rounded-2xl border border-[#F3C7A0] bg-white p-6 shadow-sm">
+        <div className="mt-6 animate-fade-in-up" style={{ animationDelay: '0.8s', opacity: 0 }}>
+          <div className="rounded-2xl border border-[#F3C7A0] bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-md">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Community Impact Heat Map</h3>
                 <p className="text-xs text-gray-500 mt-1">Meals saved by community and month</p>
               </div>
-              <span className="rounded-full bg-[#E6F7EE] px-3 py-1 text-[11px] font-semibold text-[#2F855A]">
+              <span className="rounded-full bg-[#E6F7EE] px-3 py-1 text-[11px] font-semibold text-[#2F855A] animate-scale-in" style={{ animationDelay: '0.9s', opacity: 0 }}>
                 {communities.length} communities
               </span>
             </div>
@@ -10597,7 +10956,7 @@ export default function Home() {
               } else if (user.isDeliveryStaff) {
                 setActiveTab(4);
               } else {
-                setActiveTab(1);
+                setActiveTab(0); // Redirect to homepage instead of donate page
               }
               setShowAuthModal(false);
             }}
