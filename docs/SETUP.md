@@ -737,8 +737,8 @@ docker-compose exec backend bash
 If you encounter issues:
 
 1. Check this setup guide
-2. Review existing [GitHub Issues](https://github.com/NapatKulnarong/Re-Meals/issues)
-3. Create a new issue with:
+2. Review the troubleshooting section above
+3. Contact the project maintainers with:
    - Your operating system
    - Python and Node versions
    - Error messages

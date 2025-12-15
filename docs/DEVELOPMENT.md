@@ -913,6 +913,7 @@ python -m pdb manage.py runserver
 ## Getting Help
 
 - Review existing documentation
-- Check [GitHub Issues](https://github.com/NapatKulnarong/Re-Meals/issues)
+- Check the troubleshooting sections in relevant guides
 - Ask in team discussions
 - Read the source code for examples
+- Contact the project maintainers

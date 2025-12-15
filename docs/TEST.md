@@ -803,8 +803,9 @@ If you encounter testing issues:
 
 1. Check test output with `--verbosity=2`
 2. Review existing tests for examples
-3. Check [GitHub Issues](https://github.com/NapatKulnarong/Re-Meals/issues)
+3. Review the troubleshooting sections in this guide
 4. Ask in team discussions
+5. Contact the project maintainers
 
 ---
 

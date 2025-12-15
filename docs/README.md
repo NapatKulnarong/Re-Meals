@@ -150,11 +150,7 @@ Visual representation of the database schema showing all entities, relationships
 
 ## 📝 Documentation Updates
 
-This documentation is maintained alongside the codebase. If you find any issues or outdated information:
-
-1. Check the [GitHub Issues](https://github.com/NapatKulnarong/Re-Meals/issues)
-2. Create a new issue with the documentation problem
-3. Or submit a pull request with the fix
+This documentation is maintained alongside the codebase. If you find any issues or outdated information, please contact the project maintainers or submit a pull request with the fix.
 
 ---
 
