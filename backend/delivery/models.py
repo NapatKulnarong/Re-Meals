@@ -25,7 +25,7 @@ class Delivery(models.Model):
     delivery_id = models.CharField(max_length=10, primary_key=True)
     delivery_type = models.CharField(max_length=20, choices=DELIVERY_TYPE_CHOICES)
     pickup_time = models.DateTimeField()
-    dropoff_time = models.DurationField()
+    dropoff_time = models.TimeField()
     pickup_location_type = models.CharField(max_length=20, choices=PICKUP_LOCATION_CHOICES)
     dropoff_location_type = models.CharField(max_length=20, choices=DROPOFF_LOCATION_CHOICES)
     STATUS_CHOICES = [
