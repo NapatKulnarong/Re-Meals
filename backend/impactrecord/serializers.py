@@ -6,7 +6,11 @@ class ImpactRecordSerializer(serializers.ModelSerializer):
     # Explicitly define impact_id to ensure it's returned correctly
     impact_id = serializers.CharField(read_only=True)
     # Food field will return the food_id (primary key) as a string
-    food = serializers.PrimaryKeyRelatedField(read_only=True)
+    food = serializers.SerializerMethodField()
+    
+    def get_food(self, obj):
+        # Return food_id as string to ensure consistent format
+        return str(obj.food.food_id) if obj.food and hasattr(obj.food, 'food_id') else ""
     
     class Meta:
         model = ImpactRecord
