@@ -18,6 +18,7 @@ import {
   FireIcon,
   DocumentTextIcon,
   BellAlertIcon,
+  ArrowUturnLeftIcon,
 } from "@heroicons/react/24/solid";
 
 const API_BASE_URL =
@@ -2449,8 +2450,7 @@ function YourStatsSection({
 
   useEffect(() => {
     if (!currentUser) {
-      setShowAuthModal(true);
-      setAuthMode("login");
+      setLoading(false);
       return;
     }
 
@@ -2625,19 +2625,62 @@ function YourStatsSection({
 
   if (!currentUser) {
     return (
-      <div className="rounded-xl bg-white p-10 shadow text-center">
-        <p className="text-gray-600 mb-4">
-          Please log in to view your statistics.
-        </p>
-        <button
-          onClick={() => {
-            setAuthMode("login");
-            setShowAuthModal(true);
-          }}
-          className="rounded-lg bg-[#d48a68] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[#c47958]"
-        >
-          Log in
-        </button>
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-semibold text-gray-900">Donation Stats</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            View your donation statistics, history, and impact over time.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-8 shadow-sm">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#F3C7A0]">
+              <svg
+                className="h-8 w-8 text-[#B25C23]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Sign in to view your donation stats
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Log in or create an account to see your donation history, statistics, and impact over time.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("login");
+                  setShowAuthModal(true);
+                }}
+                className="rounded-lg bg-[#D48B68] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#C47958]"
+              >
+                Log in
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("signup");
+                  setShowAuthModal(true);
+                }}
+                className="rounded-lg border border-[#D48B68] bg-white px-6 py-2.5 text-sm font-semibold text-[#D48B68] transition hover:bg-[#FFF8F0]"
+              >
+                Sign up
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -3578,12 +3621,14 @@ function TabContent({
   tab,
   currentUser,
   setShowAuthModal,
-  setAuthMode
+  setAuthMode,
+  setActiveTab
 }: {
   tab: number;
   currentUser: LoggedUser | null;
   setShowAuthModal: (show: boolean) => void;
   setAuthMode: (mode: AuthMode) => void;
+  setActiveTab?: (tab: number) => void;
 }) {
   if (tab === 0) {
     return <HomePage setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} currentUser={currentUser} />;
@@ -3596,7 +3641,7 @@ function TabContent({
   }
   if (tab === 3) {
     if (currentUser?.isAdmin) {
-      return <AdminDashboard currentUser={currentUser} />;
+      return <AdminDashboard currentUser={currentUser} setActiveTab={setActiveTab} />;
     }
     return <AccessDenied message="Admin access required." />;
   }
@@ -5796,7 +5841,7 @@ type ManageableItem = {
   status: "pending" | "accepted" | "declined";
 };
 
-function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
+function AdminDashboard({ currentUser, setActiveTab }: { currentUser: LoggedUser; setActiveTab?: (tab: number) => void }) {
   const [donations, setDonations] = useState<DonationApiRecord[]>([]);
   const [requests, setRequests] = useState<DonationRequestApiRecord[]>([]);
   const [requestStatuses, setRequestStatuses] = useState<Record<string, "pending" | "accepted" | "declined">>({});
@@ -5806,6 +5851,7 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<"all" | "donation" | "request">("all");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "az" | "za">("newest");
+  const [pendingDeclineId, setPendingDeclineId] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -5813,21 +5859,62 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
       setLoading(true);
       setError(null);
       try {
-        const [donationData, requestData, restaurantData] = await Promise.all([
+        const [donationData, requestData, restaurantData, deliveryData] = await Promise.all([
           apiFetch<DonationApiRecord[]>("/donations/"),
           apiFetch<DonationRequestApiRecord[]>("/donation-requests/", {
             headers: buildAuthHeaders(currentUser),
           }),
           apiFetch<Restaurant[]>("/restaurants/"),
+          apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
+            headers: buildAuthHeaders(currentUser),
+          }),
         ]);
         if (!ignore) {
           setDonations(donationData);
           setRequests(requestData);
           setRestaurants(restaurantData);
-          // Initialize request statuses as pending
+
+          // Check delivery status to auto-complete items
+          const completedDonationIds = new Set(
+            deliveryData
+              .filter((d) => d.delivery_type === "donation" && d.status === "delivered" && d.donation_id)
+              .map((d) => d.donation_id!)
+          );
+
+          // Get community IDs with completed deliveries
+          const communities = await apiFetch<Community[]>(API_PATHS.communities);
+          const communityNameToId = new Map(communities.map((c) => [c.name, c.community_id]));
+          const completedRequestIds = new Set(
+            deliveryData
+              .filter((d) => d.delivery_type === "distribution" && d.status === "delivered" && d.community_id)
+              .map((d) => {
+                // Find request by community
+                const request = requestData.find((r) => {
+                  const communityId = communityNameToId.get(r.community_name);
+                  return communityId === d.community_id;
+                });
+                return request?.request_id;
+              })
+              .filter((id): id is string => Boolean(id))
+          );
+
+          // Auto-update donation statuses if delivered
+          const updatedDonations = donationData.map((donation) => {
+            if (completedDonationIds.has(donation.donation_id) && donation.status === "pending") {
+              return { ...donation, status: "accepted" as const };
+            }
+            return donation;
+          });
+          setDonations(updatedDonations);
+
+          // Initialize request statuses - mark as completed if delivered
           const initialStatuses: Record<string, "pending" | "accepted" | "declined"> = {};
           requestData.forEach((req) => {
-            initialStatuses[req.request_id] = "pending";
+            if (completedRequestIds.has(req.request_id)) {
+              initialStatuses[req.request_id] = "accepted";
+            } else {
+              initialStatuses[req.request_id] = "pending";
+            }
           });
           setRequestStatuses(initialStatuses);
         }
@@ -5944,6 +6031,10 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
           [itemId]: nextStatus,
         }));
       }
+      // Reset decline confirmation state after successful update
+      if (pendingDeclineId === itemId) {
+        setPendingDeclineId(null);
+      }
     } catch (err) {
       setError(formatErrorMessage(err) || "Unable to update status. Please try again.");
     } finally {
@@ -5961,40 +6052,85 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
     return { text: "Pending", className: "bg-[#FFF1E3] text-[#C46A24]" };
   };
 
-  const renderItem = (item: ManageableItem) => (
-    <div
-      key={`${item.type}-${item.id}`}
-      className="flex flex-col gap-2 rounded-xl border border-white/50 bg-white/70 backdrop-blur-sm px-4 py-3 shadow-sm"
-    >
-      <div>
-        <p className="text-sm font-semibold text-gray-900">{item.title}</p>
-        <p className="text-xs text-gray-500 mt-1">{item.subtitle}</p>
-        <p className="text-xs font-semibold text-gray-700 mt-2 pt-1.5 border-t border-gray-200/50">
-          Created: {formatDisplayDate(item.createdAt)}
-        </p>
-      </div>
-      {item.status === "pending" && (
-        <div className="flex gap-2 mt-2">
-          <button
-            type="button"
-            onClick={() => updateStatus(item.id, item.type, "accepted")}
-            disabled={updatingId === item.id}
-            className="flex-1 rounded-full border border-[#1F4D36] bg-[#E6F7EE] px-4 py-2 text-xs font-semibold text-[#1F4D36] transition hover:bg-[#D4F0E0] disabled:opacity-60"
-          >
-            Complete
-          </button>
-          <button
-            type="button"
-            onClick={() => updateStatus(item.id, item.type, "declined")}
-            disabled={updatingId === item.id}
-            className="flex-1 rounded-full border border-[#B42318] bg-[#FDECEA] px-4 py-2 text-xs font-semibold text-[#B42318] transition hover:bg-[#FCE0DC] disabled:opacity-60"
-          >
-            Decline
-          </button>
+  const handleManage = (item: ManageableItem) => {
+    if (item.type === "donation") {
+      // Store donation ID for auto-fill in pickup page
+      localStorage.setItem("autoFillDonationId", item.id);
+      if (setActiveTab) {
+        setActiveTab(4); // Navigate to Pickup tab
+      }
+    } else {
+      // Store request ID for auto-fill in deliver page
+      localStorage.setItem("autoFillRequestId", item.id);
+      if (setActiveTab) {
+        setActiveTab(6); // Navigate to Deliver tab
+      }
+    }
+  };
+
+  const handleDeclineClick = async (itemId: string) => {
+    if (pendingDeclineId === itemId) {
+      // Second click - confirm decline
+      const item = manageableItems.find(i => i.id === itemId);
+      if (item) {
+        await updateStatus(itemId, item.type, "declined");
+        setPendingDeclineId(null);
+      }
+    } else {
+      // First click - show confirmation state
+      setPendingDeclineId(itemId);
+    }
+  };
+
+  const renderItem = (item: ManageableItem) => {
+    const isPendingDecline = pendingDeclineId === item.id;
+    return (
+      <div
+        key={`${item.type}-${item.id}`}
+        className="flex flex-col gap-2 rounded-xl border border-white/50 bg-white/70 backdrop-blur-sm px-4 py-3 shadow-sm"
+      >
+        <div>
+          <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+          <p className="text-xs text-gray-500 mt-1">{item.subtitle}</p>
+          <p className="text-xs font-semibold text-gray-700 mt-2 pt-1.5 border-t border-gray-200/50">
+            Created: {formatDisplayDate(item.createdAt)}
+          </p>
         </div>
-      )}
-    </div>
-  );
+        {item.status === "pending" && (
+          <div className="flex gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => handleManage(item)}
+              disabled={updatingId === item.id}
+              className="flex-1 rounded-full border border-[#1F4D36] bg-[#E6F7EE] px-4 py-2 text-xs font-semibold text-[#1F4D36] transition hover:bg-[#D4F0E0] disabled:opacity-60"
+            >
+              Manage
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDeclineClick(item.id)}
+              disabled={updatingId === item.id}
+              className={`flex-1 rounded-full border px-4 py-2 text-xs font-semibold transition disabled:opacity-60 ${
+                isPendingDecline
+                  ? "border-[#7F1D1D] bg-[#991B1B] text-white hover:bg-[#B91C1C]"
+                  : "border-[#B42318] bg-[#FDECEA] text-[#B42318] hover:bg-[#FCE0DC]"
+              }`}
+              onBlur={() => {
+                // Reset confirmation state if clicking away (with small delay to allow click to register)
+                setTimeout(() => {
+                  if (pendingDeclineId === item.id && updatingId !== item.id) {
+                    setPendingDeclineId(null);
+                  }
+                }, 200);
+              }}
+            >
+              {isPendingDecline ? "Confirm Decline" : "Decline"}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -7572,6 +7708,16 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
       setDeliveries(deliveryData);
       setRestaurants(restaurantData);
 
+      // Auto-fill donation if coming from admin dashboard
+      const autoFillDonationId = localStorage.getItem("autoFillDonationId");
+      if (autoFillDonationId && donationData.some((d) => d.donation_id === autoFillDonationId)) {
+        setPickupForm((prev) => ({
+          ...prev,
+          donationId: autoFillDonationId,
+        }));
+        localStorage.removeItem("autoFillDonationId");
+      }
+
       // Load food items for all donations
       const allFoodItems: FoodItemApiRecord[] = [];
       for (const donation of donationData) {
@@ -8750,6 +8896,32 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
       setStaff(staffData);
       setDeliveries(deliveryData);
       setFoodItems(foodItemsData);
+
+      // Auto-fill community if coming from admin dashboard
+      const autoFillRequestId = localStorage.getItem("autoFillRequestId");
+      if (autoFillRequestId) {
+        // Fetch request to get community name
+        try {
+          const requestData = await apiFetch<DonationRequestApiRecord[]>("/donation-requests/", {
+            headers: buildAuthHeaders(currentUser),
+          });
+          const request = requestData.find((r) => r.request_id === autoFillRequestId);
+          if (request) {
+            // Find community by name
+            const community = communityData.find((c) => c.name === request.community_name);
+            if (community) {
+              setDistributionForm((prev) => ({
+                ...prev,
+                communityId: community.community_id,
+              }));
+            }
+          }
+          localStorage.removeItem("autoFillRequestId");
+        } catch (err) {
+          console.error("Failed to auto-fill request:", err);
+          localStorage.removeItem("autoFillRequestId");
+        }
+      }
     } catch (err) {
       setError(formatErrorMessage(err) || "Unable to load delivery data. Please try again.");
     } finally {
@@ -11175,6 +11347,15 @@ export default function Home() {
     return null;
   });
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [hasInitializedAdminTab, setHasInitializedAdminTab] = useState(false);
+
+  // Set default tab to donate page (1) for admin users on initial load only
+  useEffect(() => {
+    if (currentUser?.isAdmin && !hasInitializedAdminTab && activeTab === 0) {
+      setActiveTab(1);
+      setHasInitializedAdminTab(true);
+    }
+  }, [currentUser, activeTab, hasInitializedAdminTab]);
 
   // Save user to localStorage whenever it changes
   useEffect(() => {
@@ -11200,6 +11381,7 @@ export default function Home() {
   const navItems: NavItem[] = currentUser?.isAdmin
     ? [
       { id: 0, label: "Home", icon: <HomeIcon className="w-5 h-5" aria-hidden="true" /> },
+      { id: 1, label: "Donate", icon: <HeartIcon className="w-5 h-5" aria-hidden="true" /> },
       { id: 3, label: "Dashboard", icon: <WrenchScrewdriverIcon className="w-5 h-5" aria-hidden="true" /> },
       { id: 5, label: "Warehouse", icon: <ArchiveBoxIcon className="w-5 h-5" aria-hidden="true" /> },
       { id: 4, label: "Pickup", icon: <InboxIcon className="w-5 h-5" aria-hidden="true" /> },
@@ -11227,21 +11409,19 @@ export default function Home() {
     if (activeTab === 7) {
       return 7;
     }
-    // Your stats tab (8) requires login
+    // Your stats tab (8) is accessible even when not logged in (shows sign-in prompt)
     if (activeTab === 8) {
-      if (!currentUser) {
-        return 0; // Redirect to home if not logged in
-      }
       return 8;
     }
-    if (!currentUser && activeTab > 2) {
-      return 0; // Redirect to home if not logged in
+    if (!currentUser && activeTab > 2 && activeTab !== 7 && activeTab !== 8) {
+      return 0; // Redirect to home if not logged in (except for status and stats tabs)
     }
     // For delivery staff (non-admin), redirect tab 6 to tab 4 (combined deliveries view)
     if (currentUser?.isDeliveryStaff && !currentUser?.isAdmin && activeTab === 6) {
       return 4;
     }
-    if (currentUser?.isAdmin && activeTab > 0 && activeTab < 3) {
+    // Allow admins to access donate page (1), but redirect other tabs (2) to dashboard (3)
+    if (currentUser?.isAdmin && activeTab === 2) {
       return 3;
     }
     if (!currentUser?.isAdmin && currentUser?.isDeliveryStaff && activeTab > 0 && activeTab < 4) {
@@ -11274,7 +11454,7 @@ export default function Home() {
       {/* Right side: content area */}
       {/* relative is IMPORTANT so the modal overlay stays inside this area only */}
       <section className="relative flex-1 h-screen overflow-y-auto p-8">
-        <TabContent tab={normalizedActiveTab} currentUser={currentUser} setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} />
+        <TabContent tab={normalizedActiveTab} currentUser={currentUser} setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} setActiveTab={setActiveTab} />
 
         {/* Conditionally render modal */}
         {showAuthModal && (
@@ -11285,7 +11465,7 @@ export default function Home() {
             onAuthSuccess={(user) => {
               setCurrentUser(user);
               if (user.isAdmin) {
-                setActiveTab(3);
+                setActiveTab(1); // Redirect to donate page for admins
               } else if (user.isDeliveryStaff) {
                 setActiveTab(4);
               } else {
