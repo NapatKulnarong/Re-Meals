@@ -2,6 +2,23 @@
 
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/Sidebar";
+import {
+  HeartIcon,
+  MapIcon,
+  ArchiveBoxIcon,
+  ShoppingBagIcon,
+  HomeIcon,
+  DevicePhoneMobileIcon,
+  WrenchScrewdriverIcon,
+  InboxIcon,
+  TruckIcon,
+  ChartBarIcon,
+  UserIcon,
+  ClockIcon,
+  FireIcon,
+  DocumentTextIcon,
+  BellAlertIcon,
+} from "@heroicons/react/24/solid";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
@@ -234,7 +251,7 @@ function WeeklyMealsChart({ data }: { data: Array<{ weekKey: string; meals: numb
 
   const maxMeals = Math.max(...data.map(d => d.meals), 1);
   const chartHeight = 280;
-  const chartPadding = { top: 20, right: 20, bottom: 40, left: 50 };
+  const chartPadding = { top: 20, right: 20, bottom: 40, left: 90 };
   const barSpacing = 5;
   const availableWidth = 800;
   const barWidth = Math.max(32, Math.min(60, (availableWidth - chartPadding.left - chartPadding.right - (data.length - 1) * barSpacing) / data.length));
@@ -314,11 +331,12 @@ function WeeklyMealsChart({ data }: { data: Array<{ weekKey: string; meals: numb
                   strokeDasharray="2,2"
                 />
                 <text
-                  x={chartPadding.left - 10}
+                  x={chartPadding.left - 25}
                   y={y + 4}
-                  fontSize="10"
+                  fontSize="12"
                   fill="#6B7280"
                   textAnchor="end"
+                  style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}
                 >
                   {value.toLocaleString()}
                 </text>
@@ -370,10 +388,11 @@ function WeeklyMealsChart({ data }: { data: Array<{ weekKey: string; meals: numb
                   <text
                     x={x + barWidth / 2}
                     y={chartHeight - chartPadding.bottom + 20}
-                    fontSize="9"
+                    fontSize="10"
                     fill="#6B7280"
                     textAnchor="middle"
                     className="pointer-events-none"
+                    style={{ letterSpacing: '0.02em' }}
                   >
                     {week.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </text>
@@ -418,8 +437,10 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
 
   const maxCO2 = Math.max(...cumulativeData.map(d => d.cumulativeCO2), 1);
   const chartHeight = 280;
-  const chartPadding = { top: 20, right: 20, bottom: 40, left: 50 };
-  const chartWidth = Math.max(600, data.length * 60 + chartPadding.left + chartPadding.right);
+  const chartPadding = { top: 20, right: 5, bottom: 40, left: 0 };
+  const containerLeftPadding = 24; // px-6 = 24px, matches title padding
+  const yAxisLabelOffset = containerLeftPadding; // Align y-axis with title text start
+  const chartWidth = Math.max(600, data.length * 50 + yAxisLabelOffset + chartPadding.right);
 
   const formatWeekLabel = (startDate: Date, endDate: Date) => {
     const start = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -428,9 +449,9 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
   };
 
   const calculatePoints = () => {
-    const step = (chartWidth - chartPadding.left - chartPadding.right) / Math.max(cumulativeData.length - 1, 1);
+    const step = (chartWidth - yAxisLabelOffset - chartPadding.right) / Math.max(cumulativeData.length - 1, 1);
     return cumulativeData.map((week, index) => {
-      const x = chartPadding.left + index * step;
+      const x = yAxisLabelOffset + index * step;
       const y = chartHeight - chartPadding.bottom - ((week.cumulativeCO2 / maxCO2) * (chartHeight - chartPadding.top - chartPadding.bottom));
       return { x, y, ...week, index };
     });
@@ -521,6 +542,9 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
     ? `M ${points[0].x} ${chartHeight - chartPadding.bottom} L ${animatedPathData.replace('M ', '')} L ${points[Math.min(animatedIndex, points.length - 1)].x} ${chartHeight - chartPadding.bottom} Z`
     : '';
 
+  const xAxisStartX = yAxisLabelOffset;
+  const xAxisEndX = chartWidth - chartPadding.right;
+
   return (
     <div className="relative">
       {tooltip && (
@@ -539,7 +563,7 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
 
       <div className="overflow-x-auto">
         <svg
-          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          viewBox={`${-yAxisLabelOffset} 0 ${chartWidth + yAxisLabelOffset} ${chartHeight}`}
           className="w-full h-[280px]"
           preserveAspectRatio="none"
         >
@@ -567,7 +591,7 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
             return (
               <g key={ratio}>
                 <line
-                  x1={chartPadding.left}
+                  x1={yAxisLabelOffset}
                   y1={y}
                   x2={chartWidth - chartPadding.right}
                   y2={y}
@@ -576,11 +600,12 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
                   strokeDasharray="2,2"
                 />
                 <text
-                  x={chartPadding.left - 10}
+                  x={yAxisLabelOffset - 10}
                   y={y + 4}
-                  fontSize="10"
+                  fontSize="12"
                   fill="#6B7280"
                   textAnchor="end"
+                  style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}
                 >
                   {value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                 </text>
@@ -649,10 +674,11 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
                   <text
                     x={point.x}
                     y={chartHeight - chartPadding.bottom + 20}
-                    fontSize="9"
+                    fontSize="10"
                     fill="#6B7280"
                     textAnchor="middle"
                     className="pointer-events-none"
+                    style={{ letterSpacing: '0.02em' }}
                   >
                     {point.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </text>
@@ -662,9 +688,9 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
           })}
 
           <line
-            x1={chartPadding.left}
+            x1={xAxisStartX}
             y1={chartHeight - chartPadding.bottom}
-            x2={chartWidth - chartPadding.right}
+            x2={xAxisEndX}
             y2={chartHeight - chartPadding.bottom}
             stroke="#D1D5DB"
             strokeWidth="1"
@@ -1275,9 +1301,9 @@ function HomePage({
         </div>
 
         {/* Top Restaurants and CO₂ Chart Row */}
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="mt-6 grid gap-6 lg:grid-cols-5">
           {/* Top Restaurants Leaderboard - First visualization */}
-          <div className="rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-5 shadow-sm">
+          <div className="lg:col-span-2 rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Impact Leaders</h3>
@@ -1296,7 +1322,7 @@ function HomePage({
                 {restaurantLeaderboard.map((restaurant, index) => (
                   <div
                     key={restaurant.restaurantId}
-                    className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3"
+                    className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3 hover:bg-[#f9fff4]"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F3C7A0] text-sm font-bold text-[#B25C23]">
@@ -1326,8 +1352,8 @@ function HomePage({
           </div>
 
           {/* CO₂ Reduction Trend Chart */}
-          <div className="rounded-2xl border border-[#F3C7A0] bg-white p-6 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
+          <div className="lg:col-span-3 rounded-2xl border border-[#F3C7A0] bg-white shadow-sm">
+            <div className="px-6 pt-6 pb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Cumulative CO₂ Reduction</h3>
                 <p className="text-xs text-gray-500 mt-1">Hover over points to see details</p>
@@ -1336,6 +1362,7 @@ function HomePage({
                 Last {weeklyMealsData.length} weeks
               </span>
             </div>
+            <div className="px-6 pb-6">
             {impactLoading ? (
               <p className="text-sm text-gray-600 py-8 text-center">Loading CO₂ data...</p>
             ) : weeklyMealsData.length === 0 ? (
@@ -1350,6 +1377,7 @@ function HomePage({
                 }))}
               />
             )}
+            </div>
           </div>
         </div>
 
@@ -1394,9 +1422,7 @@ function HomePage({
           </p>
           <div className="flex flex-col gap-3 flex-1">
             <div className="flex items-start gap-4 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
-              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
-                💚
-              </span>
+              <HeartIcon className="w-8 h-8 text-[#d96688] flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-black/70">Smart item logging</p>
                 <p className="text-sm text-black/70">
@@ -1405,9 +1431,7 @@ function HomePage({
               </div>
             </div>
             <div className="flex items-start gap-4 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
-              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
-                🧭
-              </span>
+              <MapIcon className="w-8 h-8 text-[#57b378] flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-black/70">Route-friendly pickups</p>
                 <p className="text-sm text-black/70">
@@ -1416,9 +1440,7 @@ function HomePage({
               </div>
             </div>
             <div className="flex items-start gap-4 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
-              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
-                📦
-              </span>
+              <ArchiveBoxIcon className="w-8 h-8 text-[#d5a562] flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-black/70">Packaging guidance</p>
                 <p className="text-sm text-black/70">
@@ -1446,9 +1468,7 @@ function HomePage({
           </p>
           <div className="flex flex-col gap-3 flex-1">
             <div className="flex items-start gap-3 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
-              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
-                🍽️
-              </span>
+              <DocumentTextIcon className="w-8 h-8 text-[#63b2d6] flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-black/70">Structured needs list</p>
                 <p className="text-sm text-black/70">
@@ -1457,9 +1477,7 @@ function HomePage({
               </div>
             </div>
             <div className="flex items-start gap-3 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
-              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
-                🏠
-              </span>
+              <HomeIcon className="w-8 h-8 text-[#95745e] flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-black/70">Clear drop-off details</p>
                 <p className="text-sm text-black/70">
@@ -1468,9 +1486,7 @@ function HomePage({
               </div>
             </div>
             <div className="flex items-start gap-3 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
-              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
-                📱
-              </span>
+              <BellAlertIcon className="w-8 h-8 text-[#bd444a] flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-black/70">Stay updated</p>
                 <p className="text-sm text-black/70">
@@ -1491,9 +1507,7 @@ function HomePage({
             <h2 className="text-3xl font-semibold text-black/70">Three guided steps</h2>
           </div>
           <div className="flex items-center gap-2 rounded-full border-2 border-dashed border-[#d48a68] bg-white px-4 py-2 text-xs font-semibold text-black/70">
-            <span className="text-lg" aria-hidden>
-              🧭
-            </span>
+            <MapIcon className="w-5 h-5 text-gray-600" aria-hidden="true" />
             <span>We handle the routing</span>
           </div>
         </div>
@@ -4445,7 +4459,7 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F1CBB5] text-[#8B4C1F]">
-              {isPickup ? "📥" : "🚚"}
+              {isPickup ? <InboxIcon className="w-6 h-6" aria-hidden="true" /> : <TruckIcon className="w-6 h-6" aria-hidden="true" />}
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-900">
@@ -5161,7 +5175,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#E6F7EE]">
-                          <span className="text-base">📥</span>
+                          <InboxIcon className="w-4 h-4 text-[#2F855A]" aria-hidden="true" />
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-gray-900 leading-tight">
@@ -5253,7 +5267,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-gray-100 pt-3">
                     <div className="flex items-start gap-2">
                       <div className="flex-shrink-0 pt-0.5">
-                        <span className="text-sm text-gray-400">🍽️</span>
+                        <ShoppingBagIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-gray-500 leading-tight">Donation</p>
@@ -5267,7 +5281,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
 
                     <div className="flex items-start gap-2">
                       <div className="flex-shrink-0 pt-0.5">
-                        <span className="text-sm text-gray-400">🥘</span>
+                        <FireIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-gray-500 leading-tight">Food Amount</p>
@@ -5281,7 +5295,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
 
                     <div className="flex items-start gap-2">
                       <div className="flex-shrink-0 pt-0.5">
-                        <span className="text-sm text-gray-400">👤</span>
+                        <UserIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-gray-500 leading-tight">Assigned Staff</p>
@@ -5293,7 +5307,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
 
                     <div className="flex items-start gap-2">
                       <div className="flex-shrink-0 pt-0.5">
-                        <span className="text-sm text-gray-400">📦</span>
+                        <ArchiveBoxIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-gray-500 leading-tight">Warehouse</p>
@@ -5305,7 +5319,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
 
                     <div className="flex items-start gap-2 col-span-2">
                       <div className="flex-shrink-0 pt-0.5">
-                        <span className="text-sm text-gray-400">🕐</span>
+                        <ClockIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-gray-500 leading-tight">Pickup Time</p>
@@ -5760,7 +5774,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
 
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0">
-                        <span className="text-gray-400">📦</span>
+                        <ArchiveBoxIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1">
                         <p className="text-xs font-medium text-gray-500">Warehouse</p>
@@ -5772,7 +5786,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
 
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0">
-                        <span className="text-gray-400">👤</span>
+                        <UserIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1">
                         <p className="text-xs font-medium text-gray-500">Assigned Staff</p>
@@ -5784,7 +5798,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
 
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0">
-                        <span className="text-gray-400">🕐</span>
+                        <ClockIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1">
                         <p className="text-xs font-medium text-gray-500">Pickup Time</p>
@@ -5796,7 +5810,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
 
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0">
-                        <span className="text-gray-400">🥘</span>
+                        <FireIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1">
                         <p className="text-xs font-medium text-gray-500">Food Amount</p>
@@ -6261,7 +6275,7 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#E6F7EE]">
-                              <span className="text-base">🥘</span>
+                              <FireIcon className="w-4 h-4 text-[#2F855A]" aria-hidden="true" />
                             </div>
                             <div>
                               <p className="text-sm font-semibold text-gray-900 leading-tight">{item.name}</p>
@@ -6292,7 +6306,7 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
                       <div className="space-y-3 border-t border-gray-100 pt-4">
                         <div className="flex items-start gap-3">
                           <div className="flex-shrink-0">
-                            <span className="text-gray-400">🍽️</span>
+                            <ShoppingBagIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
                           </div>
                           <div className="flex-1">
                             <p className="text-xs font-medium text-gray-500">Donation</p>
@@ -6302,7 +6316,7 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
 
                         <div className="flex items-start gap-3">
                           <div className="flex-shrink-0">
-                            <span className="text-gray-400">📦</span>
+                            <ArchiveBoxIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
                           </div>
                           <div className="flex-1">
                             <p className="text-xs font-medium text-gray-500">Quantity</p>
@@ -6944,23 +6958,23 @@ export default function Home() {
 
   const navItems: NavItem[] = currentUser?.isAdmin
     ? [
-      { id: 0, label: "Home", icon: <span aria-hidden>🏠</span> },
-      { id: 3, label: "Dashboard", icon: <span aria-hidden>🛠️</span> },
-      { id: 5, label: "Warehouse", icon: <span aria-hidden>📦</span> },
-      { id: 4, label: "Pickup", icon: <span aria-hidden>📥</span> },
-      { id: 6, label: "Deliver", icon: <span aria-hidden>🚚</span> },
+      { id: 0, label: "Home", icon: <HomeIcon className="w-5 h-5" aria-hidden="true" /> },
+      { id: 3, label: "Dashboard", icon: <WrenchScrewdriverIcon className="w-5 h-5" aria-hidden="true" /> },
+      { id: 5, label: "Warehouse", icon: <ArchiveBoxIcon className="w-5 h-5" aria-hidden="true" /> },
+      { id: 4, label: "Pickup", icon: <InboxIcon className="w-5 h-5" aria-hidden="true" /> },
+      { id: 6, label: "Deliver", icon: <TruckIcon className="w-5 h-5" aria-hidden="true" /> },
     ]
     : currentUser?.isDeliveryStaff
       ? [
-        { id: 0, label: "Home", icon: <span aria-hidden>🏠</span> },
-        { id: 4, label: "Pickup", icon: <span aria-hidden>📥</span> },
-        { id: 6, label: "Deliver", icon: <span aria-hidden>🚚</span> },
+        { id: 0, label: "Home", icon: <HomeIcon className="w-5 h-5" aria-hidden="true" /> },
+        { id: 4, label: "Pickup", icon: <InboxIcon className="w-5 h-5" aria-hidden="true" /> },
+        { id: 6, label: "Deliver", icon: <TruckIcon className="w-5 h-5" aria-hidden="true" /> },
       ]
       : [
-        { id: 0, label: "Home", icon: <span aria-hidden>🏠</span> },
-        { id: 1, label: "Donate", icon: <span aria-hidden>💚</span> },
-        { id: 2, label: "Get meals", icon: <span aria-hidden>🍽️</span> },
-        { id: 7, label: "Status", icon: <span aria-hidden>📊</span> },
+        { id: 0, label: "Home", icon: <HomeIcon className="w-5 h-5" aria-hidden="true" /> },
+        { id: 1, label: "Donate", icon: <HeartIcon className="w-5 h-5" aria-hidden="true" /> },
+        { id: 2, label: "Get meals", icon: <ShoppingBagIcon className="w-5 h-5" aria-hidden="true" /> },
+        { id: 7, label: "Status", icon: <ChartBarIcon className="w-5 h-5" aria-hidden="true" /> },
       ];
 
   const normalizedActiveTab = useMemo(() => {
