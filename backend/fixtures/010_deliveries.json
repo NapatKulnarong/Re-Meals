@@ -46,8 +46,8 @@
       "dropoff_location_type": "warehouse",
       "status": "pending",
       "notes": "Surplus lunch meals - scheduled for pickup",
-      "warehouse_id": "WAH0000002",
-      "user_id": "DEL0000002",
+      "warehouse_id": "WAH0000001",
+      "user_id": "DEL0000001",
       "donation_id": "DON0000003",
       "community_id": "COM0000001"
     }
@@ -82,8 +82,8 @@
       "dropoff_location_type": "warehouse",
       "status": "pending",
       "notes": "Breakfast surplus pickup - awaiting confirmation",
-      "warehouse_id": "WAH0000001",
-      "user_id": "DEL0000001",
+      "warehouse_id": "WAH0000002",
+      "user_id": "DEL0000003",
       "donation_id": "DON0000004",
       "community_id": "COM0000002"
     }
@@ -154,8 +154,8 @@
       "dropoff_location_type": "warehouse",
       "status": "pending",
       "notes": "Morning pickup scheduled",
-      "warehouse_id": "WAH0000004",
-      "user_id": "DEL0000001",
+      "warehouse_id": "WAH0000005",
+      "user_id": "DEL0000003",
       "donation_id": "DON0000007",
       "community_id": "COM0000007"
     }
@@ -190,8 +190,8 @@
       "dropoff_location_type": "warehouse",
       "status": "pending",
       "notes": "Bakery unsold items - awaiting driver assignment",
-      "warehouse_id": "WAH0000001",
-      "user_id": "DEL0000001",
+      "warehouse_id": "WAH0000012",
+      "user_id": "DEL0000002",
       "donation_id": "DON0000009",
       "community_id": "COM0000008"
     }
@@ -226,7 +226,7 @@
       "dropoff_location_type": "warehouse",
       "status": "pending",
       "notes": "Scheduled weekend pickup - confirmed with restaurant",
-      "warehouse_id": "WAH0000004",
+      "warehouse_id": "WAH0000006",
       "user_id": "DEL0000005",
       "donation_id": "DON0000010",
       "community_id": "COM0000022"

@@ -3,6 +3,23 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Sidebar from "@/components/Sidebar";
+import {
+  HeartIcon,
+  MapIcon,
+  ArchiveBoxIcon,
+  ShoppingBagIcon,
+  HomeIcon,
+  DevicePhoneMobileIcon,
+  WrenchScrewdriverIcon,
+  InboxIcon,
+  TruckIcon,
+  ChartBarIcon,
+  UserIcon,
+  ClockIcon,
+  FireIcon,
+  DocumentTextIcon,
+  BellAlertIcon,
+} from "@heroicons/react/24/solid";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
@@ -238,7 +255,7 @@ function WeeklyMealsChart({ data }: { data: Array<{ weekKey: string; meals: numb
 
   const maxMeals = Math.max(...data.map(d => d.meals), 1);
   const chartHeight = 280;
-  const chartPadding = { top: 20, right: 20, bottom: 40, left: 50 };
+  const chartPadding = { top: 20, right: 20, bottom: 40, left: 90 };
   const barSpacing = 5;
   const availableWidth = 800;
   const barWidth = Math.max(32, Math.min(60, (availableWidth - chartPadding.left - chartPadding.right - (data.length - 1) * barSpacing) / data.length));
@@ -318,11 +335,12 @@ function WeeklyMealsChart({ data }: { data: Array<{ weekKey: string; meals: numb
                   strokeDasharray="2,2"
                 />
                 <text
-                  x={chartPadding.left - 10}
+                  x={chartPadding.left - 25}
                   y={y + 4}
-                  fontSize="10"
+                  fontSize="12"
                   fill="#6B7280"
                   textAnchor="end"
+                  style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}
                 >
                   {value.toLocaleString()}
                 </text>
@@ -374,10 +392,11 @@ function WeeklyMealsChart({ data }: { data: Array<{ weekKey: string; meals: numb
                   <text
                     x={x + barWidth / 2}
                     y={chartHeight - chartPadding.bottom + 20}
-                    fontSize="9"
+                    fontSize="10"
                     fill="#6B7280"
                     textAnchor="middle"
                     className="pointer-events-none"
+                    style={{ letterSpacing: '0.02em' }}
                   >
                     {week.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </text>
@@ -422,8 +441,10 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
 
   const maxCO2 = Math.max(...cumulativeData.map(d => d.cumulativeCO2), 1);
   const chartHeight = 280;
-  const chartPadding = { top: 20, right: 20, bottom: 40, left: 50 };
-  const chartWidth = Math.max(600, data.length * 60 + chartPadding.left + chartPadding.right);
+  const chartPadding = { top: 20, right: 5, bottom: 40, left: 0 };
+  const containerLeftPadding = 24; // px-6 = 24px, matches title padding
+  const yAxisLabelOffset = containerLeftPadding; // Align y-axis with title text start
+  const chartWidth = Math.max(600, data.length * 50 + yAxisLabelOffset + chartPadding.right);
 
   const formatWeekLabel = (startDate: Date, endDate: Date) => {
     const start = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -432,9 +453,9 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
   };
 
   const calculatePoints = () => {
-    const step = (chartWidth - chartPadding.left - chartPadding.right) / Math.max(cumulativeData.length - 1, 1);
+    const step = (chartWidth - yAxisLabelOffset - chartPadding.right) / Math.max(cumulativeData.length - 1, 1);
     return cumulativeData.map((week, index) => {
-      const x = chartPadding.left + index * step;
+      const x = yAxisLabelOffset + index * step;
       const y = chartHeight - chartPadding.bottom - ((week.cumulativeCO2 / maxCO2) * (chartHeight - chartPadding.top - chartPadding.bottom));
       return { x, y, ...week, index };
     });
@@ -525,6 +546,9 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
     ? `M ${points[0].x} ${chartHeight - chartPadding.bottom} L ${animatedPathData.replace('M ', '')} L ${points[Math.min(animatedIndex, points.length - 1)].x} ${chartHeight - chartPadding.bottom} Z`
     : '';
 
+  const xAxisStartX = yAxisLabelOffset;
+  const xAxisEndX = chartWidth - chartPadding.right;
+
   return (
     <div className="relative">
       {tooltip && (
@@ -543,7 +567,7 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
 
       <div className="overflow-x-auto">
         <svg
-          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          viewBox={`${-yAxisLabelOffset} 0 ${chartWidth + yAxisLabelOffset} ${chartHeight}`}
           className="w-full h-[280px]"
           preserveAspectRatio="none"
         >
@@ -571,7 +595,7 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
             return (
               <g key={ratio}>
                 <line
-                  x1={chartPadding.left}
+                  x1={yAxisLabelOffset}
                   y1={y}
                   x2={chartWidth - chartPadding.right}
                   y2={y}
@@ -580,11 +604,12 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
                   strokeDasharray="2,2"
                 />
                 <text
-                  x={chartPadding.left - 10}
+                  x={yAxisLabelOffset - 10}
                   y={y + 4}
-                  fontSize="10"
+                  fontSize="12"
                   fill="#6B7280"
                   textAnchor="end"
+                  style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}
                 >
                   {value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                 </text>
@@ -653,10 +678,11 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
                   <text
                     x={point.x}
                     y={chartHeight - chartPadding.bottom + 20}
-                    fontSize="9"
+                    fontSize="10"
                     fill="#6B7280"
                     textAnchor="middle"
                     className="pointer-events-none"
+                    style={{ letterSpacing: '0.02em' }}
                   >
                     {point.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </text>
@@ -666,9 +692,9 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
           })}
 
           <line
-            x1={chartPadding.left}
+            x1={xAxisStartX}
             y1={chartHeight - chartPadding.bottom}
-            x2={chartWidth - chartPadding.right}
+            x2={xAxisEndX}
             y2={chartHeight - chartPadding.bottom}
             stroke="#D1D5DB"
             strokeWidth="1"
@@ -891,15 +917,10 @@ function AnimatedNumber({
   useEffect(() => {
     // If value is 0, reset displayValue asynchronously to avoid setState in effect
     if (value === 0) {
-      requestAnimationFrame(() => {
+      // Initialize display value
+      if (displayValue !== 0) {
         setDisplayValue(0);
-      });
-      prevValueRef.current = value;
-      return;
-    }
-
-    // Only animate if value actually changed
-    if (prevValueRef.current === value) {
+      }
       return;
     }
 
@@ -945,13 +966,313 @@ function AnimatedNumber({
   );
 }
 
+// Community Impact Heat Map Component
+function CommunityImpactHeatMap({
+  impactRecords,
+  foodItems,
+  deliveries,
+  communities,
+  loading
+}: {
+  impactRecords: ImpactRecord[];
+  foodItems: FoodItemApiRecord[];
+  deliveries: DeliveryRecordApi[];
+  communities: Community[];
+  loading: boolean;
+}) {
+  const [hoveredCell, setHoveredCell] = useState<{ community: string; month: string } | null>(null);
+
+  // Normalize food ID to match format (FOO0000001)
+  const normalizeFoodId = (foodId: string | number | null | undefined): string => {
+    if (!foodId) return "";
+    const foodIdStr = String(foodId);
+    if (foodIdStr.startsWith("FOO")) {
+      const digits = foodIdStr.replace(/\D/g, '');
+      return digits ? `FOO${digits.padStart(7, '0')}` : foodIdStr;
+    }
+    const digits = foodIdStr.replace(/\D/g, '');
+    if (!digits) return foodIdStr;
+    return `FOO${digits.padStart(7, '0')}`;
+  };
+
+  // Build data maps
+  const communityMonthMap = useMemo(() => {
+    const map = new Map<string, number>();
+
+    const foodToDelivery = new Map<string, DeliveryRecordApi[]>();
+    deliveries.forEach(delivery => {
+      if (delivery.delivery_type === "distribution" && delivery.food_item && delivery.status === "delivered") {
+        const normalizedFoodId = normalizeFoodId(delivery.food_item);
+        if (!foodToDelivery.has(normalizedFoodId)) {
+          foodToDelivery.set(normalizedFoodId, []);
+        }
+        foodToDelivery.get(normalizedFoodId)!.push(delivery);
+      }
+    });
+
+    impactRecords.forEach(impact => {
+      const normalizedFoodId = normalizeFoodId(impact.food);
+      const distributionDeliveries = foodToDelivery.get(normalizedFoodId) || [];
+      if (distributionDeliveries.length === 0) return;
+
+      let totalQuantity = 0;
+      const deliveryQuantities = new Map<string, number>();
+      
+      distributionDeliveries.forEach(delivery => {
+        if (delivery.delivery_quantity) {
+          const quantityMatch = delivery.delivery_quantity.match(/^(\d+(?:\.\d+)?)/);
+          if (quantityMatch) {
+            const qty = parseFloat(quantityMatch[1]);
+            deliveryQuantities.set(delivery.delivery_id, qty);
+            totalQuantity += qty;
+          }
+        }
+      });
+
+      const distributeEqually = totalQuantity === 0;
+      const divisor = distributeEqually ? distributionDeliveries.length : totalQuantity;
+
+      distributionDeliveries.forEach(delivery => {
+        if (delivery.community_id && delivery.dropoff_time) {
+          const deliveryDate = new Date(delivery.dropoff_time);
+          const monthKey = `${deliveryDate.getFullYear()}-${String(deliveryDate.getMonth() + 1).padStart(2, '0')}`;
+          
+          const key = `${delivery.community_id}|${monthKey}`;
+          const current = map.get(key) || 0;
+          
+          const deliveryQty = distributeEqually 
+            ? 1 
+            : (deliveryQuantities.get(delivery.delivery_id) || 0);
+          const proportionalImpact = (impact.meals_saved || 0) * (deliveryQty / divisor);
+          
+          map.set(key, current + proportionalImpact);
+        }
+      });
+    });
+
+    return map;
+  }, [impactRecords, deliveries]);
+
+  const { uniqueCommunities, uniqueMonths } = useMemo(() => {
+    const communitiesSet = new Set<string>();
+    const monthsSet = new Set<string>();
+
+    communityMonthMap.forEach((_, key) => {
+      const [communityId, monthKey] = key.split('|');
+      if (communityId) communitiesSet.add(communityId);
+      if (monthKey) monthsSet.add(monthKey);
+    });
+
+    return {
+      uniqueCommunities: Array.from(communitiesSet).sort(),
+      uniqueMonths: Array.from(monthsSet).sort()
+    };
+  }, [communityMonthMap]);
+
+  const { communityTotals, monthTotals, grandTotal } = useMemo(() => {
+    const commTotals = new Map<string, number>();
+    const monthTotalsMap = new Map<string, number>();
+    let total = 0;
+
+    communityMonthMap.forEach((value, key) => {
+      const [communityId, monthKey] = key.split('|');
+      total += value;
+      
+      if (communityId) {
+        commTotals.set(communityId, (commTotals.get(communityId) || 0) + value);
+      }
+      if (monthKey) {
+        monthTotalsMap.set(monthKey, (monthTotalsMap.get(monthKey) || 0) + value);
+      }
+    });
+
+    return {
+      communityTotals: commTotals,
+      monthTotals: monthTotalsMap,
+      grandTotal: total
+    };
+  }, [communityMonthMap]);
+
+  const maxValue = useMemo(() => {
+    if (communityMonthMap.size === 0) return 1;
+    return Math.max(...Array.from(communityMonthMap.values()));
+  }, [communityMonthMap]);
+
+  const getColorIntensity = (value: number): string => {
+    if (maxValue === 0) return 'bg-gray-100';
+    const intensity = value / maxValue;
+    if (intensity >= 0.8) return 'bg-[#d48a68]';
+    if (intensity >= 0.6) return 'bg-[#E09A7A]';
+    if (intensity >= 0.4) return 'bg-[#ECAA8C]';
+    if (intensity >= 0.2) return 'bg-[#F8BA9E]';
+    return 'bg-[#FFD4C0]';
+  };
+
+  const formatMonthLabel = (monthKey: string): string => {
+    const [year, month] = monthKey.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1);
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  };
+
+  const getCommunityName = (communityId: string): string => {
+    const community = communities.find(c => c.community_id === communityId);
+    return community?.name || communityId;
+  };
+
+  if (loading) {
+    return (
+      <div className="py-8 text-center">
+        <p className="text-sm text-gray-600">Loading community impact data...</p>
+      </div>
+    );
+  }
+
+  if (uniqueCommunities.length === 0 || uniqueMonths.length === 0) {
+    return (
+      <div className="py-8 text-center">
+        <p className="text-sm text-gray-600">No community impact data available yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-10 bg-white px-4 py-3 text-left text-xs font-semibold text-gray-700 border-b border-gray-200">
+                Community
+              </th>
+              {uniqueMonths.map(month => (
+                <th
+                  key={month}
+                  className="px-3 py-3 text-center text-xs font-semibold text-gray-700 border-b border-gray-200 min-w-[80px]"
+                >
+                  {formatMonthLabel(month)}
+                </th>
+              ))}
+              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-700 border-b border-gray-200 bg-gray-50 min-w-[80px]">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {uniqueCommunities.map(communityId => {
+              const communityName = getCommunityName(communityId);
+              return (
+                <tr key={communityId} className="hover:bg-gray-50">
+                  <td className="sticky left-0 z-10 bg-white px-4 py-3 text-sm font-medium text-gray-900 border-b border-gray-100">
+                    {communityName}
+                  </td>
+                  {uniqueMonths.map(month => {
+                    const key = `${communityId}|${month}`;
+                    const value = communityMonthMap.get(key) || 0;
+                    const isHovered = hoveredCell?.community === communityId && hoveredCell?.month === month;
+                    
+                    return (
+                      <td
+                        key={month}
+                        className={`px-3 py-3 text-center text-xs border-b border-gray-100 transition-all cursor-pointer ${getColorIntensity(value)} ${isHovered ? 'ring-2 ring-[#d48a68] ring-offset-1' : ''}`}
+                        onMouseEnter={() => setHoveredCell({ community: communityId, month })}
+                        onMouseLeave={() => setHoveredCell(null)}
+                        title={`${communityName} - ${formatMonthLabel(month)}: ${value.toLocaleString(undefined, { maximumFractionDigits: 1 })} meals saved`}
+                      >
+                        {value > 0 ? (
+                          <span className="font-semibold text-gray-900">
+                            {value >= 1 
+                              ? value.toLocaleString(undefined, { maximumFractionDigits: 0 })
+                              : value.toFixed(1)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-3 text-center text-xs border-b border-gray-100 bg-gray-50 font-semibold">
+                    {(() => {
+                      const commTotal = communityTotals.get(communityId) || 0;
+                      return commTotal > 0 ? (
+                        <span className="text-gray-900">
+                          {commTotal >= 1 
+                            ? commTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })
+                            : commTotal.toFixed(1)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      );
+                    })()}
+                  </td>
+                </tr>
+              );
+            })}
+            <tr className="bg-gray-50 font-semibold">
+              <td className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-sm font-bold text-gray-900 border-t-2 border-gray-300">
+                Total
+              </td>
+              {uniqueMonths.map(month => {
+                const monthTotal = monthTotals.get(month) || 0;
+                return (
+                  <td
+                    key={month}
+                    className="px-3 py-3 text-center text-xs border-t-2 border-gray-300 bg-gray-50"
+                  >
+                    {monthTotal > 0 ? (
+                      <span className="font-bold text-gray-900">
+                        {monthTotal >= 1 
+                          ? monthTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })
+                          : monthTotal.toFixed(1)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
+                );
+              })}
+              <td className="px-3 py-3 text-center text-xs border-t-2 border-gray-300 bg-gray-50">
+                <span className="font-bold text-gray-900">
+                  {grandTotal >= 1 
+                    ? grandTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })
+                    : grandTotal.toFixed(1)}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div className="mt-4 flex items-center justify-between text-xs text-gray-600">
+        <div className="flex items-center gap-4">
+          <span>Intensity:</span>
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 bg-[#FFD4C0] border border-gray-300"></div>
+            <span>Low</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 bg-[#ECAA8C] border border-gray-300"></div>
+            <span>Medium</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 bg-[#d48a68] border border-gray-300"></div>
+            <span>High</span>
+          </div>
+        </div>
+        <span>Hover over cells for details</span>
+      </div>
+    </div>
+  );
+}
+
 // Home Page Component
 function HomePage({
   setShowAuthModal,
-  setAuthMode
+  setAuthMode,
+  currentUser
 }: {
   setShowAuthModal: (show: boolean) => void;
   setAuthMode: (mode: AuthMode) => void;
+  currentUser: LoggedUser | null;
 }) {
   const [impactRecords, setImpactRecords] = useState<ImpactRecord[]>([]);
   const [impactLoading, setImpactLoading] = useState(false);
@@ -959,6 +1280,9 @@ function HomePage({
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [donations, setDonations] = useState<DonationApiRecord[]>([]);
   const [foodItems, setFoodItems] = useState<FoodItemApiRecord[]>([]);
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
+  const [heatMapLoading, setHeatMapLoading] = useState(false);
 
   const journey = [
     {
@@ -1057,6 +1381,37 @@ function HomePage({
       ignore = true;
     };
   }, []);
+
+  // Load communities and deliveries for heat map
+  useEffect(() => {
+    let ignore = false;
+    async function loadHeatMapData() {
+      setHeatMapLoading(true);
+      try {
+        const [communitiesData, deliveriesData] = await Promise.all([
+          apiFetch<Community[]>(API_PATHS.communities).catch(() => []),
+          apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
+            headers: buildAuthHeaders(currentUser),
+          }).catch(() => []),
+        ]);
+
+        if (!ignore) {
+          setCommunities(communitiesData);
+          setDeliveries(deliveriesData);
+        }
+      } catch {
+        // Silently fail - heat map is optional
+      } finally {
+        if (!ignore) {
+          setHeatMapLoading(false);
+        }
+      }
+    }
+    loadHeatMapData();
+    return () => {
+      ignore = true;
+    };
+  }, [currentUser]);
 
   const impactTotals = useMemo(() => {
     return impactRecords.reduce(
@@ -1293,9 +1648,9 @@ function HomePage({
         </div>
 
         {/* Top Restaurants and CO₂ Chart Row */}
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="mt-6 grid gap-6 lg:grid-cols-5">
           {/* Top Restaurants Leaderboard - First visualization */}
-          <div className="rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-5 shadow-sm">
+          <div className="lg:col-span-2 rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Impact Leaders</h3>
@@ -1314,7 +1669,7 @@ function HomePage({
                 {restaurantLeaderboard.map((restaurant, index) => (
                   <div
                     key={restaurant.restaurantId}
-                    className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3"
+                    className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3 hover:bg-[#f9fff4]"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F3C7A0] text-sm font-bold text-[#B25C23]">
@@ -1344,8 +1699,8 @@ function HomePage({
           </div>
 
           {/* CO₂ Reduction Trend Chart */}
-          <div className="rounded-2xl border border-[#F3C7A0] bg-white p-6 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
+          <div className="lg:col-span-3 rounded-2xl border border-[#F3C7A0] bg-white shadow-sm">
+            <div className="px-6 pt-6 pb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Cumulative CO₂ Reduction</h3>
                 <p className="text-xs text-gray-500 mt-1">Hover over points to see details</p>
@@ -1354,6 +1709,7 @@ function HomePage({
                 Last {weeklyMealsData.length} weeks
               </span>
             </div>
+            <div className="px-6 pb-6">
             {impactLoading ? (
               <p className="text-sm text-gray-600 py-8 text-center">Loading CO₂ data...</p>
             ) : weeklyMealsData.length === 0 ? (
@@ -1368,6 +1724,7 @@ function HomePage({
                 }))}
               />
             )}
+            </div>
           </div>
         </div>
 
@@ -1392,6 +1749,28 @@ function HomePage({
             )}
           </div>
         </div>
+
+        {/* Community Impact Heat Map */}
+        <div className="mt-6">
+          <div className="rounded-2xl border border-[#F3C7A0] bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Community Impact Heat Map</h3>
+                <p className="text-xs text-gray-500 mt-1">Meals saved by community and month</p>
+              </div>
+              <span className="rounded-full bg-[#E6F7EE] px-3 py-1 text-[11px] font-semibold text-[#2F855A]">
+                {communities.length} communities
+              </span>
+            </div>
+            <CommunityImpactHeatMap
+              impactRecords={impactRecords}
+              foodItems={foodItems}
+              deliveries={deliveries}
+              communities={communities}
+              loading={heatMapLoading || impactLoading}
+            />
+          </div>
+        </div>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2 items-stretch">
@@ -1412,9 +1791,7 @@ function HomePage({
           </p>
           <div className="flex flex-col gap-3 flex-1">
             <div className="flex items-start gap-4 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
-              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
-                💚
-              </span>
+              <HeartIcon className="w-8 h-8 text-[#d96688] flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-black/70">Smart item logging</p>
                 <p className="text-sm text-black/70">
@@ -1423,9 +1800,7 @@ function HomePage({
               </div>
             </div>
             <div className="flex items-start gap-4 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
-              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
-                🧭
-              </span>
+              <MapIcon className="w-8 h-8 text-[#57b378] flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-black/70">Route-friendly pickups</p>
                 <p className="text-sm text-black/70">
@@ -1434,9 +1809,7 @@ function HomePage({
               </div>
             </div>
             <div className="flex items-start gap-4 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
-              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
-                📦
-              </span>
+              <ArchiveBoxIcon className="w-8 h-8 text-[#d5a562] flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-black/70">Packaging guidance</p>
                 <p className="text-sm text-black/70">
@@ -1464,9 +1837,7 @@ function HomePage({
           </p>
           <div className="flex flex-col gap-3 flex-1">
             <div className="flex items-start gap-3 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
-              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
-                🍽️
-              </span>
+              <DocumentTextIcon className="w-8 h-8 text-[#63b2d6] flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-black/70">Structured needs list</p>
                 <p className="text-sm text-black/70">
@@ -1475,9 +1846,7 @@ function HomePage({
               </div>
             </div>
             <div className="flex items-start gap-3 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
-              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
-                🏠
-              </span>
+              <HomeIcon className="w-8 h-8 text-[#95745e] flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-black/70">Clear drop-off details</p>
                 <p className="text-sm text-black/70">
@@ -1486,9 +1855,7 @@ function HomePage({
               </div>
             </div>
             <div className="flex items-start gap-3 rounded-2xl border-2 border-dashed border-[#d48a68] bg-white p-4 cursor-pointer transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-[0.98] group">
-              <span className="text-3xl flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden>
-                📱
-              </span>
+              <BellAlertIcon className="w-8 h-8 text-[#bd444a] flex-shrink-0 transition-transform group-hover:scale-125 group-active:scale-110" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-black/70">Stay updated</p>
                 <p className="text-sm text-black/70">
@@ -1509,9 +1876,7 @@ function HomePage({
             <h2 className="text-3xl font-semibold text-black/70">Three guided steps</h2>
           </div>
           <div className="flex items-center gap-2 rounded-full border-2 border-dashed border-[#d48a68] bg-white px-4 py-2 text-xs font-semibold text-black/70">
-            <span className="text-lg" aria-hidden>
-              🧭
-            </span>
+            <MapIcon className="w-5 h-5 text-[#57b378]" aria-hidden="true" />
             <span>We handle the routing</span>
           </div>
         </div>
@@ -1589,7 +1954,7 @@ function TabContent({
   setAuthMode: (mode: AuthMode) => void;
 }) {
   if (tab === 0) {
-    return <HomePage setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} />;
+    return <HomePage setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} currentUser={currentUser} />;
   }
   if (tab === 1) {
     return <DonationSection currentUser={currentUser} setShowAuthModal={setShowAuthModal} setAuthMode={setAuthMode} />;
@@ -4382,6 +4747,7 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
   const [foodItems, setFoodItems] = useState<Record<string, FoodItemApiRecord[]>>({});
   const [warehouses, setWarehouses] = useState<Record<string, Warehouse>>({});
   const [communities, setCommunities] = useState<Record<string, Community>>({});
+  const [staff, setStaff] = useState<DeliveryStaffInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -4390,6 +4756,7 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<DeliveryRecordApi["status"] | "all">("all");
+  const [staffFilter, setStaffFilter] = useState<string>("all"); // "all", "unassigned", or user_id
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "tomorrow" | "week">("all");
 
@@ -4417,6 +4784,7 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
       });
       const warehouseData = await apiFetch<Warehouse[]>(API_PATHS.warehouses);
       const communityData = await apiFetch<Community[]>(API_PATHS.communities);
+      const staffData = await apiFetch<DeliveryStaffInfo[]>(API_PATHS.deliveryStaff);
 
       const donationIds = Array.from(
         new Set(
@@ -4465,6 +4833,7 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
       setFoodItems(itemsByDonation);
       setWarehouses(warehouseMap);
       setCommunities(communityMap);
+      setStaff(staffData);
 
       const nextInputs: Record<string, { notes: string }> = {};
       deliveryData.forEach((d) => {
@@ -4484,95 +4853,45 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
     }
   }, [currentUser, loadData]);
 
-  // Helper function to extract province from address
-  const extractArea = useCallback((address: string): string => {
+  // Helper function to extract area from address
+  const extractArea = (address: string): string => {
     const lowerAddress = address.toLowerCase();
-    // Check longer/more specific names first to avoid partial matches
-    if (lowerAddress.includes("phra nakhon si ayutthaya") || lowerAddress.includes("ayutthaya")) return "Phra Nakhon Si Ayutthaya";
-    if (lowerAddress.includes("nakhon pathom")) return "Nakhon Pathom";
-    if (lowerAddress.includes("samut sakhon")) return "Samut Sakhon";
+    if (lowerAddress.includes("bangkok central") || lowerAddress.includes("central bangkok")) return "Bangkok Central";
     if (lowerAddress.includes("samut prakan")) return "Samut Prakan";
     if (lowerAddress.includes("pathum thani")) return "Pathum Thani";
     if (lowerAddress.includes("nonthaburi")) return "Nonthaburi";
     if (lowerAddress.includes("bangkok")) return "Bangkok";
     return "Other";
-  }, []);
+  };
 
-  // Get area for a delivery based on dropoff location
-  const getDeliveryArea = useCallback((delivery: DeliveryRecordApi): string => {
-    // For pickups (donation type): dropoff is warehouse
-    if (delivery.delivery_type === "donation" && delivery.warehouse_id && warehouses[delivery.warehouse_id]) {
-      return extractArea(warehouses[delivery.warehouse_id].address);
-    }
-    // For deliveries (distribution type): dropoff is community
-    if (delivery.delivery_type === "distribution" && delivery.community_id && communities[delivery.community_id]) {
+  // Get area for a delivery
+  const getDeliveryArea = (delivery: DeliveryRecordApi): string => {
+    if (delivery.community_id && communities[delivery.community_id]) {
       return extractArea(communities[delivery.community_id].address);
     }
-    // Fallback: try warehouse if available
     if (delivery.warehouse_id && warehouses[delivery.warehouse_id]) {
       return extractArea(warehouses[delivery.warehouse_id].address);
     }
     return "Other";
-  }, [warehouses, communities, extractArea]);
+  };
 
-  // Get unique areas from ALL addresses in deliveries (pickup and dropoff)
+  // Get unique areas from deliveries
   const uniqueAreas = useMemo(() => {
     const areas = new Set<string>();
     deliveries.forEach(d => {
-      // For pickups: extract from restaurant address (pickup) and warehouse address (dropoff)
-      if (d.delivery_type === "donation") {
-        // Get restaurant address from donation
-        if (d.donation_id && donations[d.donation_id]?.restaurant_address) {
-          const restaurantAddress = donations[d.donation_id].restaurant_address;
-          if (restaurantAddress) {
-            const restaurantArea = extractArea(restaurantAddress);
-            if (restaurantArea && restaurantArea !== "Other") {
-              areas.add(restaurantArea);
-            }
-          }
-        }
-        // Get warehouse address (dropoff)
-        if (d.warehouse_id && warehouses[d.warehouse_id]) {
-          const warehouseAddress = warehouses[d.warehouse_id].address;
-          if (warehouseAddress) {
-            const warehouseArea = extractArea(warehouseAddress);
-            if (warehouseArea && warehouseArea !== "Other") {
-              areas.add(warehouseArea);
-            }
-          }
-        }
-      }
-      // For deliveries: extract from warehouse address (pickup) and community address (dropoff)
-      if (d.delivery_type === "distribution") {
-        // Get warehouse address (pickup)
-        if (d.warehouse_id && warehouses[d.warehouse_id]) {
-          const warehouseAddress = warehouses[d.warehouse_id].address;
-          if (warehouseAddress) {
-            const warehouseArea = extractArea(warehouseAddress);
-            if (warehouseArea && warehouseArea !== "Other") {
-              areas.add(warehouseArea);
-            }
-          }
-        }
-        // Get community address (dropoff)
-        if (d.community_id && communities[d.community_id]) {
-          const communityAddress = communities[d.community_id].address;
-          if (communityAddress) {
-            const communityArea = extractArea(communityAddress);
-            if (communityArea && communityArea !== "Other") {
-              areas.add(communityArea);
-            }
-          }
-        }
-      }
+      areas.add(getDeliveryArea(d));
     });
     return Array.from(areas).sort();
-  }, [deliveries, communities, warehouses, donations, extractArea]);
+  }, [deliveries, communities, warehouses]);
 
   // Filter function
-  const applyFilters = useCallback((delivery: DeliveryRecordApi): boolean => {
+  const applyFilters = (delivery: DeliveryRecordApi): boolean => {
     // Status filter
     if (statusFilter !== "all" && delivery.status !== statusFilter) return false;
+
+    // Staff filter
+    if (staffFilter === "unassigned" && delivery.user_id) return false;
+    if (staffFilter !== "all" && staffFilter !== "unassigned" && delivery.user_id !== staffFilter) return false;
 
     // Area filter
     if (areaFilter !== "all" && getDeliveryArea(delivery) !== areaFilter) return false;
@@ -4601,7 +4920,7 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
     }
 
     return true;
-  }, [statusFilter, areaFilter, dateFilter, getDeliveryArea]);
+  };
 
   const pickupTasks = useMemo(
     () =>
@@ -4609,7 +4928,7 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
         .filter((d) => d.delivery_type === "donation")
         .filter(applyFilters)
         .sort((a, b) => new Date(a.pickup_time).getTime() - new Date(b.pickup_time).getTime()),
-    [deliveries, applyFilters]
+    [deliveries, statusFilter, staffFilter, areaFilter, dateFilter, communities, warehouses]
   );
   const distributionTasks = useMemo(
     () =>
@@ -4617,7 +4936,7 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
         .filter((d) => d.delivery_type === "distribution")
         .filter(applyFilters)
         .sort((a, b) => new Date(a.pickup_time).getTime() - new Date(b.pickup_time).getTime()),
-    [deliveries, applyFilters]
+    [deliveries, statusFilter, staffFilter, areaFilter, dateFilter, communities, warehouses]
   );
 
   const formatFoodAmount = (donationId?: string | null) => {
@@ -4716,7 +5035,7 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F1CBB5] text-[#8B4C1F]">
-              {isPickup ? "📥" : "🚚"}
+              {isPickup ? <InboxIcon className="w-6 h-6" aria-hidden="true" /> : <TruckIcon className="w-6 h-6" aria-hidden="true" />}
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-900">
@@ -4930,8 +5249,8 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
           </div>
         </div>
 
-        {/* Date and Area Filters */}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {/* Date, Staff, and Area Filters */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {/* Date Filter */}
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">
@@ -4946,6 +5265,26 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
               <option value="today">Today</option>
               <option value="tomorrow">Tomorrow</option>
               <option value="week">This week</option>
+            </select>
+          </div>
+
+          {/* Staff Filter */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">
+              Staff Assignment
+            </label>
+            <select
+              value={staffFilter}
+              onChange={(e) => setStaffFilter(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-[#8B4C1F] focus:outline-none focus:ring-2 focus:ring-[#8B4C1F]/20"
+            >
+              <option value="all">All staff</option>
+              <option value="unassigned">Unassigned</option>
+              {staff.map((s) => (
+                <option key={s.user_id} value={s.user_id}>
+                  {s.name} ({s.assigned_area})
+                </option>
+              ))}
             </select>
           </div>
 
@@ -4970,7 +5309,7 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
         </div>
 
         {/* Active Filters Count */}
-        {(statusFilter !== "all" || areaFilter !== "all" || dateFilter !== "all") && (
+        {(statusFilter !== "all" || staffFilter !== "all" || areaFilter !== "all" || dateFilter !== "all") && (
           <div className="flex items-center justify-between border-t border-gray-200 pt-3">
             <p className="text-xs text-gray-600">
               <span className="font-semibold">
@@ -4982,6 +5321,7 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
               type="button"
               onClick={() => {
                 setStatusFilter("all");
+                setStaffFilter("all");
                 setAreaFilter("all");
                 setDateFilter("all");
               }}
@@ -5724,7 +6064,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#E6F7EE]">
-                          <span className="text-base">📥</span>
+                          <InboxIcon className="w-4 h-4 text-[#2F855A]" aria-hidden="true" />
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-gray-900 leading-tight">
@@ -5816,7 +6156,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-gray-100 pt-3">
                     <div className="flex items-start gap-2">
                       <div className="flex-shrink-0 pt-0.5">
-                        <span className="text-sm text-gray-400">🍽️</span>
+                        <ShoppingBagIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-gray-500 leading-tight">Donation</p>
@@ -5830,7 +6170,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
 
                     <div className="flex items-start gap-2">
                       <div className="flex-shrink-0 pt-0.5">
-                        <span className="text-sm text-gray-400">🥘</span>
+                        <FireIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-gray-500 leading-tight">Food Amount</p>
@@ -5844,7 +6184,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
 
                     <div className="flex items-start gap-2">
                       <div className="flex-shrink-0 pt-0.5">
-                        <span className="text-sm text-gray-400">👤</span>
+                        <UserIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-gray-500 leading-tight">Assigned Staff</p>
@@ -5856,7 +6196,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
 
                     <div className="flex items-start gap-2">
                       <div className="flex-shrink-0 pt-0.5">
-                        <span className="text-sm text-gray-400">📦</span>
+                        <ArchiveBoxIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-gray-500 leading-tight">Warehouse</p>
@@ -5873,7 +6213,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
 
                     <div className="flex items-start gap-2 col-span-2">
                       <div className="flex-shrink-0 pt-0.5">
-                        <span className="text-sm text-gray-400">🕐</span>
+                        <ClockIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-gray-500 leading-tight">Pickup Time</p>
@@ -6730,7 +7070,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
 
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0">
-                        <span className="text-gray-400">📦</span>
+                        <ArchiveBoxIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1">
                         <p className="text-xs font-medium text-gray-500">Warehouse</p>
@@ -6742,7 +7082,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
 
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0">
-                        <span className="text-gray-400">👤</span>
+                        <UserIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1">
                         <p className="text-xs font-medium text-gray-500">Assigned Staff</p>
@@ -6754,7 +7094,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
 
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0">
-                        <span className="text-gray-400">🕐</span>
+                        <ClockIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
                       </div>
                       <div className="flex-1">
                         <p className="text-xs font-medium text-gray-500">Pickup Time</p>
@@ -6767,7 +7107,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
                     {delivery.food_item && delivery.delivery_quantity ? (
                       <div className="flex items-start gap-3">
                         <div className="flex-shrink-0">
-                          <span className="text-gray-400">🥘</span>
+                          <FireIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
                         </div>
                         <div className="flex-1">
                           <p className="text-xs font-medium text-gray-500">Food Item</p>
@@ -7267,7 +7607,7 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#E6F7EE]">
-                              <span className="text-base">🥘</span>
+                              <FireIcon className="w-4 h-4 text-[#2F855A]" aria-hidden="true" />
                             </div>
                             <div>
                               <p className="text-sm font-semibold text-gray-900 leading-tight">{item.name}</p>
@@ -7298,7 +7638,7 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
                       <div className="space-y-3 border-t border-gray-100 pt-4">
                         <div className="flex items-start gap-3">
                           <div className="flex-shrink-0">
-                            <span className="text-gray-400">🍽️</span>
+                            <ShoppingBagIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
                           </div>
                           <div className="flex-1">
                             <p className="text-xs font-medium text-gray-500">Donation</p>
@@ -7308,7 +7648,7 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
 
                         <div className="flex items-start gap-3">
                           <div className="flex-shrink-0">
-                            <span className="text-gray-400">📦</span>
+                            <ArchiveBoxIcon className="w-5 h-5 text-gray-400" aria-hidden="true" />
                           </div>
                           <div className="flex-1">
                             <p className="text-xs font-medium text-gray-500">Quantity</p>
@@ -7956,23 +8296,23 @@ export default function Home() {
 
   const navItems: NavItem[] = currentUser?.isAdmin
     ? [
-      { id: 0, label: "Home", icon: <span aria-hidden>🏠</span> },
-      { id: 3, label: "Dashboard", icon: <span aria-hidden>🛠️</span> },
-      { id: 5, label: "Warehouse", icon: <span aria-hidden>📦</span> },
-      { id: 4, label: "Pickup", icon: <span aria-hidden>📥</span> },
-      { id: 6, label: "Deliver", icon: <span aria-hidden>🚚</span> },
+      { id: 0, label: "Home", icon: <HomeIcon className="w-5 h-5" aria-hidden="true" /> },
+      { id: 3, label: "Dashboard", icon: <WrenchScrewdriverIcon className="w-5 h-5" aria-hidden="true" /> },
+      { id: 5, label: "Warehouse", icon: <ArchiveBoxIcon className="w-5 h-5" aria-hidden="true" /> },
+      { id: 4, label: "Pickup", icon: <InboxIcon className="w-5 h-5" aria-hidden="true" /> },
+      { id: 6, label: "Deliver", icon: <TruckIcon className="w-5 h-5" aria-hidden="true" /> },
     ]
     : currentUser?.isDeliveryStaff
       ? [
-        { id: 0, label: "Home", icon: <span aria-hidden>🏠</span> },
-        { id: 4, label: "Pickup", icon: <span aria-hidden>📥</span> },
-        { id: 6, label: "Deliver", icon: <span aria-hidden>🚚</span> },
+        { id: 0, label: "Home", icon: <HomeIcon className="w-5 h-5" aria-hidden="true" /> },
+        { id: 4, label: "Pickup", icon: <InboxIcon className="w-5 h-5" aria-hidden="true" /> },
+        { id: 6, label: "Deliver", icon: <TruckIcon className="w-5 h-5" aria-hidden="true" /> },
       ]
       : [
-        { id: 0, label: "Home", icon: <span aria-hidden>🏠</span> },
-        { id: 1, label: "Donate", icon: <span aria-hidden>💚</span> },
-        { id: 2, label: "Get meals", icon: <span aria-hidden>🍽️</span> },
-        { id: 7, label: "Status", icon: <span aria-hidden>📊</span> },
+        { id: 0, label: "Home", icon: <HomeIcon className="w-5 h-5" aria-hidden="true" /> },
+        { id: 1, label: "Donate", icon: <HeartIcon className="w-5 h-5" aria-hidden="true" /> },
+        { id: 2, label: "Get meals", icon: <ShoppingBagIcon className="w-5 h-5" aria-hidden="true" /> },
+        { id: 7, label: "Status", icon: <ChartBarIcon className="w-5 h-5" aria-hidden="true" /> },
       ];
 
   const normalizedActiveTab = useMemo(() => {
