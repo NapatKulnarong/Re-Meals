@@ -6508,10 +6508,10 @@ function StatusSection({
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2 lg:h-[calc(100vh-15rem)]">
+      <div className="grid gap-6 lg:grid-cols-2 lg:h-[calc(100vh-15rem)] lg:max-h-[calc(100vh-15rem)]">
         {/* Assigned Donations */}
-        <section className="flex h-full flex-col rounded-3xl border border-[#C7D2C0] bg-[#F4F7EF] p-6 shadow-inner shadow-[#C7D2C0]/40">
-          <div className="mb-3 flex items-start justify-between">
+        <section className="flex h-full max-h-full flex-col rounded-3xl border border-[#C7D2C0] bg-[#F4F7EF] p-6 shadow-inner shadow-[#C7D2C0]/40 overflow-hidden">
+          <div className="mb-3 flex flex-shrink-0 items-start justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-[#4E673E]">
                 Assigned Donations
@@ -6538,7 +6538,7 @@ function StatusSection({
               </select>
             </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-4 pr-2">
             {filteredAndSortedDonations.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-[#C7D2C0] bg-white p-4 text-sm text-gray-600">
                 {assignedDonations.length === 0
@@ -6612,8 +6612,8 @@ function StatusSection({
         </section>
 
         {/* Accepted Requests */}
-        <section className="flex h-full flex-col rounded-3xl border border-[#F3C7A0] bg-[#FFF8F0] p-6 shadow-inner shadow-[#F3C7A0]/30">
-          <div className="mb-3 flex items-start justify-between">
+        <section className="flex h-full max-h-full flex-col rounded-3xl border border-[#F3C7A0] bg-[#FFF8F0] p-6 shadow-inner shadow-[#F3C7A0]/30 overflow-hidden">
+          <div className="mb-3 flex flex-shrink-0 items-start justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-[#C46A24]">
                 Accepted Requests
@@ -6640,7 +6640,7 @@ function StatusSection({
               </select>
             </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-4 pr-2">
             {filteredAndSortedRequests.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-[#F3C7A0] bg-white p-4 text-sm text-gray-600">
                 {acceptedRequests.length === 0
