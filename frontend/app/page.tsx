@@ -5467,6 +5467,7 @@ function StatusSection({
   }, [currentUser]);
 
   // Get assigned donations (donations with pickup deliveries) with their delivery info
+  // Shows all statuses: pending, in_transit, delivered - like a tracking page
   const assignedDonations = useMemo(() => {
     // Create a map of donation_id -> delivery for quick lookup
     const donationToDelivery = new Map<string, DeliveryRecordApi>();
@@ -5484,6 +5485,8 @@ function StatusSection({
         if (d.ownerUserId && d.ownerUserId !== currentUser?.userId) {
           return false;
         }
+        // Show all donations that have been assigned (have a pickup delivery)
+        // regardless of delivery status (pending, in_transit, delivered)
         return donationToDelivery.has(d.id);
       })
       .map((d) => ({
@@ -5548,36 +5551,62 @@ function StatusSection({
     return filtered;
   }, [assignedDonations, donationStatusFilter, dateFilter, donationSort]);
 
-  // Get accepted requests (requests with distribution deliveries to their community)
+  // Get accepted requests (requests that have been accepted by admin)
+  // Shows all statuses: pending, in_transit, delivered - like a tracking page
   const acceptedRequests = useMemo(() => {
-    // Get community IDs that have distribution deliveries
-    const acceptedCommunityIds = new Set(
-      deliveries
-        .filter((d) => d.delivery_type === "distribution" && d.community_id)
-        .map((d) => d.community_id)
-    );
-
     // Map community names to IDs
     const communityNameToId = new Map(
       communities.map((c) => [c.name, c.community_id])
     );
 
-    return requests.filter((r) => {
-      if (!r.ownerUserId || r.ownerUserId !== currentUser?.userId) {
-        return false;
-      }
-      const communityId = communityNameToId.get(r.communityName);
-      return communityId ? acceptedCommunityIds.has(communityId) : false;
-    });
+    // Create a map of community_id -> delivery for quick lookup
+    const communityToDelivery = new Map<string, DeliveryRecordApi>();
+    deliveries
+      .filter((d) => d.delivery_type === "distribution" && d.community_id)
+      .forEach((d) => {
+        if (d.community_id) {
+          communityToDelivery.set(d.community_id, d);
+        }
+      });
+
+    return requests
+      .filter((r) => {
+        // Show if user owns it
+        if (!r.ownerUserId || r.ownerUserId !== currentUser?.userId) {
+          return false;
+        }
+        // Only show requests that have been accepted (status = "accepted")
+        // Once accepted, they may or may not have distribution deliveries yet
+        return r.status === "accepted";
+      })
+      .map((r) => {
+        const communityId = communityNameToId.get(r.communityName);
+        const delivery = communityId ? communityToDelivery.get(communityId) : undefined;
+        return {
+          request: r,
+          delivery: delivery,
+        };
+      });
   }, [requests, deliveries, communities, currentUser?.userId]);
 
   // Filter and sort accepted requests
   const filteredAndSortedRequests = useMemo(() => {
     let filtered = [...acceptedRequests];
+    
+    // Status filter - filter by delivery status if available
+    if (donationStatusFilter !== "all") {
+      filtered = filtered.filter(({ delivery }) => {
+        if (!delivery) {
+          // If no delivery yet but status is "accepted", show as pending
+          return donationStatusFilter === "pending";
+        }
+        return delivery.status === donationStatusFilter;
+      });
+    }
 
     // Community filter
     if (requestCommunityFilter !== "all") {
-      filtered = filtered.filter((request) => request.communityName === requestCommunityFilter);
+      filtered = filtered.filter(({ request }) => request.communityName === requestCommunityFilter);
     }
 
     // Date filter
@@ -5589,7 +5618,7 @@ function StatusSection({
       const monthAgo = new Date(today);
       monthAgo.setMonth(monthAgo.getMonth() - 1);
 
-      filtered = filtered.filter((request) => {
+      filtered = filtered.filter(({ request }) => {
         const requestDate = new Date(request.createdAt);
         switch (dateFilter) {
           case "today":
@@ -5608,28 +5637,28 @@ function StatusSection({
     filtered.sort((a, b) => {
       switch (requestSort) {
         case "newest":
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          return new Date(b.request.createdAt).getTime() - new Date(a.request.createdAt).getTime();
         case "oldest":
-          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          return new Date(a.request.createdAt).getTime() - new Date(b.request.createdAt).getTime();
         case "community_az":
-          return a.communityName.localeCompare(b.communityName);
+          return a.request.communityName.localeCompare(b.request.communityName);
         case "community_za":
-          return b.communityName.localeCompare(a.communityName);
+          return b.request.communityName.localeCompare(a.request.communityName);
         case "people_desc":
-          return parseInt(b.numberOfPeople) - parseInt(a.numberOfPeople);
+          return parseInt(b.request.numberOfPeople) - parseInt(a.request.numberOfPeople);
         case "people_asc":
-          return parseInt(a.numberOfPeople) - parseInt(b.numberOfPeople);
+          return parseInt(a.request.numberOfPeople) - parseInt(b.request.numberOfPeople);
         default:
           return 0;
       }
     });
 
     return filtered;
-  }, [acceptedRequests, requestCommunityFilter, dateFilter, requestSort]);
+  }, [acceptedRequests, requestCommunityFilter, dateFilter, requestSort, donationStatusFilter]);
 
   // Get unique communities for filter dropdown
   const uniqueCommunities = useMemo(() => {
-    return Array.from(new Set(acceptedRequests.map(r => r.communityName))).sort();
+    return Array.from(new Set(acceptedRequests.map(({ request }) => request.communityName))).sort();
   }, [acceptedRequests]);
 
   if (!currentUser) {
@@ -5852,10 +5881,17 @@ function StatusSection({
                     className="rounded-2xl border border-dashed border-[#4d673f] bg-white p-4 shadow-sm"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-400">
-                          {donation.restaurantId ?? "Manual entry"}
-                        </p>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-xs uppercase tracking-wide text-gray-400">
+                            {donation.restaurantId ?? "Manual entry"}
+                          </p>
+                          {donation.ownerUserId === currentUser?.userId && (
+                            <span className="inline-flex rounded-full bg-[#B86A49]/10 px-2 py-0.5 text-xs font-semibold text-[#8B4513]">
+                              Your donation
+                            </span>
+                          )}
+                        </div>
                         <p className="text-lg font-semibold text-gray-900">
                           {donation.restaurantName}
                         </p>
@@ -5925,33 +5961,68 @@ function StatusSection({
                   : "No requests match your filters."}
               </p>
             ) : (
-              filteredAndSortedRequests.map((request) => (
-                <article
-                  key={request.id}
-                  className="rounded-2xl border border-dashed border-[#F3C7A0] bg-white p-4 shadow-sm"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-400">
-                        {request.id}
-                      </p>
-                      <p className="text-lg font-semibold text-gray-900">
-                        {request.requestTitle}
-                      </p>
-                      <p className="text-sm text-gray-500">{request.communityName}</p>
+              filteredAndSortedRequests.map(({ request, delivery }) => {
+                const statusLabel = (status: DeliveryRecordApi["status"] | undefined) => {
+                  if (!status) {
+                    // Request accepted but no delivery created yet
+                    return { text: "Accepted", className: "bg-[#FFF1E3] text-[#C46A24]" };
+                  }
+                  switch (status) {
+                    case "pending":
+                      return { text: "Pending", className: "bg-[#E9F1E3] text-[#4E673E]" };
+                    case "in_transit":
+                      return { text: "In transit", className: "bg-[#E6F4FF] text-[#1D4ED8]" };
+                    case "delivered":
+                      return { text: "Delivered", className: "bg-[#E6F7EE] text-[#1F4D36]" };
+                    case "cancelled":
+                    default:
+                      return { text: "Cancelled", className: "bg-[#FDECEA] text-[#B42318]" };
+                  }
+                };
+                const status = statusLabel(delivery?.status);
+
+                return (
+                  <article
+                    key={request.id}
+                    className="rounded-2xl border border-dashed border-[#F3C7A0] bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-xs uppercase tracking-wide text-gray-400">
+                            {request.id}
+                          </p>
+                          {request.ownerUserId === currentUser?.userId && (
+                            <span className="inline-flex rounded-full bg-[#B86A49]/10 px-2 py-0.5 text-xs font-semibold text-[#8B4513]">
+                              Your request
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {request.requestTitle}
+                        </p>
+                        <p className="text-sm text-gray-500">{request.communityName}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right text-xs text-gray-500">
+                          <p>{formatDisplayDate(request.createdAt)}</p>
+                          <p>{request.numberOfPeople} people</p>
+                        </div>
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${status.className}`}
+                        >
+                          {status.text}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-right text-xs text-gray-500">
-                      <p>{formatDisplayDate(request.createdAt)}</p>
-                      <p>{request.numberOfPeople} people</p>
+                    <div className="mt-3 rounded-lg border border-[#F3C7A0] bg-[#FFF3E7] p-2.5">
+                      <p className="text-xs font-medium text-[#8B4C1F]">
+                        ✓ This request has been accepted{delivery ? ` and assigned for delivery. Status: ${status.text}` : " and is awaiting delivery assignment."}
+                      </p>
                     </div>
-                  </div>
-                  <div className="mt-3 rounded-lg border border-[#F3C7A0] bg-[#FFF3E7] p-2.5">
-                    <p className="text-xs font-medium text-[#8B4C1F]">
-                      ✓ This request has been accepted and assigned for delivery.
-                    </p>
-                  </div>
-                </article>
-              ))
+                  </article>
+                );
+              })
             )}
           </div>
         </section>
