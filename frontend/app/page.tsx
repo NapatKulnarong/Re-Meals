@@ -4813,6 +4813,7 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<"all" | "donation" | "request">("all");
 
   useEffect(() => {
     let ignore = false;
@@ -4879,10 +4880,22 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
     })),
   ];
 
-  // Group items by status
-  const pendingItems = manageableItems.filter((item) => item.status === "pending");
-  const completedItems = manageableItems.filter((item) => item.status === "accepted");
-  const declinedItems = manageableItems.filter((item) => item.status === "declined");
+  // Apply type filter
+  const filteredItems = manageableItems.filter((item) => {
+    if (filterType === "all") return true;
+    return item.type === filterType;
+  });
+
+  // Group items by status and sort by creation date (newest first)
+  const pendingItems = filteredItems
+    .filter((item) => item.status === "pending")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const completedItems = filteredItems
+    .filter((item) => item.status === "accepted")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const declinedItems = filteredItems
+    .filter((item) => item.status === "declined")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const updateStatus = async (
     itemId: string,
@@ -4929,18 +4942,11 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
   const renderItem = (item: ManageableItem) => (
     <div
       key={`${item.type}-${item.id}`}
-      className="flex flex-col gap-2 rounded-2xl border border-[#F3C7A0] bg-white px-4 py-3"
+      className="flex flex-col gap-2 rounded-xl border border-white/50 bg-white/70 backdrop-blur-sm px-4 py-3 shadow-sm"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900">{item.title}</p>
-          <p className="text-xs text-gray-500 mt-1">{item.subtitle}</p>
-        </div>
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${statusPill(item.status).className}`}
-        >
-          {statusPill(item.status).text}
-        </span>
+      <div>
+        <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+        <p className="text-xs text-gray-500 mt-1">{item.subtitle}</p>
       </div>
       {item.status === "pending" && (
         <div className="flex gap-2 mt-2">
@@ -4950,7 +4956,7 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
             disabled={updatingId === item.id}
             className="flex-1 rounded-full border border-[#1F4D36] bg-[#E6F7EE] px-4 py-2 text-xs font-semibold text-[#1F4D36] transition hover:bg-[#D4F0E0] disabled:opacity-60"
           >
-            Mark completed
+            Complete
           </button>
           <button
             type="button"
@@ -4958,89 +4964,109 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
             disabled={updatingId === item.id}
             className="flex-1 rounded-full border border-[#B42318] bg-[#FDECEA] px-4 py-2 text-xs font-semibold text-[#B42318] transition hover:bg-[#FCE0DC] disabled:opacity-60"
           >
-            Mark declined
+            Decline
           </button>
         </div>
       )}
     </div>
   );
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <p className="text-sm text-gray-600">Loading donations and meal requests...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <p className="text-sm text-red-600">{error}</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="rounded-[28px] border border-[#F3C7A0] bg-[#FFF7EF] p-6 shadow-lg shadow-[#F2C08F]/30">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#C46A24]">
-              Admin console
-            </p>
-            <h2 className="text-2xl font-semibold text-gray-900">Manage donations & meal requests</h2>
-            <p className="text-sm text-gray-600">
-              Mark items as completed or declined from the pending column to keep the queue tidy.
-            </p>
+    <div className="flex flex-col h-full">
+      <div className="flex-shrink-0 mb-4 flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#C46A24] mb-2">
+            Admin console
+          </p>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-1">Manage donations & meal requests</h2>
+          <p className="text-sm text-gray-600">
+            Mark items as completed or declined from the pending column to keep the queue tidy.
+          </p>
+        </div>
+        <div className="flex-shrink-0">
+          <label htmlFor="filter-type" className="block text-xs font-semibold text-gray-700 mb-1">
+            Filter
+          </label>
+          <select
+            id="filter-type"
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as "all" | "donation" | "request")}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-sm transition hover:border-gray-400 focus:border-[#C46A24] focus:outline-none focus:ring-2 focus:ring-[#C46A24]/20"
+          >
+            <option value="all">All Items</option>
+            <option value="donation">Donations Only</option>
+            <option value="request">Meal Requests Only</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="flex-1 grid grid-cols-3 gap-4 min-h-0">
+        {/* Pending Column */}
+        <div className="flex flex-col rounded-2xl border border-[#F3C7A0] bg-[#FFF7EF] p-4 shadow-md min-h-0">
+          <div className="mb-4 flex items-center justify-between flex-shrink-0">
+            <h3 className="text-lg font-semibold text-gray-900">Pending</h3>
+            <span className="rounded-full bg-[#FFF1E3] px-3 py-1 text-xs font-semibold text-[#C46A24]">
+              {pendingItems.length}
+            </span>
           </div>
-          <div className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow">
-            {pendingItems.length} pending / {manageableItems.length} total
+          <div className="flex-1 space-y-3 overflow-y-auto pr-2 min-h-0">
+            {pendingItems.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-8">No pending items</p>
+            ) : (
+              pendingItems.map(renderItem)
+            )}
           </div>
         </div>
 
-        {loading ? (
-          <p className="mt-4 text-sm text-gray-600">Loading donations and meal requests...</p>
-        ) : error ? (
-          <p className="mt-4 text-sm text-red-600">{error}</p>
-        ) : (
-          <div className="mt-6 grid grid-cols-3 gap-4">
-            {/* Pending Column */}
-            <div className="flex flex-col">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Pending</h3>
-                <span className="rounded-full bg-[#FFF1E3] px-3 py-1 text-xs font-semibold text-[#C46A24]">
-                  {pendingItems.length}
-                </span>
-              </div>
-              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                {pendingItems.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-8">No pending items</p>
-                ) : (
-                  pendingItems.map(renderItem)
-                )}
-              </div>
-            </div>
-
-            {/* Completed Column */}
-            <div className="flex flex-col">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Completed</h3>
-                <span className="rounded-full bg-[#E6F7EE] px-3 py-1 text-xs font-semibold text-[#1F4D36]">
-                  {completedItems.length}
-                </span>
-              </div>
-              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                {completedItems.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-8">No completed items</p>
-                ) : (
-                  completedItems.map(renderItem)
-                )}
-              </div>
-            </div>
-
-            {/* Declined Column */}
-            <div className="flex flex-col">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Declined</h3>
-                <span className="rounded-full bg-[#FDECEA] px-3 py-1 text-xs font-semibold text-[#B42318]">
-                  {declinedItems.length}
-                </span>
-              </div>
-              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                {declinedItems.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-8">No declined items</p>
-                ) : (
-                  declinedItems.map(renderItem)
-                )}
-              </div>
-            </div>
+        {/* Completed Column */}
+        <div className="flex flex-col rounded-2xl border border-[#A8E6CF] bg-[#E6F7EE] p-4 shadow-md min-h-0">
+          <div className="mb-4 flex items-center justify-between flex-shrink-0">
+            <h3 className="text-lg font-semibold text-gray-900">Completed</h3>
+            <span className="rounded-full bg-[#C8F0DD] px-3 py-1 text-xs font-semibold text-[#1F4D36]">
+              {completedItems.length}
+            </span>
           </div>
-        )}
+          <div className="flex-1 space-y-3 overflow-y-auto pr-2 min-h-0">
+            {completedItems.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-8">No completed items</p>
+            ) : (
+              completedItems.map(renderItem)
+            )}
+          </div>
+        </div>
+
+        {/* Declined Column */}
+        <div className="flex flex-col rounded-2xl border border-[#F5C2C2] bg-[#FDECEA] p-4 shadow-md min-h-0">
+          <div className="mb-4 flex items-center justify-between flex-shrink-0">
+            <h3 className="text-lg font-semibold text-gray-900">Declined</h3>
+            <span className="rounded-full bg-[#FCE0DC] px-3 py-1 text-xs font-semibold text-[#B42318]">
+              {declinedItems.length}
+            </span>
+          </div>
+          <div className="flex-1 space-y-3 overflow-y-auto pr-2 min-h-0">
+            {declinedItems.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-8">No declined items</p>
+            ) : (
+              declinedItems.map(renderItem)
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
