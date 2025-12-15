@@ -205,6 +205,8 @@ type DeliveryRecordApi = {
   community_id?: string | null;
   status: "pending" | "in_transit" | "delivered" | "cancelled";
   notes?: string;
+  food_item?: string | null;
+  delivery_quantity?: string | null;
 };
 
 type ImpactRecord = {
@@ -4385,13 +4387,26 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
       const donation = delivery.donation_id ? donations[delivery.donation_id] : null;
       const restaurant = donation?.restaurant_name ?? "Restaurant";
       const branch = donation?.restaurant_branch ? ` (${donation.restaurant_branch})` : "";
-      const warehouse = warehouses[delivery.warehouse_id]?.warehouse_id ?? delivery.warehouse_id;
+      const warehouseId = warehouses[delivery.warehouse_id]?.warehouse_id ?? delivery.warehouse_id;
+      const shortenWarehouseId = (id: string) => {
+        const digits = id.replace(/\D/g, "");
+        if (!digits) return id;
+        const num = parseInt(digits, 10);
+        return `WH${num.toString().padStart(3, "0")}`;
+      };
       return {
         from: `${restaurant}${branch}`,
-        to: `Warehouse ${warehouse}`,
+        to: `Warehouse ${shortenWarehouseId(warehouseId)}`,
       };
     }
-    const warehouseName = warehouses[delivery.warehouse_id]?.warehouse_id ?? delivery.warehouse_id;
+    const warehouseId = warehouses[delivery.warehouse_id]?.warehouse_id ?? delivery.warehouse_id;
+    const shortenWarehouseId = (id: string) => {
+      const digits = id.replace(/\D/g, "");
+      if (!digits) return id;
+      const num = parseInt(digits, 10);
+      return `WH${num.toString().padStart(3, "0")}`;
+    };
+    const warehouseName = shortenWarehouseId(warehouseId);
     const communityName = delivery.community_id
       ? (communities[delivery.community_id]?.name ?? delivery.community_id)
       : "Unknown community";
@@ -4503,7 +4518,10 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
             <div className="col-span-2">
               <p className="text-[11px] uppercase tracking-wide text-gray-500">Community</p>
               <p className="font-medium text-gray-800">
-                {communities[delivery.community_id]?.name ?? delivery.community_id}
+                {(() => {
+                  const communityName = communities[delivery.community_id]?.name ?? delivery.community_id;
+                  return communityName;
+                })()}
               </p>
             </div>
           )}
@@ -5051,11 +5069,25 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
                       onChange={(e) => setPickupForm((prev) => ({ ...prev, warehouseId: e.target.value }))}
                     >
                       <option value="">Select warehouse</option>
-                      {warehouses.map((warehouse) => (
-                        <option key={warehouse.warehouse_id} value={warehouse.warehouse_id}>
-                          {warehouse.warehouse_id} — {warehouse.address}
-                        </option>
-                      ))}
+                      {warehouses.map((warehouse) => {
+                        // Helper to shorten warehouse ID: WAH0000004 -> WH001
+                        const shortenId = (id: string) => {
+                          const digits = id.replace(/\D/g, "");
+                          if (!digits) return id;
+                          const num = parseInt(digits, 10);
+                          return `WH${num.toString().padStart(3, "0")}`;
+                        };
+                        // Helper to remove postal code from address
+                        const removePostalCode = (addr: string) => {
+                          if (!addr) return addr;
+                          return addr.replace(/\s*[,，]?\s*\d{5}\s*$/, "").trim();
+                        };
+                        return (
+                          <option key={warehouse.warehouse_id} value={warehouse.warehouse_id}>
+                            {shortenId(warehouse.warehouse_id)} — {removePostalCode(warehouse.address)}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                   <div>
@@ -5298,7 +5330,12 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-gray-500 leading-tight">Warehouse</p>
                         <p className="text-xs font-semibold text-gray-900 leading-tight">
-                          {delivery.warehouse_id}
+                          {(() => {
+                            const digits = delivery.warehouse_id.replace(/\D/g, "");
+                            if (!digits) return delivery.warehouse_id;
+                            const num = parseInt(digits, 10);
+                            return `WH${num.toString().padStart(3, "0")}`;
+                          })()}
                         </p>
                       </div>
                     </div>
@@ -5407,6 +5444,10 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
     userId: "",
     pickupTime: "",
   });
+  const [warehouseInventory, setWarehouseInventory] = useState<FoodItemApiRecord[]>([]);
+  const [selectedFoodItem, setSelectedFoodItem] = useState<string>(""); // food_id
+  const [deliveryQuantity, setDeliveryQuantity] = useState<string>(""); // e.g., "15 kg", "8 bucket"
+  const [foodItems, setFoodItems] = useState<FoodItemApiRecord[]>([]);
 
   const canEdit = currentUser?.isAdmin ?? false;
   const currentUserId = currentUser?.userId ?? "";
@@ -5415,7 +5456,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
     setLoading(true);
     setError(null);
     try {
-      const [warehouseData, communityData, staffData, deliveryData] =
+      const [warehouseData, communityData, staffData, deliveryData, foodItemsData] =
         await Promise.all([
           apiFetch<Warehouse[]>(API_PATHS.warehouses),
           apiFetch<Community[]>(API_PATHS.communities),
@@ -5423,11 +5464,13 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
           apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
             headers: buildAuthHeaders(currentUser),
           }),
+          apiFetch<FoodItemApiRecord[]>("/fooditems/").catch(() => []),
         ]);
       setWarehouses(warehouseData);
       setCommunities(communityData);
       setStaff(staffData);
       setDeliveries(deliveryData);
+      setFoodItems(foodItemsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load delivery data.");
     } finally {
@@ -5438,6 +5481,30 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Load warehouse inventory when warehouse is selected
+  useEffect(() => {
+    const loadInventory = async () => {
+      if (!distributionForm.warehouseId) {
+        setWarehouseInventory([]);
+        setSelectedFoodItem("");
+        setDeliveryQuantity("");
+        return;
+      }
+      try {
+        const response = await apiFetch<{ inventory: FoodItemApiRecord[] }>(
+          `${API_PATHS.warehouses}${distributionForm.warehouseId}/inventory/`
+        );
+        setWarehouseInventory(response.inventory || []);
+        setSelectedFoodItem("");
+        setDeliveryQuantity("");
+      } catch (err) {
+        console.error("Failed to load warehouse inventory:", err);
+        setWarehouseInventory([]);
+      }
+    };
+    loadInventory();
+  }, [distributionForm.warehouseId]);
 
   useEffect(() => {
     const next: Record<string, { notes: string }> = {};
@@ -5462,16 +5529,46 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
       if (!distributionForm.pickupTime) {
         throw new Error("Pickup time is required.");
       }
+      
+      if (!selectedFoodItem) {
+        throw new Error("Please select a food item to deliver.");
+      }
+      
+      if (!deliveryQuantity || deliveryQuantity.trim() === "") {
+        throw new Error("Please enter a delivery quantity.");
+      }
+      
+      // Validate that the unit matches the selected food item's unit
+      const selectedItem = warehouseInventory.find(item => item.food_id === selectedFoodItem);
+      if (selectedItem && !deliveryQuantity.endsWith(` ${selectedItem.unit}`)) {
+        throw new Error(`Quantity must be in ${selectedItem.unit} units.`);
+      }
+      
+      // Calculate dropoff time (3 hours after pickup)
+      const pickupDate = new Date(distributionForm.pickupTime);
+      const dropoffDate = new Date(pickupDate.getTime() + 3 * 60 * 60 * 1000);
+      
+      // Convert food_id from API format (F0000014) back to database format (FOO0000014)
+      // The API serializer formats FOO0000014 -> F0000014, but backend needs FOO0000014
+      let foodIdForBackend = selectedFoodItem;
+      if (selectedFoodItem.startsWith("F") && !selectedFoodItem.startsWith("FOO")) {
+        // Extract digits from F0000014 -> 0000014
+        const digits = selectedFoodItem.substring(1);
+        // Convert to FOO0000014 (FOO prefix + 7 digits)
+        foodIdForBackend = `FOO${digits.padStart(7, "0")}`;
+      }
+      
       const payload: Record<string, unknown> = {
-        delivery_id: generateDeliveryId(),
         delivery_type: "distribution",
-        pickup_time: new Date(distributionForm.pickupTime).toISOString(),
-        dropoff_time: "03:00:00",
+        pickup_time: pickupDate.toISOString(),
+        dropoff_time: dropoffDate.toISOString(),
         pickup_location_type: "warehouse",
         dropoff_location_type: "community",
         warehouse_id: distributionForm.warehouseId,
         user_id: distributionForm.userId,
         community_id: distributionForm.communityId,
+        food_item: foodIdForBackend,
+        delivery_quantity: deliveryQuantity,
       };
 
       await apiFetch(API_PATHS.deliveries, {
@@ -5488,6 +5585,8 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
         userId: "",
         pickupTime: "",
       });
+      setSelectedFoodItem("");
+      setDeliveryQuantity("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save distribution assignment.");
     } finally {
@@ -5506,6 +5605,26 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
       return timeA - timeB; // Sort ascending (earliest first)
     });
 
+  // Helper function to shorten warehouse ID: WAH0000004 -> WH001
+  const shortenWarehouseId = (warehouseId: string): string => {
+    if (!warehouseId) return warehouseId;
+    // Extract digits from WAH0000004 -> 0000004 -> 4
+    const digits = warehouseId.replace(/\D/g, "");
+    if (!digits) return warehouseId;
+    const num = parseInt(digits, 10);
+    return `WH${num.toString().padStart(3, "0")}`;
+  };
+
+  // Helper function to shorten community ID: COM0000001 -> CM001
+  const shortenCommunityId = (communityId: string): string => {
+    if (!communityId) return communityId;
+    // Extract digits from COM0000001 -> 0000001 -> 1
+    const digits = communityId.replace(/\D/g, "");
+    if (!digits) return communityId;
+    const num = parseInt(digits, 10);
+    return `CM${num.toString().padStart(3, "0")}`;
+  };
+
   const lookupCommunityName = (communityId: string) => {
     const community = communities.find((c) => c.community_id === communityId);
     return community ? community.name : communityId;
@@ -5516,9 +5635,18 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
     return member ? (member.name || member.username) : userId;
   };
 
+  // Helper function to remove postal code from address
+  const removePostalCode = (address: string): string => {
+    if (!address) return address;
+    // Remove 5-digit postal code at the end (Thai postal codes are 5 digits)
+    // Pattern: space or comma followed by 5 digits at the end
+    return address.replace(/\s*[,，]?\s*\d{5}\s*$/, "").trim();
+  };
+
   const lookupWarehouseAddress = (warehouseId: string) => {
     const warehouse = warehouses.find((w) => w.warehouse_id === warehouseId);
-    return warehouse ? warehouse.address : warehouseId;
+    if (!warehouse) return warehouseId;
+    return removePostalCode(warehouse.address);
   };
 
   const statusLabel = (status: DeliveryRecordApi["status"]) => {
@@ -5611,11 +5739,25 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
                       }
                     >
                       <option value="">Select warehouse</option>
-                      {warehouses.map((warehouse) => (
-                        <option key={warehouse.warehouse_id} value={warehouse.warehouse_id}>
-                          {warehouse.warehouse_id} — {warehouse.address}
-                        </option>
-                      ))}
+                      {warehouses.map((warehouse) => {
+                        // Helper to shorten warehouse ID: WAH0000004 -> WH001
+                        const shortenId = (id: string) => {
+                          const digits = id.replace(/\D/g, "");
+                          if (!digits) return id;
+                          const num = parseInt(digits, 10);
+                          return `WH${num.toString().padStart(3, "0")}`;
+                        };
+                        // Helper to remove postal code from address
+                        const removePostalCode = (addr: string) => {
+                          if (!addr) return addr;
+                          return addr.replace(/\s*[,，]?\s*\d{5}\s*$/, "").trim();
+                        };
+                        return (
+                          <option key={warehouse.warehouse_id} value={warehouse.warehouse_id}>
+                            {shortenId(warehouse.warehouse_id)} — {removePostalCode(warehouse.address)}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                   <div>
@@ -5630,11 +5772,11 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
                       }
                     >
                       <option value="">Select community</option>
-                      {communities.map((community) => (
-                        <option key={community.community_id} value={community.community_id}>
-                          {community.name} ({community.community_id})
-                        </option>
-                      ))}
+                        {communities.map((community) => (
+                          <option key={community.community_id} value={community.community_id}>
+                            {community.name} ({shortenCommunityId(community.community_id)})
+                          </option>
+                        ))}
                     </select>
                   </div>
                   <div>
@@ -5669,6 +5811,114 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
                       }
                     />
                   </div>
+                  
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">
+                      Select food item
+                    </label>
+                    {!distributionForm.warehouseId ? (
+                      <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <p className="text-sm text-gray-500 text-center">
+                          Please select a warehouse first to view available food items
+                        </p>
+                      </div>
+                    ) : warehouseInventory.length === 0 ? (
+                      <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <p className="text-sm text-gray-500 text-center">
+                          Loading food items...
+                        </p>
+                      </div>
+                    ) : (
+                      <select
+                        className={INPUT_STYLES}
+                        value={selectedFoodItem}
+                        onChange={(e) => {
+                          setSelectedFoodItem(e.target.value);
+                          setDeliveryQuantity("");
+                        }}
+                      >
+                        <option value="">Select food item</option>
+                        {warehouseInventory
+                          .filter(item => item.quantity > 0 && !item.is_expired)
+                          .map((item) => (
+                            <option key={item.food_id} value={item.food_id}>
+                              {item.name} - Available: {item.quantity} {item.unit}
+                            </option>
+                          ))}
+                      </select>
+                    )}
+                  </div>
+                  
+                  {selectedFoodItem && (
+                    <div>
+                      <label className="mb-1 block text-sm font-semibold text-gray-700">
+                        Delivery quantity
+                      </label>
+                      {(() => {
+                        const selectedItem = warehouseInventory.find(item => item.food_id === selectedFoodItem);
+                        return selectedItem ? (
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                max={selectedItem.quantity}
+                                value={(() => {
+                                  if (!deliveryQuantity) return "";
+                                  // Extract number part (remove unit if present)
+                                  const numPart = deliveryQuantity.replace(new RegExp(`\\s*${selectedItem.unit}\\s*$`), "");
+                                  return numPart;
+                                })()}
+                                onChange={(e) => {
+                                  const numValue = e.target.value;
+                                  if (numValue === "" || numValue === "0" || numValue === "0.") {
+                                    setDeliveryQuantity("");
+                                  } else {
+                                    const num = parseFloat(numValue);
+                                    if (!isNaN(num) && num > 0) {
+                                      // Always append the unit
+                                      if (num <= selectedItem.quantity) {
+                                        setDeliveryQuantity(`${numValue} ${selectedItem.unit}`);
+                                      } else {
+                                        // Still allow typing but will validate on submit
+                                        setDeliveryQuantity(`${numValue} ${selectedItem.unit}`);
+                                      }
+                                    } else if (numValue.endsWith(".") || numValue === "") {
+                                      // Allow typing decimal point
+                                      setDeliveryQuantity(numValue);
+                                    }
+                                  }
+                                }}
+                                onBlur={(e) => {
+                                  const numValue = e.target.value;
+                                  if (numValue && !isNaN(parseFloat(numValue))) {
+                                    const num = parseFloat(numValue);
+                                    if (num > 0) {
+                                      setDeliveryQuantity(`${num} ${selectedItem.unit}`);
+                                    } else {
+                                      setDeliveryQuantity("");
+                                    }
+                                  } else if (!numValue) {
+                                    setDeliveryQuantity("");
+                                  }
+                                }}
+                                className={INPUT_STYLES}
+                                placeholder="Enter quantity"
+                              />
+                              <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                                {selectedItem.unit}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Available: {selectedItem.quantity} {selectedItem.unit} | Example: "15.5" or "25.67" (unit will be added automatically)
+                            </p>
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
+                  )}
+                  
                   <button
                     type="button"
                     disabled={submitting}
@@ -5765,7 +6015,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
                       <div className="flex-1">
                         <p className="text-xs font-medium text-gray-500">Warehouse</p>
                         <p className="text-sm font-semibold text-gray-900">
-                          {delivery.warehouse_id} — {lookupWarehouseAddress(delivery.warehouse_id)}
+                          {shortenWarehouseId(delivery.warehouse_id)} — {lookupWarehouseAddress(delivery.warehouse_id)}
                         </p>
                       </div>
                     </div>
@@ -5794,17 +6044,37 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0">
-                        <span className="text-gray-400">🥘</span>
+                    {delivery.food_item && delivery.delivery_quantity ? (
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0">
+                          <span className="text-gray-400">🥘</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-medium text-gray-500">Food Item</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {(() => {
+                              const foodItem = foodItems.find(f => f.food_id === delivery.food_item);
+                              if (foodItem) {
+                                return `${foodItem.name} - ${delivery.delivery_quantity} ${foodItem.unit}`;
+                              }
+                              return `${delivery.food_item} - ${delivery.delivery_quantity}`;
+                            })()}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-xs font-medium text-gray-500">Food Amount</p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          Based on community request
-                        </p>
+                    ) : (
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0">
+                          <span className="text-gray-400">🥘</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-medium text-gray-500">Food Amount</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            Not specified
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                   {!canEdit && (
                     <div className="space-y-3 mt-4 border-t border-gray-100 pt-4">
@@ -6158,8 +6428,22 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
                       : "border-[#D7E6DD] bg-white hover:border-[#2F855A]"
                       }`}
                   >
-                    <p className="text-sm font-semibold text-gray-900">{warehouse.warehouse_id}</p>
-                    <p className="text-xs text-gray-500">{warehouse.address}</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {(() => {
+                        const digits = warehouse.warehouse_id.replace(/\D/g, "");
+                        if (!digits) return warehouse.warehouse_id;
+                        const num = parseInt(digits, 10);
+                        return `WH${num.toString().padStart(3, "0")}`;
+                      })()}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {(() => {
+                        // Remove postal code from address
+                        const addr = warehouse.address;
+                        if (!addr) return addr;
+                        return addr.replace(/\s*[,，]?\s*\d{5}\s*$/, "").trim();
+                      })()}
+                    </p>
                     <p className="text-xs text-gray-400 mt-1">{itemCount} lot(s) stored</p>
                   </button>
                 );
