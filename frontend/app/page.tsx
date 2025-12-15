@@ -913,7 +913,10 @@ function AnimatedNumber({
 
   useEffect(() => {
     if (value === 0) {
-      setDisplayValue(0);
+      // Initialize display value
+      if (displayValue !== 0) {
+        setDisplayValue(0);
+      }
       return;
     }
 
