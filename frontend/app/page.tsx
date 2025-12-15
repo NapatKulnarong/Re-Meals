@@ -1,6 +1,7 @@
 "use client";
 
-import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Sidebar from "@/components/Sidebar";
 
 const API_BASE_URL =
@@ -451,7 +452,7 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
       return;
     }
 
-    const pointDelay = 200; // Time between each point in ms
+    // const pointDelay = 200; // Time between each point in ms (unused)
     const pointShowDuration = 150; // Show point for 150ms
     const pointHideDuration = 50; // Hide point for 50ms before next
 
@@ -511,13 +512,13 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
     ? `M ${points.slice(0, animatedIndex + 1).map(p => `${p.x},${p.y}`).join(' L ')}`
     : '';
 
-  const pathData = points.length > 1
-    ? `M ${points.map(p => `${p.x},${p.y}`).join(' L ')}`
-    : '';
+  // const pathData = points.length > 1
+  //   ? `M ${points.map(p => `${p.x},${p.y}`).join(' L ')}`
+  //   : ''; // unused
 
-  const areaPath = points.length > 1
-    ? `M ${points[0].x} ${chartHeight - chartPadding.bottom} L ${pathData.replace('M ', '')} L ${points[points.length - 1].x} ${chartHeight - chartPadding.bottom} Z`
-    : '';
+  // const areaPath = points.length > 1
+  //   ? `M ${points[0].x} ${chartHeight - chartPadding.bottom} L ${pathData.replace('M ', '')} L ${points[points.length - 1].x} ${chartHeight - chartPadding.bottom} Z`
+  //   : ''; // unused
 
   const animatedAreaPath = points.length > 1 && animatedIndex >= 0 && animatedPathData
     ? `M ${points[0].x} ${chartHeight - chartPadding.bottom} L ${animatedPathData.replace('M ', '')} L ${points[Math.min(animatedIndex, points.length - 1)].x} ${chartHeight - chartPadding.bottom} Z`
@@ -615,8 +616,8 @@ function CO2TrendChart({ data }: { data: Array<{ weekKey: string; co2: number; s
 
           {points.map((point, idx) => {
             const isHovered = hoveredIndex === point.index;
-            const isVisible = !isAnimating || (visiblePoint === idx) || (idx <= animatedIndex && !isAnimating);
-            const shouldShow = idx <= animatedIndex && (visiblePoint === idx || !isAnimating);
+            // const isVisible = !isAnimating || (visiblePoint === idx) || (idx <= animatedIndex && !isAnimating); // unused
+            // const shouldShow = idx <= animatedIndex && (visiblePoint === idx || !isAnimating); // unused
 
             return (
               <g key={point.weekKey}>
@@ -884,12 +885,24 @@ function AnimatedNumber({
   decimals?: number;
 }) {
   const [displayValue, setDisplayValue] = useState(0);
+  const prevValueRef = useRef(value);
 
   useEffect(() => {
+    // If value is 0, reset displayValue asynchronously to avoid setState in effect
     if (value === 0) {
-      setDisplayValue(0);
+      requestAnimationFrame(() => {
+        setDisplayValue(0);
+      });
+      prevValueRef.current = value;
       return;
     }
+
+    // Only animate if value actually changed
+    if (prevValueRef.current === value) {
+      return;
+    }
+
+    prevValueRef.current = value;
 
     let startTime: number | null = null;
     let animationFrameId: number;
@@ -1179,9 +1192,11 @@ function HomePage({
           <div className="relative flex items-center gap-5">
             {/* Spinning Logo in front of the text */}
             <div className="flex-shrink-0">
-              <img
+              <Image
                 src="/elements/logo_re-meals_2.png"
                 alt="Re-Meals Logo"
+                width={96}
+                height={96}
                 className="h-20 w-20 sm:h-24 sm:w-24 object-contain opacity-90"
                 style={{
                   animation: 'spin 5s linear infinite',
@@ -4257,6 +4272,11 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   const [staffInputs, setStaffInputs] = useState<Record<string, { notes: string }>>({});
 
+  // Filter states
+  const [statusFilter, setStatusFilter] = useState<DeliveryRecordApi["status"] | "all">("all");
+  const [areaFilter, setAreaFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "tomorrow" | "week">("all");
+
   const statusLabel = (status: DeliveryRecordApi["status"]) => {
     switch (status) {
       case "pending":
@@ -4265,9 +4285,8 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
         return { text: "In transit", className: "bg-[#E6F4FF] text-[#1D4ED8]" };
       case "delivered":
         return { text: "Delivered", className: "bg-[#E6F7EE] text-[#1F4D36]" };
-      case "cancelled":
       default:
-        return { text: "Cancelled", className: "bg-[#FDECEA] text-[#B42318]" };
+        return { text: "Unknown", className: "bg-gray-100 text-gray-600" };
     }
   };
 
@@ -4349,19 +4368,140 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
     }
   }, [currentUser, loadData]);
 
+  // Helper function to extract province from address
+  const extractArea = useCallback((address: string): string => {
+    const lowerAddress = address.toLowerCase();
+    // Check longer/more specific names first to avoid partial matches
+    if (lowerAddress.includes("phra nakhon si ayutthaya") || lowerAddress.includes("ayutthaya")) return "Phra Nakhon Si Ayutthaya";
+    if (lowerAddress.includes("nakhon pathom")) return "Nakhon Pathom";
+    if (lowerAddress.includes("samut sakhon")) return "Samut Sakhon";
+    if (lowerAddress.includes("samut prakan")) return "Samut Prakan";
+    if (lowerAddress.includes("pathum thani")) return "Pathum Thani";
+    if (lowerAddress.includes("nonthaburi")) return "Nonthaburi";
+    if (lowerAddress.includes("bangkok")) return "Bangkok";
+    return "Other";
+  }, []);
+
+  // Get area for a delivery based on dropoff location
+  const getDeliveryArea = useCallback((delivery: DeliveryRecordApi): string => {
+    // For pickups (donation type): dropoff is warehouse
+    if (delivery.delivery_type === "donation" && delivery.warehouse_id && warehouses[delivery.warehouse_id]) {
+      return extractArea(warehouses[delivery.warehouse_id].address);
+    }
+    // For deliveries (distribution type): dropoff is community
+    if (delivery.delivery_type === "distribution" && delivery.community_id && communities[delivery.community_id]) {
+      return extractArea(communities[delivery.community_id].address);
+    }
+    // Fallback: try warehouse if available
+    if (delivery.warehouse_id && warehouses[delivery.warehouse_id]) {
+      return extractArea(warehouses[delivery.warehouse_id].address);
+    }
+    return "Other";
+  }, [warehouses, communities, extractArea]);
+
+  // Get unique areas from ALL addresses in deliveries (pickup and dropoff)
+  const uniqueAreas = useMemo(() => {
+    const areas = new Set<string>();
+    deliveries.forEach(d => {
+      // For pickups: extract from restaurant address (pickup) and warehouse address (dropoff)
+      if (d.delivery_type === "donation") {
+        // Get restaurant address from donation
+        if (d.donation_id && donations[d.donation_id]?.restaurant_address) {
+          const restaurantAddress = donations[d.donation_id].restaurant_address;
+          if (restaurantAddress) {
+            const restaurantArea = extractArea(restaurantAddress);
+            if (restaurantArea && restaurantArea !== "Other") {
+              areas.add(restaurantArea);
+            }
+          }
+        }
+        // Get warehouse address (dropoff)
+        if (d.warehouse_id && warehouses[d.warehouse_id]) {
+          const warehouseAddress = warehouses[d.warehouse_id].address;
+          if (warehouseAddress) {
+            const warehouseArea = extractArea(warehouseAddress);
+            if (warehouseArea && warehouseArea !== "Other") {
+              areas.add(warehouseArea);
+            }
+          }
+        }
+      }
+      // For deliveries: extract from warehouse address (pickup) and community address (dropoff)
+      if (d.delivery_type === "distribution") {
+        // Get warehouse address (pickup)
+        if (d.warehouse_id && warehouses[d.warehouse_id]) {
+          const warehouseAddress = warehouses[d.warehouse_id].address;
+          if (warehouseAddress) {
+            const warehouseArea = extractArea(warehouseAddress);
+            if (warehouseArea && warehouseArea !== "Other") {
+              areas.add(warehouseArea);
+            }
+          }
+        }
+        // Get community address (dropoff)
+        if (d.community_id && communities[d.community_id]) {
+          const communityAddress = communities[d.community_id].address;
+          if (communityAddress) {
+            const communityArea = extractArea(communityAddress);
+            if (communityArea && communityArea !== "Other") {
+              areas.add(communityArea);
+            }
+          }
+        }
+      }
+    });
+    return Array.from(areas).sort();
+  }, [deliveries, communities, warehouses, donations, extractArea]);
+
+  // Filter function
+  const applyFilters = useCallback((delivery: DeliveryRecordApi): boolean => {
+    // Status filter
+    if (statusFilter !== "all" && delivery.status !== statusFilter) return false;
+
+    // Area filter
+    if (areaFilter !== "all" && getDeliveryArea(delivery) !== areaFilter) return false;
+
+    // Date filter
+    if (dateFilter !== "all") {
+      const pickupDate = new Date(delivery.pickup_time);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const weekEnd = new Date(today);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+
+      if (dateFilter === "today") {
+        const pickupDay = new Date(pickupDate);
+        pickupDay.setHours(0, 0, 0, 0);
+        if (pickupDay.getTime() !== today.getTime()) return false;
+      } else if (dateFilter === "tomorrow") {
+        const pickupDay = new Date(pickupDate);
+        pickupDay.setHours(0, 0, 0, 0);
+        if (pickupDay.getTime() !== tomorrow.getTime()) return false;
+      } else if (dateFilter === "week") {
+        if (pickupDate < today || pickupDate >= weekEnd) return false;
+      }
+    }
+
+    return true;
+  }, [statusFilter, areaFilter, dateFilter, getDeliveryArea]);
+
   const pickupTasks = useMemo(
     () =>
       deliveries
         .filter((d) => d.delivery_type === "donation")
+        .filter(applyFilters)
         .sort((a, b) => new Date(a.pickup_time).getTime() - new Date(b.pickup_time).getTime()),
-    [deliveries]
+    [deliveries, applyFilters]
   );
   const distributionTasks = useMemo(
     () =>
       deliveries
         .filter((d) => d.delivery_type === "distribution")
+        .filter(applyFilters)
         .sort((a, b) => new Date(a.pickup_time).getTime() - new Date(b.pickup_time).getTime()),
-    [deliveries]
+    [deliveries, applyFilters]
   );
 
   const formatFoodAmount = (donationId?: string | null) => {
@@ -4493,10 +4633,30 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
               {formatFoodAmount(delivery.donation_id ?? undefined)}
             </p>
           </div>
-          {donation?.restaurant_address && (
+          {/* Pickup Address */}
+          {isPickup && donation?.restaurant_address && (
             <div className="col-span-2">
               <p className="text-[11px] uppercase tracking-wide text-gray-500">Pickup address</p>
               <p className="font-medium text-gray-800">{donation.restaurant_address}</p>
+            </div>
+          )}
+          {!isPickup && delivery.warehouse_id && warehouses[delivery.warehouse_id] && (
+            <div className="col-span-2">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">Pickup address</p>
+              <p className="font-medium text-gray-800">{warehouses[delivery.warehouse_id].address}</p>
+            </div>
+          )}
+          {/* Dropoff Address */}
+          {isPickup && delivery.warehouse_id && warehouses[delivery.warehouse_id] && (
+            <div className="col-span-2">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">Dropoff address</p>
+              <p className="font-medium text-gray-800">{warehouses[delivery.warehouse_id].address}</p>
+            </div>
+          )}
+          {!isPickup && delivery.community_id && communities[delivery.community_id] && (
+            <div className="col-span-2">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">Dropoff address</p>
+              <p className="font-medium text-gray-800">{communities[delivery.community_id].address}</p>
             </div>
           )}
           {isPickup && items.length > 0 && (
@@ -4546,50 +4706,27 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
           </div>
           <div className="flex flex-wrap gap-2">
             {delivery.status === "pending" && (
-              <>
-                <button
-                  type="button"
-                  disabled={updatingStatusId === delivery.delivery_id}
-                  onClick={() => updateStatus(delivery.delivery_id, "in_transit")}
-                  className="rounded-lg bg-[#1D4ED8] px-3 py-2 text-xs font-semibold text-white hover:bg-[#153EAE] disabled:opacity-60"
-                >
-                  Start
-                </button>
-                <button
-                  type="button"
-                  disabled={updatingStatusId === delivery.delivery_id}
-                  onClick={() => updateStatus(delivery.delivery_id, "cancelled")}
-                  className="rounded-lg bg-[#FDECEA] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FCD7D2] disabled:opacity-60"
-                >
-                  Cancel
-                </button>
-              </>
+              <button
+                type="button"
+                disabled={updatingStatusId === delivery.delivery_id}
+                onClick={() => updateStatus(delivery.delivery_id, "in_transit")}
+                className="rounded-lg bg-[#1D4ED8] px-3 py-2 text-xs font-semibold text-white hover:bg-[#153EAE] disabled:opacity-60"
+              >
+                Start
+              </button>
             )}
             {delivery.status === "in_transit" && (
-              <>
-                <button
-                  type="button"
-                  disabled={updatingStatusId === delivery.delivery_id}
-                  onClick={() => updateStatus(delivery.delivery_id, "delivered")}
-                  className="rounded-lg bg-[#2F8A61] px-3 py-2 text-xs font-semibold text-white hover:bg-[#25724F] disabled:opacity-60"
-                >
-                  Delivered
-                </button>
-                <button
-                  type="button"
-                  disabled={updatingStatusId === delivery.delivery_id}
-                  onClick={() => updateStatus(delivery.delivery_id, "cancelled")}
-                  className="rounded-lg bg-[#FDECEA] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FCD7D2] disabled:opacity-60"
-                >
-                  Cancel
-                </button>
-              </>
+              <button
+                type="button"
+                disabled={updatingStatusId === delivery.delivery_id}
+                onClick={() => updateStatus(delivery.delivery_id, "delivered")}
+                className="rounded-lg bg-[#2F8A61] px-3 py-2 text-xs font-semibold text-white hover:bg-[#25724F] disabled:opacity-60"
+              >
+                Mark as Delivered
+              </button>
             )}
             {delivery.status === "delivered" && (
-              <span className="text-xs font-semibold text-[#2F8A61]">Completed</span>
-            )}
-            {delivery.status === "cancelled" && (
-              <span className="text-xs font-semibold text-[#B42318]">Cancelled</span>
+              <span className="text-xs font-semibold text-[#2F8A61]">✓ Completed</span>
             )}
           </div>
         </div>
@@ -4623,6 +4760,122 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
 
       {error && <p className="rounded-xl bg-[#FDECEA] px-4 py-3 text-sm font-semibold text-[#B42318]">{error}</p>}
       {notice && <p className="rounded-xl bg-[#E6F7EE] px-4 py-3 text-sm font-semibold text-[#1F4D36]">{notice}</p>}
+
+      {/* Filters Section */}
+      <div className="space-y-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        {/* Status Filter Badges */}
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">Filter by Status</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("all")}
+              className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                statusFilter === "all"
+                  ? "bg-gray-900 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("pending")}
+              className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                statusFilter === "pending"
+                  ? "bg-[#FFF1E3] text-[#C46A24] ring-2 ring-[#C46A24]"
+                  : "bg-[#FFF1E3] text-[#C46A24] hover:ring-2 hover:ring-[#C46A24]"
+              }`}
+            >
+              Pending
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("in_transit")}
+              className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                statusFilter === "in_transit"
+                  ? "bg-[#E6F4FF] text-[#1D4ED8] ring-2 ring-[#1D4ED8]"
+                  : "bg-[#E6F4FF] text-[#1D4ED8] hover:ring-2 hover:ring-[#1D4ED8]"
+              }`}
+            >
+              In Transit
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("delivered")}
+              className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                statusFilter === "delivered"
+                  ? "bg-[#E6F7EE] text-[#1F4D36] ring-2 ring-[#1F4D36]"
+                  : "bg-[#E6F7EE] text-[#1F4D36] hover:ring-2 hover:ring-[#1F4D36]"
+              }`}
+            >
+              Delivered
+            </button>
+          </div>
+        </div>
+
+        {/* Date and Area Filters */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {/* Date Filter */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">
+              Date Range
+            </label>
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-[#8B4C1F] focus:outline-none focus:ring-2 focus:ring-[#8B4C1F]/20"
+            >
+              <option value="all">All dates</option>
+              <option value="today">Today</option>
+              <option value="tomorrow">Tomorrow</option>
+              <option value="week">This week</option>
+            </select>
+          </div>
+
+          {/* Area Filter */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">
+              Delivery Area
+            </label>
+            <select
+              value={areaFilter}
+              onChange={(e) => setAreaFilter(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-[#8B4C1F] focus:outline-none focus:ring-2 focus:ring-[#8B4C1F]/20"
+            >
+              <option value="all">All areas</option>
+              {uniqueAreas.map((area) => (
+                <option key={area} value={area}>
+                  {area}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Active Filters Count */}
+        {(statusFilter !== "all" || areaFilter !== "all" || dateFilter !== "all") && (
+          <div className="flex items-center justify-between border-t border-gray-200 pt-3">
+            <p className="text-xs text-gray-600">
+              <span className="font-semibold">
+                {pickupTasks.length + distributionTasks.length}
+              </span>{" "}
+              task(s) match your filters
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter("all");
+                setAreaFilter("all");
+                setDateFilter("all");
+              }}
+              className="text-xs font-semibold text-[#8B4C1F] hover:underline"
+            >
+              Clear all filters
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="grid h-full min-h-0 grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="flex min-h-0 flex-col rounded-3xl border border-[#CFE6D8] bg-[#F6FBF7] p-6 shadow-inner">
@@ -4780,6 +5033,65 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
     [foodItems, isPickupItemExpired]
   );
 
+  // Helper function to extract province from address
+  const extractProvince = useCallback((address: string): string => {
+    const lowerAddress = address.toLowerCase();
+    if (lowerAddress.includes("phra nakhon si ayutthaya") || lowerAddress.includes("ayutthaya")) return "Phra Nakhon Si Ayutthaya";
+    if (lowerAddress.includes("nakhon pathom")) return "Nakhon Pathom";
+    if (lowerAddress.includes("samut sakhon")) return "Samut Sakhon";
+    if (lowerAddress.includes("samut prakan")) return "Samut Prakan";
+    if (lowerAddress.includes("pathum thani")) return "Pathum Thani";
+    if (lowerAddress.includes("nonthaburi")) return "Nonthaburi";
+    if (lowerAddress.includes("bangkok")) return "Bangkok";
+    return "Other";
+  }, []);
+
+  // Helper to parse time string (HH:MM:SS) to milliseconds
+  const parseTimeToMs = useCallback((timeStr: string): number => {
+    const parts = timeStr.split(':').map(Number);
+    return (parts[0] * 60 * 60 + parts[1] * 60 + (parts[2] || 0)) * 1000;
+  }, []);
+
+  // Check if driver is available at the given pickup time
+  const isDriverAvailable = useCallback((driverId: string, pickupTime: string): { available: boolean; reason?: string } => {
+    const selectedStaff = staff.find(s => s.user_id === driverId);
+    if (!selectedStaff) {
+      return { available: false, reason: "Driver not found" };
+    }
+
+    // Check is_available field
+    if (!selectedStaff.is_available) {
+      return { available: false, reason: "Driver is not available" };
+    }
+
+    // Check for overlapping deliveries
+    const pickupDateTime = new Date(pickupTime);
+    const dropoffDuration = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+    const dropoffDateTime = new Date(pickupDateTime.getTime() + dropoffDuration);
+
+    const conflictingDelivery = deliveries.find(d => {
+      if (d.user_id !== driverId || d.delivery_id === editingDeliveryId) return false;
+      
+      const existingPickup = new Date(d.pickup_time);
+      const existingDropoffDuration = d.dropoff_time 
+        ? parseTimeToMs(d.dropoff_time)
+        : 2 * 60 * 60 * 1000; // Default 2 hours
+      const existingDropoff = new Date(existingPickup.getTime() + existingDropoffDuration);
+
+      // Check if times overlap
+      return !(dropoffDateTime <= existingPickup || pickupDateTime >= existingDropoff);
+    });
+
+    if (conflictingDelivery) {
+      return { 
+        available: false, 
+        reason: `Driver has a conflicting delivery at ${new Date(conflictingDelivery.pickup_time).toLocaleString()}` 
+      };
+    }
+
+    return { available: true };
+  }, [staff, deliveries, editingDeliveryId, parseTimeToMs]);
+
   useEffect(() => {
     const next: Record<string, { notes: string }> = {};
     deliveries.forEach((d) => {
@@ -4845,6 +5157,39 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
       }
       if (!pickupForm.pickupTime) {
         throw new Error("Pickup time is required.");
+      }
+
+      // Check driver availability
+      const availability = isDriverAvailable(pickupForm.userId, pickupForm.pickupTime);
+      if (!availability.available) {
+        throw new Error(`Driver is not available: ${availability.reason}`);
+      }
+
+      // Check province match for donation type
+      const selectedDonation = donations.find(d => d.donation_id === pickupForm.donationId);
+      const selectedWarehouse = warehouses.find(w => w.warehouse_id === pickupForm.warehouseId);
+      const selectedStaff = staff.find(s => s.user_id === pickupForm.userId);
+      
+      if (selectedDonation && selectedWarehouse && selectedStaff) {
+        const restaurant = restaurants.find(r => r.restaurant_id === selectedDonation.restaurant);
+        if (restaurant) {
+          const pickupProvince = extractProvince(restaurant.address);
+          const dropoffProvince = extractProvince(selectedWarehouse.address);
+          
+          // Check if provinces match
+          if (pickupProvince !== dropoffProvince) {
+            throw new Error(`Pickup and dropoff must be in the same province. Pickup: ${pickupProvince}, Dropoff: ${dropoffProvince}`);
+          }
+
+          // Check if driver's assigned area matches
+          const driverProvince = selectedStaff.assigned_area;
+          if (driverProvince && driverProvince !== pickupProvince && driverProvince !== "Bangkok" && pickupProvince !== "Bangkok") {
+            // Allow DEL0000005 to handle both Bangkok and Ayutthaya
+            if (!(selectedStaff.user_id === "DEL0000005" && (pickupProvince === "Bangkok" || pickupProvince === "Ayutthaya"))) {
+              throw new Error(`Driver is assigned to ${driverProvince}, but delivery is in ${pickupProvince}`);
+            }
+          }
+        }
       }
       const payload: Record<string, unknown> = {
         delivery_type: "donation",
@@ -5102,7 +5447,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
                       <option value="">Assign delivery staff</option>
                       {staff.map((member) => (
                         <option key={member.user_id} value={member.user_id}>
-                          {member.name || member.username} ({member.assigned_area || "area n/a"})
+                          {member.name || member.username} {member.assigned_area ? `(${member.assigned_area})` : ''}
                         </option>
                       ))}
                     </select>
@@ -5518,6 +5863,65 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
     setStaffInputs(next);
   }, [deliveries]);
 
+  // Helper function to extract province from address
+  const extractProvince = useCallback((address: string): string => {
+    const lowerAddress = address.toLowerCase();
+    if (lowerAddress.includes("phra nakhon si ayutthaya") || lowerAddress.includes("ayutthaya")) return "Phra Nakhon Si Ayutthaya";
+    if (lowerAddress.includes("nakhon pathom")) return "Nakhon Pathom";
+    if (lowerAddress.includes("samut sakhon")) return "Samut Sakhon";
+    if (lowerAddress.includes("samut prakan")) return "Samut Prakan";
+    if (lowerAddress.includes("pathum thani")) return "Pathum Thani";
+    if (lowerAddress.includes("nonthaburi")) return "Nonthaburi";
+    if (lowerAddress.includes("bangkok")) return "Bangkok";
+    return "Other";
+  }, []);
+
+  // Helper to parse time string (HH:MM:SS) to milliseconds
+  const parseTimeToMs = useCallback((timeStr: string): number => {
+    const parts = timeStr.split(':').map(Number);
+    return (parts[0] * 60 * 60 + parts[1] * 60 + (parts[2] || 0)) * 1000;
+  }, []);
+
+  // Check if driver is available at the given pickup time
+  const isDriverAvailable = useCallback((driverId: string, pickupTime: string): { available: boolean; reason?: string } => {
+    const selectedStaff = staff.find(s => s.user_id === driverId);
+    if (!selectedStaff) {
+      return { available: false, reason: "Driver not found" };
+    }
+
+    // Check is_available field
+    if (!selectedStaff.is_available) {
+      return { available: false, reason: "Driver is not available" };
+    }
+
+    // Check for overlapping deliveries
+    const pickupDateTime = new Date(pickupTime);
+    const dropoffDuration = 3 * 60 * 60 * 1000; // 3 hours in milliseconds (distribution default)
+    const dropoffDateTime = new Date(pickupDateTime.getTime() + dropoffDuration);
+
+    const conflictingDelivery = deliveries.find(d => {
+      if (d.user_id !== driverId) return false;
+      
+      const existingPickup = new Date(d.pickup_time);
+      const existingDropoffDuration = d.dropoff_time 
+        ? parseTimeToMs(d.dropoff_time)
+        : 3 * 60 * 60 * 1000; // Default 3 hours
+      const existingDropoff = new Date(existingPickup.getTime() + existingDropoffDuration);
+
+      // Check if times overlap
+      return !(dropoffDateTime <= existingPickup || pickupDateTime >= existingDropoff);
+    });
+
+    if (conflictingDelivery) {
+      return { 
+        available: false, 
+        reason: `Driver has a conflicting delivery at ${new Date(conflictingDelivery.pickup_time).toLocaleString()}` 
+      };
+    }
+
+    return { available: true };
+  }, [staff, deliveries, parseTimeToMs]);
+
   const handleSubmitDistribution = async () => {
     setSubmitting(true);
     setNotice(null);
@@ -5558,6 +5962,36 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
         foodIdForBackend = `FOO${digits.padStart(7, "0")}`;
       }
       
+
+      // Check driver availability
+      const availability = isDriverAvailable(distributionForm.userId, distributionForm.pickupTime);
+      if (!availability.available) {
+        throw new Error(`Driver is not available: ${availability.reason}`);
+      }
+
+      // Check province match for distribution type
+      const selectedWarehouse = warehouses.find(w => w.warehouse_id === distributionForm.warehouseId);
+      const selectedCommunity = communities.find(c => c.community_id === distributionForm.communityId);
+      const selectedStaff = staff.find(s => s.user_id === distributionForm.userId);
+      
+      if (selectedWarehouse && selectedCommunity && selectedStaff) {
+        const pickupProvince = extractProvince(selectedWarehouse.address);
+        const dropoffProvince = extractProvince(selectedCommunity.address);
+        
+        // Check if provinces match
+        if (pickupProvince !== dropoffProvince) {
+          throw new Error(`Pickup and dropoff must be in the same province. Pickup: ${pickupProvince}, Dropoff: ${dropoffProvince}`);
+        }
+
+        // Check if driver's assigned area matches
+        const driverProvince = selectedStaff.assigned_area;
+        if (driverProvince && driverProvince !== pickupProvince && driverProvince !== "Bangkok" && pickupProvince !== "Bangkok") {
+          // Allow DEL0000005 to handle both Bangkok and Ayutthaya
+          if (!(selectedStaff.user_id === "DEL0000005" && (pickupProvince === "Bangkok" || pickupProvince === "Ayutthaya"))) {
+            throw new Error(`Driver is assigned to ${driverProvince}, but delivery is in ${pickupProvince}`);
+          }
+        }
+      }
       const payload: Record<string, unknown> = {
         delivery_type: "distribution",
         pickup_time: pickupDate.toISOString(),
@@ -5793,7 +6227,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
                       <option value="">Assign delivery staff</option>
                       {staff.map((member) => (
                         <option key={member.user_id} value={member.user_id}>
-                          {member.name || member.username} ({member.assigned_area || "area n/a"})
+                          {member.name || member.username} {member.assigned_area ? `(${member.assigned_area})` : ''}
                         </option>
                       ))}
                     </select>
@@ -5911,7 +6345,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
                               </span>
                             </div>
                             <p className="text-xs text-gray-500 mt-1">
-                              Available: {selectedItem.quantity} {selectedItem.unit} | Example: "15.5" or "25.67" (unit will be added automatically)
+                              Available: {selectedItem.quantity} {selectedItem.unit} | Example: &quot;15.5&quot; or &quot;25.67&quot; (unit will be added automatically)
                             </p>
                           </div>
                         ) : null;
@@ -6348,15 +6782,15 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
     return donationId;
   };
 
-  const groupItemsByCategory = (items: FoodItemApiRecord[]) => {
-    const groups: Record<string, FoodItemApiRecord[]> = {};
-    for (const it of items) {
-      const cat = getCategory(it);
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(it);
-    }
-    return groups;
-  };
+  // const groupItemsByCategory = (items: FoodItemApiRecord[]) => {
+  //   const groups: Record<string, FoodItemApiRecord[]> = {};
+  //   for (const it of items) {
+  //     const cat = getCategory(it);
+  //     if (!groups[cat]) groups[cat] = [];
+  //     groups[cat].push(it);
+  //   }
+  //   return groups;
+  // }; // unused
 
   const visibleWarehouses = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
