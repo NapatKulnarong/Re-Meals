@@ -65,8 +65,24 @@ class DeliveryViewSet(viewsets.ModelViewSet):
                     delivery_type="distribution",
                     community_id__community_id__in=requested_communities,
                 )
-            return qs.filter(donation_filter | community_filter)
-        return qs.none()
+            
+            # Allow read access to delivered distribution deliveries for impact visualization
+            # This is public impact data that should be visible to all authenticated users
+            public_impact_filter = Q(
+                delivery_type="distribution",
+                status="delivered",
+                food_item__isnull=False
+            )
+            
+            return qs.filter(donation_filter | community_filter | public_impact_filter)
+        
+        # For unauthenticated users, allow read access to delivered distribution deliveries
+        # This enables the public heatmap to work
+        return qs.filter(
+            delivery_type="distribution",
+            status="delivered",
+            food_item__isnull=False
+        )
 
     def create(self, request, *args, **kwargs):
         if not _str_to_bool(request.headers.get("X-USER-IS-ADMIN")):
