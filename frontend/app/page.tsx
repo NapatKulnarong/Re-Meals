@@ -1910,8 +1910,8 @@ function HomePage({
         </div>
       </div>
 
-      <section className="rounded-[32px] bg-[#e8ede3] p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <section className="rounded-[32px] bg-[#e8ede3] p-6 animate-fade-in">
+        <div className="flex flex-wrap items-center justify-between gap-3 animate-fade-in-up">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#4E673E]">
               Impact dashboard
@@ -1921,7 +1921,7 @@ function HomePage({
               Live from impact records: meals saved, weight diverted, and CO₂ reduced.
             </p>
           </div>
-          <span className="rounded-full border border-[#A8B99A] bg-white px-3 py-1 text-xs font-semibold text-[#365032] shadow-sm">
+          <span className="rounded-full border border-[#A8B99A] bg-white px-3 py-1 text-xs font-semibold text-[#365032] shadow-sm animate-scale-in" style={{ animationDelay: '0.2s', opacity: 0 }}>
             {impactRecords.length} records
           </span>
         </div>
@@ -1937,10 +1937,14 @@ function HomePage({
             { label: "Meals saved", value: impactTotals.meals, suffix: "", classes: "text-[#365032]" },
             { label: "Weight saved (kg)", value: impactTotals.weight, suffix: " kg", classes: "text-[#365032]" },
             { label: "CO₂ reduced (kg)", value: impactTotals.co2, suffix: " kg", classes: "text-[#d48a68]" },
-          ].map((card) => (
+          ].map((card, index) => (
             <div
               key={card.label}
-              className="rounded-2xl border border-dashed border-[#A8B99A] bg-white p-4 shadow-sm"
+              className="rounded-2xl border border-dashed border-[#A8B99A] bg-white p-4 shadow-sm animate-fade-in-up transition-all duration-300 hover:shadow-md hover:scale-[1.02]"
+              style={{
+                animationDelay: `${0.3 + index * 0.1}s`,
+                opacity: 0,
+              }}
             >
               <p className={`text-xs font-semibold uppercase tracking-wide ${card.label === "CO₂ reduced (kg)" ? "text-[#d48a68]" : "text-[#708A58]"}`}>
                 {card.label}
@@ -1962,50 +1966,54 @@ function HomePage({
         {/* Top Restaurants and CO₂ Chart Row */}
         <div className="mt-6 grid gap-6 lg:grid-cols-5">
           {/* Top Restaurants Leaderboard - First visualization */}
-          <div className="lg:col-span-2 rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-5 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
+          <div className="lg:col-span-2 rounded-2xl border border-[#F3C7A0] bg-[#FFF8F0] p-5 shadow-sm animate-fade-in">
+            <div className="mb-3 flex items-center justify-between animate-fade-in-up">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Impact Leaders</h3>
                 <p className="text-xs text-gray-500 mt-0.5">Top performing restaurants</p>
               </div>
-              <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#d48a68] border border-[#F3C7A0]">
+              <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#d48a68] border border-[#F3C7A0] animate-scale-in animate-delay-200">
                 Top 5
               </span>
             </div>
             <div className="min-h-[200px]">
               {impactLoading || leaderboardLoading ? (
-                <p className="text-sm text-gray-600 py-8">Loading leaderboard...</p>
+                <p className="text-sm text-gray-600 py-8 animate-fade-in">Loading leaderboard...</p>
               ) : restaurantLeaderboard.length === 0 ? (
-                <p className="text-sm text-gray-600 py-8 text-center">No restaurant data available yet.</p>
+                <p className="text-sm text-gray-600 py-8 text-center animate-fade-in">No restaurant data available yet.</p>
               ) : (
                 <div className="space-y-2">
                   {restaurantLeaderboard.map((restaurant, index) => (
                     <div
                       key={restaurant.restaurantId}
-                      className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3 hover:bg-[#f9fff4]"
+                      className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3 hover:bg-[#f9fff4] transition-all duration-300 hover:shadow-md hover:scale-[1.02] animate-fade-in-up"
+                      style={{
+                        animationDelay: `${index * 0.1}s`,
+                        opacity: 0,
+                      }}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F3C7A0] text-sm font-bold text-[#B25C23]">
-                          {index + 1}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-gray-900">
-                            {restaurant.name}
-                          </p>
-                          <div className="mt-1 flex gap-4 text-xs text-gray-600">
-                            <span className="font-semibold text-[#365032]">
-                              {restaurant.meals.toLocaleString(undefined, { maximumFractionDigits: 0 })} meals
-                            </span>
-                            <span className="text-[#708A58]">
-                              {restaurant.weight.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
-                            </span>
-                            <span className="text-[#B25C23]">
-                              {restaurant.co2.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg CO₂
-                            </span>
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F3C7A0] text-sm font-bold text-[#B25C23] transition-transform duration-300 hover:scale-110">
+                            {index + 1}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-gray-900">
+                              {restaurant.name}
+                            </p>
+                            <div className="mt-1 flex gap-4 text-xs text-gray-600">
+                              <span className="font-semibold text-[#365032] transition-colors duration-300">
+                                {restaurant.meals.toLocaleString(undefined, { maximumFractionDigits: 0 })} meals
+                              </span>
+                              <span className="text-[#708A58] transition-colors duration-300">
+                                {restaurant.weight.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
+                              </span>
+                              <span className="text-[#B25C23] transition-colors duration-300">
+                                {restaurant.co2.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg CO₂
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
                   ))}
                 </div>
               )}
@@ -2013,13 +2021,13 @@ function HomePage({
           </div>
 
           {/* CO₂ Reduction Trend Chart */}
-          <div className="lg:col-span-3 rounded-2xl border border-[#F3C7A0] bg-white shadow-sm">
+          <div className="lg:col-span-3 rounded-2xl border border-[#F3C7A0] bg-white shadow-sm animate-fade-in-up transition-all duration-300 hover:shadow-md" style={{ animationDelay: '0.6s', opacity: 0 }}>
             <div className="px-6 pt-6 pb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Cumulative CO₂ Reduction</h3>
                 <p className="text-xs text-gray-500 mt-1">Hover over points to see details</p>
               </div>
-              <span className="rounded-full bg-[#FFF4E6] px-3 py-1 text-[11px] font-semibold text-[#D97706]">
+              <span className="rounded-full bg-[#FFF4E6] px-3 py-1 text-[11px] font-semibold text-[#D97706] animate-scale-in" style={{ animationDelay: '0.7s', opacity: 0 }}>
                 Last {weeklyMealsData.length} weeks
               </span>
             </div>
@@ -2065,14 +2073,14 @@ function HomePage({
         </div>
 
         {/* Community Impact Heat Map */}
-        <div className="mt-6">
-          <div className="rounded-2xl border border-[#F3C7A0] bg-white p-6 shadow-sm">
+        <div className="mt-6 animate-fade-in-up" style={{ animationDelay: '0.8s', opacity: 0 }}>
+          <div className="rounded-2xl border border-[#F3C7A0] bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-md">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Community Impact Heat Map</h3>
                 <p className="text-xs text-gray-500 mt-1">Meals saved by community and month</p>
               </div>
-              <span className="rounded-full bg-[#E6F7EE] px-3 py-1 text-[11px] font-semibold text-[#2F855A]">
+              <span className="rounded-full bg-[#E6F7EE] px-3 py-1 text-[11px] font-semibold text-[#2F855A] animate-scale-in" style={{ animationDelay: '0.9s', opacity: 0 }}>
                 {communities.length} communities
               </span>
             </div>
