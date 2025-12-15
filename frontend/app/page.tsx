@@ -1399,125 +1399,136 @@ function HomePage({
     },
   ];
 
+  // Load all dashboard data in parallel for faster loading
   useEffect(() => {
     let ignore = false;
-    async function loadImpact() {
+    
+    async function loadAllDashboardData() {
+      // Set all loading states
       setImpactLoading(true);
+      setLeaderboardLoading(true);
+      setHeatMapLoading(true);
       setImpactError(null);
+
       try {
-        const candidates = [
+        // Try impact endpoints in parallel instead of sequentially
+        const impactCandidates = [
           API_PATHS.impact,
           "/impact/",
         ];
 
-        let loaded: ImpactRecord[] = [];
-        let lastError: unknown = null;
-
-        for (const path of candidates) {
-          try {
-            const raw = await apiFetch<unknown>(path);
-            loaded = normalizeImpactData(raw);
-            if (loaded.length) break;
-          } catch (err) {
-            lastError = err;
-          }
-        }
-
-        if (!ignore) {
-          if (!loaded.length && lastError) {
-            throw lastError;
-          }
-          setImpactRecords(loaded);
-        }
-      } catch (err) {
-        if (!ignore) {
-          setImpactError(
-            err instanceof Error ? err.message : "Unable to load impact data."
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setImpactLoading(false);
-        }
-      }
-    }
-    loadImpact();
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  // Load restaurants, donations, and food items for leaderboard
-  useEffect(() => {
-    let ignore = false;
-    async function loadLeaderboardData() {
-      setLeaderboardLoading(true);
-      try {
-        const [restaurantsData, donationsData, foodItemsData] = await Promise.all([
-          apiFetch<Restaurant[]>("/restaurants/").catch((err) => {
-            console.error("Failed to load restaurants:", err);
-            return [];
-          }),
-          apiFetch<DonationApiRecord[]>("/donations/").catch((err) => {
-            console.error("Failed to load donations:", err);
-            return [];
-          }),
-          apiFetch<FoodItemApiRecord[]>("/fooditems/").catch((err) => {
-            console.error("Failed to load food items:", err);
-            return [];
-          }),
-        ]);
-
-        if (!ignore) {
-          console.log("Leaderboard data loaded:", {
-            restaurants: restaurantsData.length,
-            donations: donationsData.length,
-            foodItems: foodItemsData.length,
-          });
-          setRestaurants(restaurantsData);
-          setDonations(donationsData);
-          setFoodItems(foodItemsData);
-          setLeaderboardLoading(false);
-        }
-      } catch (err) {
-        console.error("Error loading leaderboard data:", err);
-        if (!ignore) {
-          setLeaderboardLoading(false);
-        }
-      }
-    }
-    loadLeaderboardData();
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  // Load communities and deliveries for heat map
-  useEffect(() => {
-    let ignore = false;
-    async function loadHeatMapData() {
-      setHeatMapLoading(true);
-      try {
-        const [communitiesData, deliveriesData] = await Promise.all([
-          apiFetch<Community[]>(API_PATHS.communities).catch(() => []),
+        // Fetch all data in parallel for maximum speed
+        const [
+          impactResult1,
+          impactResult2,
+          restaurantsData,
+          donationsData,
+          foodItemsData,
+          communitiesData,
+          deliveriesData,
+        ] = await Promise.allSettled([
+          apiFetch<unknown>(impactCandidates[0]),
+          apiFetch<unknown>(impactCandidates[1]),
+          apiFetch<Restaurant[]>("/restaurants/"),
+          apiFetch<DonationApiRecord[]>("/donations/"),
+          apiFetch<FoodItemApiRecord[]>("/fooditems/"),
+          apiFetch<Community[]>(API_PATHS.communities),
           apiFetch<DeliveryRecordApi[]>(API_PATHS.deliveries, {
             headers: buildAuthHeaders(currentUser),
-          }).catch(() => []),
+          }),
         ]);
 
-        if (!ignore) {
-          setCommunities(communitiesData);
-          setDeliveries(deliveriesData);
+        if (ignore) return;
+
+        // Process impact data - use first successful result
+        let loaded: ImpactRecord[] = [];
+        let impactError: unknown = null;
+
+        for (const result of [impactResult1, impactResult2]) {
+          if (result.status === "fulfilled") {
+            try {
+              loaded = normalizeImpactData(result.value);
+              if (loaded.length) break;
+            } catch (err) {
+              impactError = err;
+            }
+          } else {
+            impactError = result.reason;
+          }
         }
-      } catch {
-        // Silently fail - heat map is optional
-      } finally {
+
+        if (loaded.length) {
+          setImpactRecords(loaded);
+        } else if (impactError) {
+          setImpactError(
+            impactError instanceof Error ? impactError.message : "Unable to load impact data."
+          );
+        }
+        // Always clear loading state
+        setImpactLoading(false);
+
+        // Process leaderboard data - update state as soon as available
+        if (restaurantsData.status === "fulfilled") {
+          setRestaurants(restaurantsData.value);
+        } else {
+          console.error("Failed to load restaurants:", restaurantsData.reason);
+          setRestaurants([]);
+        }
+
+        if (donationsData.status === "fulfilled") {
+          setDonations(donationsData.value);
+        } else {
+          console.error("Failed to load donations:", donationsData.reason);
+          setDonations([]);
+        }
+
+        if (foodItemsData.status === "fulfilled") {
+          setFoodItems(foodItemsData.value);
+        } else {
+          console.error("Failed to load food items:", foodItemsData.reason);
+          setFoodItems([]);
+        }
+
+        // Leaderboard is ready when all three are loaded
+        setLeaderboardLoading(false);
+
+        // Process heat map data
+        if (communitiesData.status === "fulfilled") {
+          setCommunities(communitiesData.value);
+        } else {
+          setCommunities([]);
+        }
+
+        if (deliveriesData.status === "fulfilled") {
+          setDeliveries(deliveriesData.value);
+        } else {
+          setDeliveries([]);
+        }
+
+        setHeatMapLoading(false);
+
+        console.log("Dashboard data loaded:", {
+          impactRecords: loaded.length,
+          restaurants: restaurantsData.status === "fulfilled" ? restaurantsData.value.length : 0,
+          donations: donationsData.status === "fulfilled" ? donationsData.value.length : 0,
+          foodItems: foodItemsData.status === "fulfilled" ? foodItemsData.value.length : 0,
+          communities: communitiesData.status === "fulfilled" ? communitiesData.value.length : 0,
+          deliveries: deliveriesData.status === "fulfilled" ? deliveriesData.value.length : 0,
+        });
+      } catch (err) {
         if (!ignore) {
+          console.error("Error loading dashboard data:", err);
+          setImpactError(
+            err instanceof Error ? err.message : "Unable to load dashboard data."
+          );
+          setImpactLoading(false);
+          setLeaderboardLoading(false);
           setHeatMapLoading(false);
         }
       }
     }
-    loadHeatMapData();
+
+    loadAllDashboardData();
     return () => {
       ignore = true;
     };
@@ -1949,16 +1960,18 @@ function HomePage({
               <p className={`text-xs font-semibold uppercase tracking-wide ${card.label === "CO₂ reduced (kg)" ? "text-[#d48a68]" : "text-[#708A58]"}`}>
                 {card.label}
               </p>
-              <p className={`text-3xl font-bold ${card.classes}`}>
-                {impactLoading ? "…" : (
+              {impactLoading ? (
+                <div className="mt-2 h-10 w-24 bg-gray-200 rounded animate-pulse"></div>
+              ) : (
+                <p className={`text-3xl font-bold ${card.classes}`}>
                   <AnimatedNumber 
                     value={card.value} 
                     suffix={card.suffix}
                     className={card.classes}
                     decimals={card.label === "Meals saved" ? 0 : 1}
                   />
-                )}
-              </p>
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -1978,8 +1991,25 @@ function HomePage({
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto">
               {impactLoading || leaderboardLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-sm text-gray-600 animate-fade-in">Loading leaderboard...</p>
+                <div className="space-y-2 w-full">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div
+                      key={i}
+                      className="rounded-xl border border-dashed border-[#F3C7A0] bg-white p-3 animate-pulse"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 shrink-0 rounded-full bg-gray-200"></div>
+                        <div className="min-w-0 flex-1">
+                          <div className="h-4 w-32 bg-gray-200 rounded mb-2"></div>
+                          <div className="flex gap-4">
+                            <div className="h-3 w-20 bg-gray-200 rounded"></div>
+                            <div className="h-3 w-16 bg-gray-200 rounded"></div>
+                            <div className="h-3 w-20 bg-gray-200 rounded"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : restaurantLeaderboard.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
