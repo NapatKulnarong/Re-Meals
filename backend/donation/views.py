@@ -7,6 +7,7 @@ from rest_framework.response import Response
 
 from .models import Donation
 from .serializers import DonationSerializer
+from users.models import User
 
 
 def _parse_datetime_param(value):
@@ -37,18 +38,45 @@ class DonationViewSet(viewsets.ModelViewSet):
     def _is_admin(self):
         return self._str_to_bool(self.request.headers.get("X-USER-IS-ADMIN"))
 
+    def _get_current_user(self):
+        """Get the current user from request headers."""
+        user_id = self.request.headers.get("X-USER-ID")
+        if not user_id:
+            return None
+        try:
+            return User.objects.get(user_id=user_id)
+        except User.DoesNotExist:
+            return None
+
+    def _is_restaurant_representative(self, donation):
+        """Check if the current user is a representative of the donation's restaurant."""
+        user = self._get_current_user()
+        if not user or not user.restaurant:
+            return False
+        return user.restaurant.restaurant_id == donation.restaurant.restaurant_id
+
     def _ensure_manageable(self, donation):
-        if donation.status != "pending":
+        """Ensure the donation can be modified or deleted by the current user."""
+        # Only allow modification if status is not "accepted"
+        if donation.status == "accepted":
             return Response(
-                {"detail": "Only pending donations can be modified or deleted."},
+                {"detail": "Accepted donations cannot be modified or deleted."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if not self._is_admin():
-            return Response(
-                {"detail": "You do not have permission to modify this donation."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        return None
+        
+        # Allow admins to modify pending or declined donations
+        if self._is_admin():
+            return None
+        
+        # Allow restaurant representatives to modify their own restaurant's donations
+        if self._is_restaurant_representative(donation):
+            return None
+        
+        # Otherwise, deny permission
+        return Response(
+            {"detail": "You do not have permission to modify this donation."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     def get_queryset(self):
         qs = Donation.objects.select_related("restaurant").all()
