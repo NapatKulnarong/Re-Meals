@@ -4814,7 +4814,7 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<"all" | "donation" | "request">("all");
-  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "az" | "za">("newest");
 
   useEffect(() => {
     let ignore = false;
@@ -4867,7 +4867,7 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
       id: donation.donation_id,
       type: "donation" as const,
       title: restaurantName(donation.restaurant),
-      subtitle: `ID: ${donation.donation_id} • Created ${formatDisplayDate(donation.donated_at)}`,
+      subtitle: `ID: ${donation.donation_id}`,
       createdAt: donation.donated_at,
       status: donation.status,
     })),
@@ -4875,7 +4875,7 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
       id: request.request_id,
       type: "request" as const,
       title: request.title,
-      subtitle: `ID: ${request.request_id} • ${request.community_name} • Created ${formatDisplayDate(request.created_at)}`,
+      subtitle: `ID: ${request.request_id} • ${request.community_name}`,
       createdAt: request.created_at,
       status: requestStatuses[request.request_id] || "pending",
     })),
@@ -4888,26 +4888,32 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
   });
 
   // Sort function based on selected order
-  const sortByDate = (a: ManageableItem, b: ManageableItem) => {
-    const aTime = new Date(a.createdAt).getTime();
-    const bTime = new Date(b.createdAt).getTime();
+  const sortItems = (a: ManageableItem, b: ManageableItem) => {
     if (sortOrder === "newest") {
+      const aTime = new Date(a.createdAt).getTime();
+      const bTime = new Date(b.createdAt).getTime();
       return bTime - aTime; // Newest first
-    } else {
+    } else if (sortOrder === "oldest") {
+      const aTime = new Date(a.createdAt).getTime();
+      const bTime = new Date(b.createdAt).getTime();
       return aTime - bTime; // Oldest first
+    } else if (sortOrder === "az") {
+      return a.title.localeCompare(b.title); // A-Z
+    } else {
+      return b.title.localeCompare(a.title); // Z-A
     }
   };
 
-  // Group items by status and sort by creation date
+  // Group items by status and sort
   const pendingItems = filteredItems
     .filter((item) => item.status === "pending")
-    .sort(sortByDate);
+    .sort(sortItems);
   const completedItems = filteredItems
     .filter((item) => item.status === "accepted")
-    .sort(sortByDate);
+    .sort(sortItems);
   const declinedItems = filteredItems
     .filter((item) => item.status === "declined")
-    .sort(sortByDate);
+    .sort(sortItems);
 
   const updateStatus = async (
     itemId: string,
@@ -4959,6 +4965,9 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
       <div>
         <p className="text-sm font-semibold text-gray-900">{item.title}</p>
         <p className="text-xs text-gray-500 mt-1">{item.subtitle}</p>
+        <p className="text-xs font-semibold text-gray-700 mt-2 pt-1.5 border-t border-gray-200/50">
+          Created: {formatDisplayDate(item.createdAt)}
+        </p>
       </div>
       {item.status === "pending" && (
         <div className="flex gap-2 mt-2">
@@ -5034,11 +5043,13 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
             <select
               id="sort-order"
               value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as "newest" | "oldest")}
+              onChange={(e) => setSortOrder(e.target.value as "newest" | "oldest" | "az" | "za")}
               className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-sm transition hover:border-gray-400 focus:border-[#C46A24] focus:outline-none focus:ring-2 focus:ring-[#C46A24]/20"
             >
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
+              <option value="az">A-Z</option>
+              <option value="za">Z-A</option>
             </select>
           </div>
         </div>
