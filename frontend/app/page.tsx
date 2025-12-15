@@ -23,6 +23,8 @@ import {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 
+const USER_STORAGE_KEY = "re-meals-current-user";
+
 type AuthMode = "signup" | "login";
 
 type SignupCredentials = {
@@ -130,6 +132,7 @@ type DonationRequestRecord = DonationRequestForm & {
   id: string;
   createdAt: string;
   ownerUserId?: string | null;
+  status?: "pending" | "accepted" | "declined";
 };
 
 type DonationApiRecord = {
@@ -167,6 +170,7 @@ type DonationRequestApiRecord = {
   notes: string;
   created_at: string;
   created_by_user_id?: string | null;
+  status?: "pending" | "accepted" | "declined";
 };
 
 type Warehouse = {
@@ -3613,16 +3617,16 @@ function DonationSection(props: {
     if (isDonationAssigned(donation.id)) {
       return false;
     }
+    // Check if user is the creator of the donation
+    if (donation.ownerUserId && donation.ownerUserId === currentUser.userId) {
+      return true;
+    }
     // Check if donation's restaurant matches user's restaurant
     // User must have restaurant information set
-    if (!currentUser.restaurantId) {
-      return false;
+    if (currentUser.restaurantId && donation.restaurantId === currentUser.restaurantId) {
+      return true;
     }
-    // Donation's restaurant must match user's restaurant
-    if (donation.restaurantId !== currentUser.restaurantId) {
-      return false;
-    }
-    return true;
+    return false;
   };
 
   const canShowEditDeleteButtons = (donation: DonationRecord) => {
@@ -4280,6 +4284,7 @@ function DonationRequestSection(props: {
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [requestsError, setRequestsError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingRequestId, setDeletingRequestId] = useState<string | null>(null);
   const [deliveries, setDeliveries] = useState<DeliveryRecordApi[]>([]);
   const [communities, setCommunities] = useState<Community[]>([]);
 
@@ -4323,7 +4328,20 @@ function DonationRequestSection(props: {
       if (currentUser.isAdmin) {
         return true;
       }
-      return request.ownerUserId === currentUser.userId;
+      // Primary check: if user is the creator
+      if (request.ownerUserId === currentUser.userId) {
+        return true;
+      }
+      // Fallback for legacy requests: check if contact phone matches
+      // This helps with old requests that don't have created_by set
+      if (!request.ownerUserId && 
+          request.status !== "accepted" &&
+          request.contactPhone && 
+          currentUser.phone &&
+          request.contactPhone.trim() === currentUser.phone.trim()) {
+        return true;
+      }
+      return false;
     },
     [currentUser]
   );
@@ -4363,6 +4381,7 @@ function DonationRequestSection(props: {
                 notes: record.notes ?? "",
                 createdAt: record.created_at,
                 ownerUserId: record.created_by_user_id ?? null,
+                status: record.status ?? "pending",
               }))
             )
           );
@@ -4389,6 +4408,11 @@ function DonationRequestSection(props: {
 
   // Check if a request has been accepted (has a distribution delivery to its community)
   const isRequestAccepted = useCallback((request: DonationRequestRecord) => {
+    // First check if status is explicitly set to "accepted"
+    if (request.status === "accepted") {
+      return true;
+    }
+    // Fall back to checking deliveries if status is not set
     const community = communities.find((c) => c.name === request.communityName);
     if (!community) {
       return false;
@@ -4542,6 +4566,10 @@ function DonationRequestSection(props: {
       });
       return;
     }
+    if (!confirm("Are you sure you want to delete this request? This action cannot be undone.")) {
+      return;
+    }
+    setDeletingRequestId(target.id);
     try {
       await apiFetch(`/donation-requests/${target.id}/`, {
         method: "DELETE",
@@ -4562,6 +4590,8 @@ function DonationRequestSection(props: {
             ? error.message
             : "Unable to delete request right now.",
       });
+    } finally {
+      setDeletingRequestId(null);
     }
   };
 
@@ -4759,8 +4789,8 @@ function DonationRequestSection(props: {
                   key={request.id}
                   className="rounded-2xl border border-[#E6B9A2] bg-[#F8F3EE] p-5 shadow-sm"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                  <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                    <div className="flex-1">
                       <p className="text-xs uppercase tracking-wide text-[#B86A49]">
                         {request.communityName || "Community representative"}
                       </p>
@@ -4776,13 +4806,83 @@ function DonationRequestSection(props: {
                         {request.numberOfPeople} people waiting for food
                       </p>
                     </div>
-                    <div className="text-right text-xs text-gray-500">
-                      <p>{formatDisplayDate(request.createdAt)}</p>
-                      {request.expectedDelivery && (
-                        <p>
-                          Due{" "}
-                          {formatDisplayDate(request.expectedDelivery)}
-                        </p>
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="text-right text-xs text-gray-500">
+                        <p>{formatDisplayDate(request.createdAt)}</p>
+                        {request.expectedDelivery && (
+                          <p>
+                            Due{" "}
+                            {formatDisplayDate(request.expectedDelivery)}
+                          </p>
+                        )}
+                      </div>
+                      {canManageRequest(request) && (
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            disabled={deletingRequestId === request.id}
+                            className="rounded-lg bg-[#E6F4FF] p-2 text-[#1D4ED8] hover:bg-[#D0E7FF] disabled:opacity-60 disabled:cursor-not-allowed transition"
+                            title="Edit request"
+                            onClick={() => handleEdit(request)}
+                          >
+                            <svg
+                              className="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                              />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deletingRequestId === request.id}
+                            className="rounded-lg bg-[#FDECEA] p-2 text-[#B42318] hover:bg-[#FCD7D2] disabled:opacity-60 disabled:cursor-not-allowed transition"
+                            title="Delete request"
+                            onClick={() => handleDelete(request)}
+                          >
+                            {deletingRequestId === request.id ? (
+                              <svg
+                                className="h-4 w-4 animate-spin"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                />
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                />
+                              </svg>
+                            ) : (
+                              <svg
+                                className="h-4 w-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -4808,25 +4908,6 @@ function DonationRequestSection(props: {
 
                   {request.notes && (
                     <p className="mt-4 text-xs italic text-gray-500">{request.notes}</p>
-                  )}
-
-                  {canManageRequest(request) && (
-                    <div className="mt-5 flex gap-3 justify-end">
-                      <button
-                        type="button"
-                        className="rounded-full border-2 border-[#E6B9A2] bg-white px-5 py-2 text-sm font-semibold text-[#8B5B1F] shadow-sm transition-all duration-200 hover:border-[#B86A49] hover:bg-[#F8F3EE] hover:shadow-md active:scale-95"
-                        onClick={() => handleEdit(request)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-full border-2 border-[#F7B0A0] bg-white px-5 py-2 text-sm font-semibold text-[#B42318] shadow-sm transition-all duration-200 hover:border-[#E63946] hover:bg-[#FFF1F0] hover:shadow-md active:scale-95"
-                        onClick={() => handleDelete(request)}
-                      >
-                        Delete
-                      </button>
-                    </div>
                   )}
                 </article>
               ))}
@@ -9399,6 +9480,33 @@ export default function Home() {
   const [authMode, setAuthMode] = useState<AuthMode>("signup"); // current auth tab
   const [currentUser, setCurrentUser] = useState<LoggedUser | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+
+  // Load user from localStorage on mount
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem(USER_STORAGE_KEY);
+      if (storedUser) {
+        const user = JSON.parse(storedUser) as LoggedUser;
+        setCurrentUser(user);
+      }
+    } catch (error) {
+      console.error("Failed to load user from localStorage:", error);
+      localStorage.removeItem(USER_STORAGE_KEY);
+    }
+  }, []);
+
+  // Save user to localStorage whenever it changes
+  useEffect(() => {
+    if (currentUser) {
+      try {
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(currentUser));
+      } catch (error) {
+        console.error("Failed to save user to localStorage:", error);
+      }
+    } else {
+      localStorage.removeItem(USER_STORAGE_KEY);
+    }
+  }, [currentUser]);
 
   const navItems: NavItem[] = currentUser?.isAdmin
     ? [

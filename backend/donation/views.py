@@ -27,7 +27,7 @@ def _parse_datetime_param(value):
 
 
 class DonationViewSet(viewsets.ModelViewSet):
-    queryset = Donation.objects.select_related("restaurant").all()
+    queryset = Donation.objects.select_related("restaurant", "created_by").all()
     serializer_class = DonationSerializer
 
     def _str_to_bool(self, value):
@@ -55,6 +55,13 @@ class DonationViewSet(viewsets.ModelViewSet):
             return False
         return user.restaurant.restaurant_id == donation.restaurant.restaurant_id
 
+    def _is_donation_creator(self, donation):
+        """Check if the current user is the creator of the donation."""
+        user = self._get_current_user()
+        if not user:
+            return False
+        return donation.created_by == user
+
     def _ensure_manageable(self, donation):
         """Ensure the donation can be modified or deleted by the current user."""
         # Only allow modification if status is not "accepted"
@@ -68,6 +75,10 @@ class DonationViewSet(viewsets.ModelViewSet):
         if self._is_admin():
             return None
         
+        # Allow the creator of the donation to modify it
+        if self._is_donation_creator(donation):
+            return None
+        
         # Allow restaurant representatives to modify their own restaurant's donations
         if self._is_restaurant_representative(donation):
             return None
@@ -79,7 +90,7 @@ class DonationViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self):
-        qs = Donation.objects.select_related("restaurant").all()
+        qs = Donation.objects.select_related("restaurant", "created_by").all()
         params = self.request.query_params
 
         restaurant_id = params.get("restaurant_id")
