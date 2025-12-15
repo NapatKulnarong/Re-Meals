@@ -183,6 +183,7 @@ Comprehensive documentation is available in the `/docs` directory:
 - **[API Reference](./docs/API.md)** - Complete REST API documentation with endpoints, requests, and responses
 - **[Architecture](./docs/ARCHITECTURE.md)** - System design, technology stack, and architectural decisions
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Contributing guidelines, code style, and best practices
+- **[Testing Guide](./docs/TEST.md)** - Comprehensive testing guide for backend, frontend, and integration tests
 
 For a quick overview of all documentation, see the [Documentation Index](./docs/README.md).
 
@@ -241,6 +242,7 @@ remeals/
 │   ├── ARCHITECTURE.md
 │   ├── DEVELOPMENT.md
 │   ├── SETUP.md
+│   ├── TEST.md
 │   ├── db-diagram.png
 │   └── README.md
 │

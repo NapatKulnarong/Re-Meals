@@ -21,10 +21,23 @@ Comprehensive guide for testing the ReMeals application, including backend, fron
 
 ReMeals uses a comprehensive testing strategy:
 
-- **Backend**: Django TestCase and DRF APITestCase
+- **Backend**: Django TestCase and DRF APITestCase (Django 5.2.8)
 - **Frontend**: Jest and React Testing Library (to be implemented)
 - **API**: Integration tests using APIClient
-- **CI/CD**: Automated testing via GitHub Actions
+- **CI/CD**: Automated testing via GitHub Actions with PostgreSQL 16
+
+### Test Coverage Status
+
+Current test coverage includes:
+- ✅ Donation API tests (39+ test cases)
+- ✅ Warehouse inventory tests
+- ✅ User authentication tests
+- ✅ Delivery tests
+- ✅ Restaurant and chain tests
+- ✅ Food item tests
+- ✅ Donation request tests
+- ✅ Community tests
+- ✅ Impact record tests
 
 ---
 
