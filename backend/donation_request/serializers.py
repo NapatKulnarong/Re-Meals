@@ -30,18 +30,19 @@ class DonationRequestSerializer(serializers.ModelSerializer):
                 "community_id": "This field is required."
             })
         
-        # For backward compatibility with tests: require community_id when it's missing
+        # For CREATE operations: require community_id when it's missing
+        # For UPDATE/PATCH operations: only validate if community_id is being updated
         # The test expects community_id to be required even when community_name is provided
         # Auto-creation is still available in create() method as a fallback for edge cases
-        if not community_id_in_request and not community:
-            # community_id was not in the request and we don't have a community
+        if self.instance is None and not community_id_in_request and not community:
+            # This is a CREATE operation and community_id was not in the request
             # Require it for backward compatibility
             raise serializers.ValidationError({
                 "community_id": "This field is required."
             })
         
         return attrs
-    community_name = serializers.CharField()
+    community_name = serializers.CharField(required=False)
 
     created_by_user_id = serializers.CharField(source='created_by.user_id', read_only=True, allow_null=True)
 
