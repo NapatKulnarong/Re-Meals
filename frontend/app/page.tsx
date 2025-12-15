@@ -9364,9 +9364,17 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<LoggedUser | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
+  // Set default tab to donate page (1) for admin users
+  useEffect(() => {
+    if (currentUser?.isAdmin && activeTab === 0) {
+      setActiveTab(1);
+    }
+  }, [currentUser, activeTab]);
+
   const navItems: NavItem[] = currentUser?.isAdmin
     ? [
       { id: 0, label: "Home", icon: <HomeIcon className="w-5 h-5" aria-hidden="true" /> },
+      { id: 1, label: "Donate", icon: <HeartIcon className="w-5 h-5" aria-hidden="true" /> },
       { id: 3, label: "Dashboard", icon: <WrenchScrewdriverIcon className="w-5 h-5" aria-hidden="true" /> },
       { id: 5, label: "Warehouse", icon: <ArchiveBoxIcon className="w-5 h-5" aria-hidden="true" /> },
       { id: 4, label: "Pickup", icon: <InboxIcon className="w-5 h-5" aria-hidden="true" /> },
@@ -9388,6 +9396,10 @@ export default function Home() {
   const normalizedActiveTab = useMemo(() => {
     // Home page (0) is always accessible
     if (activeTab === 0) {
+      // For admin users, redirect home (0) to donate page (1)
+      if (currentUser?.isAdmin) {
+        return 1;
+      }
       return 0;
     }
     // Status tab (7) is accessible even when not logged in
@@ -9408,7 +9420,8 @@ export default function Home() {
     if (currentUser?.isDeliveryStaff && !currentUser?.isAdmin && activeTab === 6) {
       return 4;
     }
-    if (currentUser?.isAdmin && activeTab > 0 && activeTab < 3) {
+    // Allow admins to access donate page (1), but redirect other tabs (2) to dashboard (3)
+    if (currentUser?.isAdmin && activeTab === 2) {
       return 3;
     }
     if (!currentUser?.isAdmin && currentUser?.isDeliveryStaff && activeTab > 0 && activeTab < 4) {
@@ -9452,7 +9465,7 @@ export default function Home() {
             onAuthSuccess={(user) => {
               setCurrentUser(user);
               if (user.isAdmin) {
-                setActiveTab(3);
+                setActiveTab(1); // Redirect to donate page for admins
               } else if (user.isDeliveryStaff) {
                 setActiveTab(4);
               } else {
