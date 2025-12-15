@@ -1507,7 +1507,7 @@ function HomePage({
             <h2 className="text-3xl font-semibold text-black/70">Three guided steps</h2>
           </div>
           <div className="flex items-center gap-2 rounded-full border-2 border-dashed border-[#d48a68] bg-white px-4 py-2 text-xs font-semibold text-black/70">
-            <MapIcon className="w-5 h-5 text-gray-600" aria-hidden="true" />
+            <MapIcon className="w-5 h-5 text-[#57b378]" aria-hidden="true" />
             <span>We handle the routing</span>
           </div>
         </div>
