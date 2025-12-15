@@ -145,6 +145,37 @@ docker compose exec backend python manage.py loaddata \
 
 > Tip: run this command against a fresh database (or after `python manage.py flush`) to avoid duplicate-key errors while reloading fixtures.
 
+### Test Users
+
+After loading the sample data fixtures, the following test users will be available for testing different roles:
+
+#### Administrator
+| Field | Value |
+|-------|-------|
+| **Username** | `admin` |
+| **Password** | `password123` |
+| **Email** | admin@remeals.com |
+| **Role** | System Administrator |
+| **Name** | System Administrator |
+
+#### Donors
+| Username | Password | Email | Restaurant | Name |
+|----------|----------|-------|------------|------|
+| `donor1` | `password123` | findlay.kl@gmail.com | RES0000001 | Findlay Kline |
+| `donor2` | `password123` | lili.byrd@gmail.com | RES0000003 | Lili Byrd |
+
+#### Delivery Staff
+| Username | Password | Email | Assigned Area | Name |
+|----------|----------|-------|---------------|------|
+| `delivery1` | `password123` | cordelia.ly@gmail.com | Bangkok Central | Cordelia Lynn |
+| `delivery2` | `password123` | gideon.cu@gmail.com | Samut Prakan | Gideon Curry |
+
+#### Recipients
+| Username | Password | Email | Community | Name | Address |
+|----------|----------|-------|-----------|------|---------|
+| `recipient1` | `password123` | aston.me@gmail.com | COM0000001 | Aston Merritt | 123 Klong Toey, Bangkok 10110 |
+| `recipient2` | `password123` | keeley.br@gmail.com | COM0000002 | Keeley Bradford | 456 Bang Khen, Bangkok 10220 |
+
 ## 📚 Documentation
 
 Comprehensive documentation is available in the `/docs` directory:
