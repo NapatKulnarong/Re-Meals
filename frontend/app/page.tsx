@@ -806,10 +806,29 @@ const API_PATHS = {
 // Helper function to format API errors into user-friendly messages
 const formatErrorMessage = (error: unknown): string => {
   if (!(error instanceof Error)) {
-    return "Unable to save donation. Please try again.";
+    return "An unexpected error occurred. Please try again.";
   }
 
-  const message = error.message;
+  let message = error.message;
+
+  // Handle network/connection errors
+  if (message.includes("Failed to fetch") || message.includes("NetworkError") || message.includes("Network request failed")) {
+    return "Unable to connect to the server. Please check your internet connection and try again.";
+  }
+
+  // Handle HTTP status codes
+  if (message.includes("401") || message.includes("Unauthorized")) {
+    return "You are not authorized to perform this action. Please log in and try again.";
+  }
+  if (message.includes("403") || message.includes("Forbidden")) {
+    return "You don't have permission to perform this action.";
+  }
+  if (message.includes("404") || message.includes("Not Found")) {
+    return "The requested resource was not found. Please refresh the page and try again.";
+  }
+  if (message.includes("500") || message.includes("Internal Server Error")) {
+    return "A server error occurred. Please try again later or contact support if the problem persists.";
+  }
 
   // Check for specific validation errors
   if (message.includes("expire_date") && message.includes("wrong format")) {
@@ -828,8 +847,37 @@ const formatErrorMessage = (error: unknown): string => {
     return "Please select or enter a restaurant name.";
   }
 
-  // Return the original message if no specific pattern matches
-  return message || "Unable to save donation. Please try again.";
+  // Handle common API error patterns
+  if (message.includes("required") || message.includes("This field is required")) {
+    return "Please fill in all required fields.";
+  }
+
+  if (message.includes("invalid") || message.includes("Invalid")) {
+    return "The information you entered is invalid. Please check your input and try again.";
+  }
+
+  if (message.includes("already exists") || message.includes("duplicate")) {
+    return "This item already exists. Please check your input.";
+  }
+
+  // Clean up technical error messages
+  message = message
+    .replace(/^Error: /i, "")
+    .replace(/^Request failed \(.*?\): /i, "")
+    .replace(/^[A-Z_]+: /, "")
+    .trim();
+
+  // If message is still technical or empty, provide a generic friendly message
+  if (!message || message.length < 5 || message.includes("JSON") || message.includes("parse")) {
+    return "An error occurred while processing your request. Please try again.";
+  }
+
+  // Capitalize first letter if needed
+  if (message.length > 0 && message[0] === message[0].toLowerCase()) {
+    message = message[0].toUpperCase() + message.slice(1);
+  }
+
+  return message;
 };
 
 const getCurrentTimestamp = () => new Date().toISOString();
@@ -903,18 +951,67 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   }
 
   if (!response.ok) {
-    let message = `Request failed (${response.status} ${response.statusText})`;
+    let message = "";
     try {
       const data = await response.json();
+      // Try to extract a user-friendly error message
       message =
-        (typeof data === "string" && data) ||
+        (typeof data === "string" && data.trim()) ||
         data?.detail ||
         data?.error ||
-        JSON.stringify(data) ||
-        message;
+        data?.message ||
+        "";
+
+      // If we have field-specific errors, format them nicely
+      if (!message && typeof data === "object" && data !== null) {
+        const errorFields: string[] = [];
+        for (const [key, value] of Object.entries(data)) {
+          if (Array.isArray(value) && value.length > 0) {
+            errorFields.push(`${key}: ${value[0]}`);
+          } else if (typeof value === "string" && value.trim()) {
+            errorFields.push(`${key}: ${value}`);
+          }
+        }
+        if (errorFields.length > 0) {
+          message = errorFields.join(". ");
+        }
+      }
     } catch {
-      // ignore json parse errors
+      // If JSON parsing fails, use status-based messages
     }
+
+    // Provide user-friendly messages based on status codes
+    if (!message || message.trim().length === 0) {
+      switch (response.status) {
+        case 400:
+          message = "Invalid request. Please check your input and try again.";
+          break;
+        case 401:
+          message = "You are not authorized. Please log in and try again.";
+          break;
+        case 403:
+          message = "You don't have permission to perform this action.";
+          break;
+        case 404:
+          message = "The requested resource was not found. Please refresh the page.";
+          break;
+        case 409:
+          message = "This action conflicts with existing data. Please check and try again.";
+          break;
+        case 422:
+          message = "The information you provided is invalid. Please check your input.";
+          break;
+        case 500:
+          message = "A server error occurred. Please try again later.";
+          break;
+        case 503:
+          message = "The service is temporarily unavailable. Please try again later.";
+          break;
+        default:
+          message = `Request failed (${response.status}). Please try again.`;
+      }
+    }
+
     throw new Error(message);
   }
 
@@ -1558,7 +1655,7 @@ function HomePage({
         if (!ignore) {
           console.error("Error loading dashboard data:", err);
           setImpactError(
-            err instanceof Error ? err.message : "Unable to load dashboard data."
+            formatErrorMessage(err) || "Unable to load dashboard data. Please try again."
           );
           setImpactLoading(false);
           setLeaderboardLoading(false);
@@ -2409,7 +2506,7 @@ function YourStatsSection({
       } catch (err) {
         if (!ignore) {
           setError(
-            err instanceof Error ? err.message : "Unable to load your stats"
+            formatErrorMessage(err) || "Unable to load your stats. Please try again."
           );
         }
       } finally {
@@ -3653,9 +3750,7 @@ function DonationSection(props: {
         )
       );
     } catch (error) {
-      setDonationsError(
-        error instanceof Error ? error.message : "Unable to load donations"
-      );
+      setDonationsError(formatErrorMessage(error) || "Unable to load donations. Please try again.");
     }
   }, [prioritizeDonations]);
 
@@ -4164,7 +4259,7 @@ function DonationSection(props: {
 
       setNotification({ message: "Donation removed from the list." });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unable to delete donation. Please try again.";
+      const errorMessage = formatErrorMessage(error) || "Unable to delete donation. Please try again.";
       setNotification({
         error: errorMessage,
       });
@@ -4789,7 +4884,7 @@ function DonationRequestSection(props: {
       } catch (error) {
         if (!ignore) {
           setRequestsError(
-            error instanceof Error ? error.message : "Unable to load requests"
+            formatErrorMessage(error) || "Unable to load requests. Please try again."
           );
           setRequests([]);
         }
@@ -5517,7 +5612,7 @@ function ProfileModal({
         onClose();
       }, 1000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update profile");
+      setError(formatErrorMessage(err) || "Failed to update profile. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -5763,7 +5858,7 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
         }
       } catch (err) {
         if (!ignore) {
-          setError(err instanceof Error ? err.message : "Unable to load admin data.");
+          setError(formatErrorMessage(err) || "Unable to load admin data. Please try again.");
         }
       } finally {
         if (!ignore) {
@@ -5875,7 +5970,7 @@ function AdminDashboard({ currentUser }: { currentUser: LoggedUser }) {
         }));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update status.");
+      setError(formatErrorMessage(err) || "Unable to update status. Please try again.");
     } finally {
       setUpdatingId(null);
     }
@@ -6136,7 +6231,7 @@ function StatusSection({
         }
       } catch (err) {
         if (!ignore) {
-          setError(err instanceof Error ? err.message : "Unable to load status data.");
+          setError(formatErrorMessage(err) || "Unable to load status data. Please try again.");
         }
       } finally {
         if (!ignore) {
@@ -6818,7 +6913,7 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
       });
       setStaffInputs(nextInputs);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load deliveries.");
+      setError(formatErrorMessage(err) || "Unable to load deliveries. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -7046,7 +7141,7 @@ function DeliveryStaffDashboard({ currentUser }: { currentUser: LoggedUser | nul
       );
       setNotice(`Updated ${deliveryId} to ${nextStatus.replace("_", " ")}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update status.");
+      setError(formatErrorMessage(err) || "Unable to update status. Please try again.");
     } finally {
       setUpdatingStatusId(null);
     }
@@ -7514,7 +7609,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
       }
       setFoodItems(allFoodItems);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load delivery data.");
+      setError(formatErrorMessage(err) || "Unable to load delivery data. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -7709,7 +7804,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
       setNotice("Pickup task deleted successfully.");
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to delete pickup task.");
+      setError(formatErrorMessage(err) || "Unable to delete pickup task. Please try again.");
     } finally {
       setDeletingDeliveryId(null);
     }
@@ -7772,7 +7867,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
       });
       setEditingDeliveryId(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save pickup assignment.");
+      setError(formatErrorMessage(err) || "Unable to save pickup assignment. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -8026,7 +8121,7 @@ function PickupToWarehouse({ currentUser }: { currentUser: LoggedUser | null }) 
       );
       setNotice(`Updated delivery ${deliveryId} to ${nextStatus.replace("_", " ")}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update status.");
+      setError(formatErrorMessage(err) || "Unable to update status. Please try again.");
     } finally {
       setUpdatingStatusId(null);
     }
@@ -8681,7 +8776,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
       setDeliveries(deliveryData);
       setFoodItems(foodItemsData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load delivery data.");
+      setError(formatErrorMessage(err) || "Unable to load delivery data. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -8893,7 +8988,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
         handleCancelEdit();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to delete delivery assignment.");
+      setError(formatErrorMessage(err) || "Unable to delete delivery assignment. Please try again.");
     } finally {
       setDeletingDeliveryId(null);
     }
@@ -8979,7 +9074,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
       await loadData();
       handleCancelEdit();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save distribution assignment.");
+      setError(formatErrorMessage(err) || "Unable to save distribution assignment. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -9250,7 +9345,7 @@ function DeliverToCommunity({ currentUser }: { currentUser: LoggedUser | null })
       );
       setNotice(`Updated delivery ${deliveryId} to ${nextStatus.replace("_", " ")}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update status.");
+      setError(formatErrorMessage(err) || "Unable to update status. Please try again.");
     } finally {
       setUpdatingStatusId(null);
     }
@@ -10027,7 +10122,7 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
         return metroWarehouses[0]?.warehouse_id ?? "";
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load warehouse data.");
+      setError(formatErrorMessage(err) || "Unable to load warehouse data. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -10104,7 +10199,7 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
       // Remove from local state so UI updates immediately
       setFoodItems((prev) => prev.filter((f) => f.food_id !== foodId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to remove item");
+      setError(formatErrorMessage(err) || "Unable to remove item. Please try again.");
     }
   };
 
@@ -10465,37 +10560,70 @@ function WarehouseManagement({ currentUser }: { currentUser: LoggedUser | null }
 
 // Modal (popup) component
 
-function extractErrorMessage(responseBody: unknown) {
+function extractErrorMessage(responseBody: unknown): string {
   if (!responseBody) {
-    return "Request failed";
+    return "An error occurred. Please try again.";
   }
 
   if (typeof responseBody === "string") {
-    return responseBody;
+    // Clean up string messages
+    const cleaned = responseBody.trim();
+    if (cleaned.length > 0) {
+      return cleaned;
+    }
+    return "An error occurred. Please try again.";
   }
 
   if (typeof responseBody === "object" && responseBody !== null) {
     const typedResponse = responseBody as Record<string, unknown>;
 
+    // Try common error fields
     if (typedResponse.error) {
-      return String(typedResponse.error);
+      const errorMsg = String(typedResponse.error);
+      if (errorMsg && errorMsg !== "null" && errorMsg !== "undefined") {
+        return errorMsg;
+      }
     }
 
     if (typedResponse.detail) {
-      return String(typedResponse.detail);
+      const detailMsg = String(typedResponse.detail);
+      if (detailMsg && detailMsg !== "null" && detailMsg !== "undefined") {
+        return detailMsg;
+      }
     }
 
-    const firstValue = Object.values(typedResponse).find(Boolean);
-    if (Array.isArray(firstValue) && firstValue.length) {
-      return String(firstValue[0]);
+    if (typedResponse.message) {
+      const messageMsg = String(typedResponse.message);
+      if (messageMsg && messageMsg !== "null" && messageMsg !== "undefined") {
+        return messageMsg;
+      }
     }
 
-    if (typeof firstValue === "string") {
-      return firstValue;
+    // Try to find the first meaningful error value
+    const firstValue = Object.values(typedResponse).find((val) => {
+      if (Array.isArray(val) && val.length > 0) {
+        return true;
+      }
+      if (typeof val === "string" && val.trim().length > 0) {
+        return true;
+      }
+      return false;
+    });
+
+    if (Array.isArray(firstValue) && firstValue.length > 0) {
+      const firstItem = firstValue[0];
+      if (typeof firstItem === "string") {
+        return firstItem;
+      }
+      return String(firstItem);
+    }
+
+    if (typeof firstValue === "string" && firstValue.trim().length > 0) {
+      return firstValue.trim();
     }
   }
 
-  return "Request failed";
+  return "An error occurred. Please try again.";
 }
 
 function AuthModal({
